@@ -1,4 +1,4 @@
-use crate::{config::AkConfig, error::Result, mailers::Mailer};
+use crate::{config::Ak, error::Result, mailers::Mailer};
 use object_store::aws::AmazonS3;
 use sea_orm::DatabaseConnection;
 use std::{sync::Arc, time::Duration};
@@ -16,10 +16,10 @@ pub struct WorkerOptions {
     pub mailer: Arc<Mailer>,
     pub conn: DatabaseConnection,
     pub s3: Arc<AmazonS3>,
-    pub ak: AkConfig,
+    pub ak: Ak,
 }
 
-pub async fn start(opt: WorkerOptions) -> Result<AbortHandle> {
+pub fn start(opt: WorkerOptions) -> Result<AbortHandle> {
     let worker = check_and_download::CheckAndDownload::new(opt.clone())?;
     let handle = spawn(async move {
         let mut interval = interval(Duration::from_secs(2 * 60));
@@ -27,7 +27,9 @@ pub async fn start(opt: WorkerOptions) -> Result<AbortHandle> {
         loop {
             interval.tick().await;
             if let Err(e) = worker.perform().await {
-                opt.mailer.notify_error(&e).unwrap();
+                if let Err(e) = opt.mailer.notify_error(&e) {
+                    error!("notify error failed: {}", e);
+                }
                 error!("check and download error: {}", e);
             }
         }

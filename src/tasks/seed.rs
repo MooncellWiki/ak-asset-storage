@@ -12,10 +12,10 @@ use std::{fs, path::PathBuf};
 pub async fn seed(path: PathBuf, opt: WorkerOptions) -> Result<()> {
     let content = fs::read_to_string(path)?;
     let versions = content
-        .split("\n")
+        .split('\n')
         .filter(|line| !line.is_empty())
         .map(|line| {
-            let parts = line.split(",").collect::<Vec<&str>>();
+            let parts = line.split(',').collect::<Vec<&str>>();
             (parts[1].to_string(), parts[2].to_string())
         })
         .collect::<Vec<(String, String)>>();

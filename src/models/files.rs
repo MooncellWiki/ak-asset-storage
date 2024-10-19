@@ -15,13 +15,13 @@ pub struct Filter {
     version: Option<i32>,
 }
 impl Model {
-    pub async fn list_by_version_id(db: &DatabaseConnection, id: i32) -> Result<Vec<Model>> {
+    pub async fn list_by_version_id(db: &DatabaseConnection, id: i32) -> Result<Vec<Self>> {
         Ok(Entity::find()
             .filter(Column::Version.eq(id))
             .all(db)
             .await?)
     }
-    pub async fn filter(db: &DatabaseConnection, filter: Filter) -> Result<Vec<Model>> {
+    pub async fn filter(db: &DatabaseConnection, filter: Filter) -> Result<Vec<Self>> {
         let mut condition = Condition::all();
         if let Some(path) = filter.path {
             condition = condition.add(Column::Path.contains(path));
@@ -41,7 +41,7 @@ impl Model {
         db: &DatabaseConnection,
         version: i32,
         path: &str,
-    ) -> Result<Option<Model>> {
+    ) -> Result<Option<Self>> {
         Ok(Entity::find()
             .filter(Column::Version.eq(version))
             .filter(Column::Path.eq(path))

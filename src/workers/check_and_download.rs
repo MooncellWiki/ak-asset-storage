@@ -23,7 +23,7 @@ pub struct RemoteVersion {
     pub res_version: String,
 }
 impl RemoteVersion {
-    pub async fn get(base_url: &str, client: &reqwest::Client) -> Result<RemoteVersion> {
+    pub async fn get(base_url: &str, client: &reqwest::Client) -> Result<Self> {
         let url = format!(
             "{}{}?sign={}",
             base_url,
@@ -35,7 +35,7 @@ impl RemoteVersion {
         );
         info!("req version {}", url);
 
-        let ver: RemoteVersion = client.get(url).send().await?.json().await?;
+        let ver: Self = client.get(url).send().await?.json().await?;
         info!(
             "remote version {} {}",
             &ver.client_version, &ver.res_version
@@ -55,6 +55,7 @@ pub struct UpdateInfo {
     pub total_size: u64,
 }
 impl UpdateInfo {
+    #[must_use]
     pub fn url(&self) -> String {
         self.name
             .replace('/', "_")
@@ -71,12 +72,12 @@ pub struct UpdateList {
 }
 
 impl UpdateList {
-    pub async fn get(url: &str, res_ver: &str, client: &reqwest::Client) -> Result<UpdateList> {
-        let url = format!("{}/{}/hot_update_list.json", url, res_ver);
+    pub async fn get(url: &str, res_ver: &str, client: &reqwest::Client) -> Result<Self> {
+        let url = format!("{url}/{res_ver}/hot_update_list.json");
         info!("req hot update list {}", url);
         let resp = client.get(url).send().await?.text().await?;
         info!("got hot update list {}", res_ver);
-        let mut result: UpdateList = serde_json::from_str(&resp)?;
+        let mut result: Self = serde_json::from_str(&resp)?;
         result.raw = resp;
         Ok(result)
     }
@@ -119,21 +120,19 @@ impl CheckAndDownload {
         }
         let update =
             UpdateList::get(&self.base_url, &remote_version.res_version, &self.client).await?;
-        let mut active = match local_version {
-            Some(local_version) => local_version.into_active_model(),
-            None => {
-                let mut result = versions::ActiveModel::new();
-                result.client = Set(remote_version.client_version.clone());
-                result.res = Set(remote_version.res_version.clone());
-                result.hot_update_list = Set(update.raw.to_string());
-                result
-            }
+        let mut active = if let Some(local_version) = local_version {
+            local_version.into_active_model()
+        } else {
+            let mut result = versions::ActiveModel::new();
+            result.client = Set(remote_version.client_version.clone());
+            result.res = Set(remote_version.res_version.clone());
+            result.hot_update_list = Set(update.raw.to_string());
+            result
         };
         active.status = Set(StatusEnum::Working);
         active = active.clone().save(&self.conn).await?;
-        let version_id = match active.id {
-            sea_orm::ActiveValue::Unchanged(v) => v,
-            _ => unreachable!("id should be set"),
+        let sea_orm::ActiveValue::Unchanged(version_id) = active.id else {
+            unreachable!("id should be set")
         };
         for ab in update.ab_infos {
             self.sync(ab, &remote_version, version_id).await?;

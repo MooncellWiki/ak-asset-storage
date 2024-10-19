@@ -19,7 +19,7 @@ use tower_http::trace::TraceLayer;
 use tower_http::{compression::CompressionLayer, timeout::TimeoutLayer};
 
 #[derive(Clone)]
-pub struct AppContext {
+pub struct Context {
     pub conn: DatabaseConnection,
 }
 
@@ -60,7 +60,7 @@ pub async fn boot_server_and_worker(
             // requests don't hang forever.
             TimeoutLayer::new(Duration::from_secs(10)),
         ))
-        .with_state(AppContext { conn: conn.clone() });
+        .with_state(Context { conn: conn.clone() });
     let mailer = Mailer::new(&config.mailer)?;
     let worker_options = WorkerOptions {
         mailer: Arc::new(mailer),
@@ -68,7 +68,7 @@ pub async fn boot_server_and_worker(
         s3: Arc::new(config.s3.client()?),
         ak: config.ak.clone(),
     };
-    let handler = workers::start(worker_options).await?;
+    let handler = workers::start(worker_options)?;
 
     let listener = TcpListener::bind(config.server.full_url()).await?;
     axum::serve(listener, app)
@@ -97,7 +97,7 @@ async fn shutdown_signal() {
     let terminate = std::future::pending::<()>();
 
     tokio::select! {
-        _ = ctrl_c => {},
-        _ = terminate => {},
+        () = ctrl_c => {},
+        () = terminate => {},
     }
 }
