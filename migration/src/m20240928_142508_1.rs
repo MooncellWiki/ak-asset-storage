@@ -1,5 +1,4 @@
-use sea_orm::{EnumIter, Iterable};
-use sea_orm_migration::{prelude::extension::postgres::Type, prelude::*, schema::*};
+use sea_orm_migration::{prelude::*, schema::*};
 
 #[derive(DeriveMigrationName)]
 pub struct Migration;
@@ -8,14 +7,6 @@ pub struct Migration;
 impl MigrationTrait for Migration {
     async fn up(&self, manager: &SchemaManager) -> Result<(), DbErr> {
         manager
-            .create_type(
-                Type::create()
-                    .as_enum(StatusEnum)
-                    .values(StatusVariants::iter())
-                    .to_owned(),
-            )
-            .await?;
-        manager
             .create_table(
                 Table::create()
                     .table(Versions::Table)
@@ -23,11 +14,7 @@ impl MigrationTrait for Migration {
                     .col(pk_auto(Versions::Id))
                     .col(string_len(Versions::Res, 32))
                     .col(string_len(Versions::Client, 32))
-                    .col(enumeration(
-                        Versions::Status,
-                        StatusEnum,
-                        StatusVariants::iter(),
-                    ))
+                    .col(boolean(Versions::IsReady))
                     .col(text(Versions::HotUpdateList))
                     .take(),
             )
@@ -38,7 +25,7 @@ impl MigrationTrait for Migration {
                     .table(Files::Table)
                     .col(pk_auto(Files::Id))
                     .col(string_len(Files::Path, 256))
-                    .col(char_len_uniq(Files::Hash, 64))
+                    .col(char_len(Files::Hash, 64))
                     .col(integer(Files::Version))
                     .foreign_key(
                         ForeignKey::create()
@@ -83,16 +70,13 @@ impl MigrationTrait for Migration {
 
     async fn down(&self, manager: &SchemaManager) -> Result<(), DbErr> {
         manager
+            .drop_table(Table::drop().table(FileMetas::Table).to_owned())
+            .await?;
+        manager
             .drop_table(Table::drop().table(Files::Table).to_owned())
             .await?;
         manager
             .drop_table(Table::drop().table(Versions::Table).to_owned())
-            .await?;
-        manager
-            .drop_type(Type::drop().name(StatusEnum).to_owned())
-            .await?;
-        manager
-            .drop_table(Table::drop().table(FileMetas::Table).to_owned())
             .await?;
         Ok(())
     }
@@ -104,16 +88,8 @@ enum Versions {
     Id,
     Res,
     Client,
-    Status,
+    IsReady,
     HotUpdateList,
-}
-#[derive(DeriveIden)]
-pub struct StatusEnum;
-
-#[derive(Iden, EnumIter)]
-pub enum StatusVariants {
-    Working,
-    Ready,
 }
 
 #[derive(DeriveIden)]

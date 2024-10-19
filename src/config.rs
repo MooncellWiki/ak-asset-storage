@@ -19,7 +19,8 @@ pub struct Config {
 }
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct Ak {
-    pub base_url: String,
+    pub asset_url: String,
+    pub conf_url: String,
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize, Default)]
@@ -89,7 +90,7 @@ fn default_binding() -> String {
 impl Server {
     #[must_use]
     pub fn full_url(&self) -> String {
-        format!("{}:{}", self.host, self.port)
+        format!("{}:{}", self.binding, self.port)
     }
 }
 

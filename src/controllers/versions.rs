@@ -43,19 +43,19 @@ pub async fn list_files(Path(id): Path<i32>, State(ctx): State<Context>) -> Resu
 
 #[derive(Debug, Deserialize)]
 pub struct LatestFlag {
-    latest: bool,
+    ready: bool,
 }
 #[debug_handler]
 pub async fn latest(
     Query(query): Query<LatestFlag>,
     State(ctx): State<Context>,
 ) -> Result<Response> {
-    Model::latest(&ctx.conn, query.latest).await.map(json)
+    Model::latest(&ctx.conn, query.ready).await.map(json)
 }
 
 pub fn routes() -> Router<Context> {
     Router::new().nest(
-        "version",
+        "/version",
         Router::new()
             .route("/", get(list))
             .route("/:id", get(get_one))
