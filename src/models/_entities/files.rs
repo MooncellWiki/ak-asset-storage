@@ -9,7 +9,6 @@ pub struct Model {
     #[sea_orm(primary_key)]
     pub id: i32,
     pub path: String,
-    #[sea_orm(unique)]
     pub hash: String,
     pub version: i32,
 }

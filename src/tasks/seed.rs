@@ -1,47 +1,55 @@
+use object_store::aws::AmazonS3;
+use sea_orm::DatabaseConnection;
+
 use crate::{
+    config::Ak,
     error::Result,
-    models::_entities::{sea_orm_active_enums::StatusEnum, versions},
     workers::{
-        check_and_download::{CheckAndDownload, RemoteVersion, UpdateList},
-        WorkerOptions,
+        check::{self, RemoteVersion},
+        download,
     },
 };
-use sea_orm::{ActiveModelTrait, ActiveValue::NotSet, IntoActiveModel, Set};
-use std::{fs, path::PathBuf};
+use std::{fs, path::PathBuf, sync::Arc, time::Duration};
 
-pub async fn seed(path: PathBuf, opt: WorkerOptions) -> Result<()> {
+pub async fn seed(
+    path: PathBuf,
+    conn: DatabaseConnection,
+    s3: Arc<AmazonS3>,
+    ak: Ak,
+) -> Result<()> {
     let content = fs::read_to_string(path)?;
     let versions = content
         .split('\n')
         .filter(|line| !line.is_empty())
         .map(|line| {
             let parts = line.split(',').collect::<Vec<&str>>();
-            (parts[1].to_string(), parts[2].to_string())
+            RemoteVersion {
+                res_version: parts[1].to_string(),
+                client_version: parts[2].to_string(),
+            }
         })
-        .collect::<Vec<(String, String)>>();
-    let worker = CheckAndDownload::new(opt.clone())?;
-    let client = reqwest::Client::new();
-    for (res_version, client_version) in versions {
-        let update_list = UpdateList::get(&opt.ak.base_url, &res_version, &client).await?;
-        let version = versions::ActiveModel {
-            client: Set(client_version.clone()),
-            res: Set(res_version.clone()),
-            hot_update_list: Set(update_list.raw),
-            status: Set(StatusEnum::Working),
-            id: NotSet,
-        }
-        .insert(&opt.conn)
-        .await?;
-        let remove_verion = RemoteVersion {
-            client_version,
-            res_version,
-        };
-        for ab in update_list.ab_infos {
-            worker.sync(ab, &remove_verion, version.id).await?;
-        }
-        let mut version = version.into_active_model();
-        version.status = Set(StatusEnum::Ready);
-        version.save(&opt.conn).await?;
+        .collect::<Vec<RemoteVersion>>();
+    let client = reqwest::ClientBuilder::new()
+        .timeout(Duration::from_secs(60 * 5))
+        .build()?;
+    let checker = check::Check {
+        client: client.clone(),
+        conn: conn.clone(),
+        mailer: None,
+        conf_url: ak.conf_url.clone(),
+        asset_url: ak.asset_url.clone(),
+    };
+    let downloader = download::Download {
+        client: client.clone(),
+        conn: conn.clone(),
+        s3: s3.clone(),
+        mailer: None,
+        asset_url: ak.asset_url.clone(),
+    };
+    for remote in versions {
+        checker.update(remote).await?;
+        downloader.sync_all().await?;
     }
+
     Ok(())
 }

@@ -7,9 +7,8 @@ use tokio::{
     task::AbortHandle,
     time::{interval, MissedTickBehavior},
 };
-use tracing::error;
-
-pub mod check_and_download;
+pub mod check;
+pub mod download;
 
 #[derive(Clone, Debug)]
 pub struct WorkerOptions {
@@ -19,20 +18,39 @@ pub struct WorkerOptions {
     pub ak: Ak,
 }
 
-pub fn start(opt: WorkerOptions) -> Result<AbortHandle> {
-    let worker = check_and_download::CheckAndDownload::new(opt.clone())?;
-    let handle = spawn(async move {
+pub fn start(opt: WorkerOptions) -> Result<(AbortHandle, AbortHandle)> {
+    let client = reqwest::ClientBuilder::new()
+        .timeout(Duration::from_secs(60 * 5))
+        .build()?;
+    let checker = check::Check {
+        conf_url: opt.ak.conf_url.clone(),
+        asset_url: opt.ak.asset_url.clone(),
+        client: client.clone(),
+        conn: opt.conn.clone(),
+        mailer: Some(opt.mailer.clone()),
+    };
+    let check_handle = spawn(async move {
         let mut interval = interval(Duration::from_secs(2 * 60));
         interval.set_missed_tick_behavior(MissedTickBehavior::Skip);
         loop {
             interval.tick().await;
-            if let Err(e) = worker.perform().await {
-                if let Err(e) = opt.mailer.notify_error(&e) {
-                    error!("notify error failed: {}", e);
-                }
-                error!("check and download error: {}", e);
-            }
+            checker.perform().await;
         }
     });
-    Ok(handle.abort_handle())
+    let downloader = download::Download {
+        asset_url: opt.ak.asset_url.clone(),
+        client,
+        conn: opt.conn,
+        s3: opt.s3,
+        mailer: Some(opt.mailer),
+    };
+    let download_handle = spawn(async move {
+        let mut interval = interval(Duration::from_secs(2 * 60));
+        interval.set_missed_tick_behavior(MissedTickBehavior::Skip);
+        loop {
+            interval.tick().await;
+            downloader.perform().await;
+        }
+    });
+    Ok((check_handle.abort_handle(), download_handle.abort_handle()))
 }

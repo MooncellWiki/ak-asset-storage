@@ -21,7 +21,7 @@ impl Model {
             .one(db)
             .await?)
     }
-    pub async fn set_md5(db: &DatabaseConnection, file_id: i32, md5: &str) -> Result<()> {
+    pub async fn set_md5<C: ConnectionTrait>(db: &C, file_id: i32, md5: &str) -> Result<()> {
         Entity::insert(ActiveModel {
             key: Set(String::from("md5")),
             value: Set(md5.to_string()),

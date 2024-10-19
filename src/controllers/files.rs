@@ -31,7 +31,7 @@ pub async fn filter(Query(query): Query<Filter>, State(ctx): State<Context>) -> 
 
 pub fn routes() -> Router<Context> {
     Router::new().nest(
-        "files",
+        "/files",
         Router::new()
             .route("/", get(filter))
             .route("//:id", get(get_one)),

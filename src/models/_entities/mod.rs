@@ -4,5 +4,4 @@ pub mod prelude;
 
 pub mod file_metas;
 pub mod files;
-pub mod sea_orm_active_enums;
 pub mod versions;

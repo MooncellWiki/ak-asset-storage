@@ -7,9 +7,7 @@ use ak_asset_storage_next::{
     app::{boot, boot_server_and_worker},
     config::Config,
     error::Result,
-    mailers::Mailer,
     tasks::seed::seed,
-    workers::WorkerOptions,
 };
 use clap::{Parser, Subcommand};
 
@@ -60,15 +58,11 @@ async fn main() -> Result<()> {
                 &config.unwrap_or_else(|| "config.toml".to_string()),
             ))?;
             let conn = boot(&config).await?;
-            let mailer = Mailer::new(&config.mailer)?;
             seed(
                 PathBuf::from(&csv_path),
-                WorkerOptions {
-                    conn: conn.clone(),
-                    mailer: Arc::new(mailer),
-                    s3: Arc::new(config.s3.client()?),
-                    ak: config.ak.clone(),
-                },
+                conn,
+                Arc::new(config.s3.client()?),
+                config.ak,
             )
             .await?;
         }

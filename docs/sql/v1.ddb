@@ -1,13 +1,13 @@
 {
   "author": "Unnamed",
   "title": "Untitled Diagram",
-  "date": "2024-10-12T14:04:15.699Z",
+  "date": "2024-10-19T13:22:38.002Z",
   "tables": [
     {
       "id": 0,
       "name": "files",
-      "x": -93.99987792968756,
-      "y": -151.33334350585938,
+      "x": -104.66650390625017,
+      "y": -244,
       "fields": [
         {
           "name": "id",
@@ -54,7 +54,7 @@
           "default": "",
           "check": "",
           "primary": false,
-          "unique": true,
+          "unique": false,
           "notNull": true,
           "increment": false,
           "comment": "sha-256",
@@ -67,7 +67,7 @@
         {
           "id": 0,
           "name": "files_index_0",
-          "unique": false,
+          "unique": true,
           "fields": [
             "path",
             "version"
@@ -122,8 +122,8 @@
           "size": 32
         },
         {
-          "name": "status",
-          "type": "STATUS",
+          "name": "is_ready",
+          "type": "BOOLEAN",
           "default": "",
           "check": "",
           "primary": false,
@@ -157,8 +157,8 @@
     {
       "id": 2,
       "name": "file_metas",
-      "x": -396.0001525878905,
-      "y": -143.33331298828128,
+      "x": -496.6668395996092,
+      "y": -175.33331298828125,
       "fields": [
         {
           "name": "id",
@@ -219,7 +219,7 @@
         {
           "id": 0,
           "name": "file_metas_index_0",
-          "unique": false,
+          "unique": true,
           "fields": [
             "key",
             "value",

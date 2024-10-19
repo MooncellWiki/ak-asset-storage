@@ -61,20 +61,21 @@ pub async fn boot_server_and_worker(
             TimeoutLayer::new(Duration::from_secs(10)),
         ))
         .with_state(Context { conn: conn.clone() });
-    let mailer = Mailer::new(&config.mailer)?;
+    let mailer = Mailer::new(&config.mailer, &config.server.host)?;
     let worker_options = WorkerOptions {
         mailer: Arc::new(mailer),
         conn: conn.clone(),
         s3: Arc::new(config.s3.client()?),
         ak: config.ak.clone(),
     };
-    let handler = workers::start(worker_options)?;
+    let (check_handler, download_handler) = workers::start(worker_options)?;
 
     let listener = TcpListener::bind(config.server.full_url()).await?;
     axum::serve(listener, app)
         .with_graceful_shutdown(shutdown_signal())
         .await?;
-    handler.abort();
+    check_handler.abort();
+    download_handler.abort();
     Ok(())
 }
 
