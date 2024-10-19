@@ -21,7 +21,7 @@ jobs:
     steps:
       - name: Checkout the code
         uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: ./.github/actions/rustup
         with:
           components: rustfmt
       - name: Run cargo fmt
@@ -40,9 +40,9 @@ jobs:
     steps:
       - name: Checkout the code
         uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@stable
-      - name: Setup Rust cache
-        uses: Swatinem/rust-cache@v2
+      - uses: ./.github/actions/rustup
+        with:
+          components: clippy
       - name: Run cargo clippy
         uses: actions-rs/cargo@v1
         with:
