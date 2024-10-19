@@ -1,5 +1,8 @@
 pub mod app;
+pub mod config;
 pub mod controllers;
+pub mod error;
+pub mod logger;
 pub mod mailers;
 pub mod models;
 pub mod tasks;

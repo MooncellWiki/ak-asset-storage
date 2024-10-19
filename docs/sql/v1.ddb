@@ -1,0 +1,271 @@
+{
+  "author": "Unnamed",
+  "title": "Untitled Diagram",
+  "date": "2024-10-12T14:04:15.699Z",
+  "tables": [
+    {
+      "id": 0,
+      "name": "files",
+      "x": -93.99987792968756,
+      "y": -151.33334350585938,
+      "fields": [
+        {
+          "name": "id",
+          "type": "INTEGER",
+          "default": "",
+          "check": "",
+          "primary": true,
+          "unique": true,
+          "notNull": true,
+          "increment": true,
+          "comment": "",
+          "id": 0
+        },
+        {
+          "name": "path",
+          "type": "VARCHAR",
+          "default": "",
+          "check": "",
+          "primary": false,
+          "unique": false,
+          "notNull": true,
+          "increment": false,
+          "comment": "",
+          "id": 1,
+          "size": 256
+        },
+        {
+          "name": "version",
+          "type": "INTEGER",
+          "default": "",
+          "check": "",
+          "primary": false,
+          "unique": false,
+          "notNull": true,
+          "increment": false,
+          "comment": "",
+          "id": 2,
+          "size": "",
+          "values": []
+        },
+        {
+          "name": "hash",
+          "type": "CHAR",
+          "default": "",
+          "check": "",
+          "primary": false,
+          "unique": true,
+          "notNull": true,
+          "increment": false,
+          "comment": "sha-256",
+          "id": 3,
+          "size": 64
+        }
+      ],
+      "comment": "",
+      "indices": [
+        {
+          "id": 0,
+          "name": "files_index_0",
+          "unique": false,
+          "fields": [
+            "path",
+            "version"
+          ]
+        }
+      ],
+      "color": "#175e7a",
+      "key": 1727531686647
+    },
+    {
+      "id": 1,
+      "name": "verions",
+      "x": 238.6667480468751,
+      "y": -167.99999999999997,
+      "fields": [
+        {
+          "name": "id",
+          "type": "INTEGER",
+          "default": "",
+          "check": "",
+          "primary": true,
+          "unique": true,
+          "notNull": true,
+          "increment": true,
+          "comment": "",
+          "id": 0
+        },
+        {
+          "name": "res",
+          "type": "VARCHAR",
+          "default": "",
+          "check": "",
+          "primary": false,
+          "unique": false,
+          "notNull": true,
+          "increment": false,
+          "comment": "like 24-09-23-11-27-19-c6564b",
+          "id": 1,
+          "size": 32
+        },
+        {
+          "name": "client",
+          "type": "VARCHAR",
+          "default": "",
+          "check": "",
+          "primary": false,
+          "unique": false,
+          "notNull": true,
+          "increment": false,
+          "comment": "like 2.3.61",
+          "id": 2,
+          "size": 32
+        },
+        {
+          "name": "status",
+          "type": "STATUS",
+          "default": "",
+          "check": "",
+          "primary": false,
+          "unique": false,
+          "notNull": true,
+          "increment": false,
+          "comment": "",
+          "id": 3,
+          "size": "",
+          "values": []
+        },
+        {
+          "name": "hot_update_list",
+          "type": "TEXT",
+          "default": "",
+          "check": "",
+          "primary": false,
+          "unique": false,
+          "notNull": true,
+          "increment": false,
+          "comment": "",
+          "id": 4,
+          "size": 65535
+        }
+      ],
+      "comment": "",
+      "indices": [],
+      "color": "#175e7a",
+      "key": 1727531740096
+    },
+    {
+      "id": 2,
+      "name": "file_metas",
+      "x": -396.0001525878905,
+      "y": -143.33331298828128,
+      "fields": [
+        {
+          "name": "id",
+          "type": "INTEGER",
+          "default": "",
+          "check": "",
+          "primary": true,
+          "unique": true,
+          "notNull": true,
+          "increment": true,
+          "comment": "",
+          "id": 0
+        },
+        {
+          "name": "key",
+          "type": "VARCHAR",
+          "default": "",
+          "check": "",
+          "primary": false,
+          "unique": false,
+          "notNull": true,
+          "increment": false,
+          "comment": "",
+          "id": 1,
+          "size": 255
+        },
+        {
+          "name": "value",
+          "type": "TEXT",
+          "default": "",
+          "check": "",
+          "primary": false,
+          "unique": false,
+          "notNull": true,
+          "increment": false,
+          "comment": "",
+          "id": 2,
+          "size": "",
+          "values": []
+        },
+        {
+          "name": "file_id",
+          "type": "INTEGER",
+          "default": "",
+          "check": "",
+          "primary": false,
+          "unique": false,
+          "notNull": true,
+          "increment": false,
+          "comment": "",
+          "id": 3,
+          "size": "",
+          "values": []
+        }
+      ],
+      "comment": "",
+      "indices": [
+        {
+          "id": 0,
+          "name": "file_metas_index_0",
+          "unique": false,
+          "fields": [
+            "key",
+            "value",
+            "file_id"
+          ]
+        }
+      ],
+      "color": "#175e7a",
+      "key": 1728737775515
+    }
+  ],
+  "relationships": [
+    {
+      "startTableId": 0,
+      "startFieldId": 2,
+      "endTableId": 1,
+      "endFieldId": 0,
+      "cardinality": "many_to_one",
+      "updateConstraint": "No action",
+      "deleteConstraint": "No action",
+      "name": "files_version_fk",
+      "id": 0
+    },
+    {
+      "startTableId": 2,
+      "startFieldId": 3,
+      "endTableId": 0,
+      "endFieldId": 0,
+      "cardinality": "one_to_one",
+      "updateConstraint": "No action",
+      "deleteConstraint": "No action",
+      "name": "file_metas_file_id_fk",
+      "id": 1
+    }
+  ],
+  "notes": [],
+  "subjectAreas": [],
+  "database": "postgresql",
+  "types": [],
+  "enums": [
+    {
+      "name": "status",
+      "values": [
+        "working",
+        "ready"
+      ]
+    }
+  ]
+}

@@ -1,72 +1,103 @@
-use std::path::Path;
-
-use async_trait::async_trait;
-use loco_rs::{
-    app::{AppContext, Hooks},
-    boot::{create_app, BootResult, StartMode},
-    controller::AppRoutes,
-    db::{self, truncate_table},
-    environment::Environment,
-    task::Tasks,
-    worker::{AppWorker, Processor},
-    Result,
-};
+use crate::config;
+use crate::controllers;
+use crate::error::Result;
+use crate::logger;
+use crate::mailers::Mailer;
+use crate::workers;
+use crate::workers::WorkerOptions;
+use axum::Router;
 use migration::Migrator;
+use migration::MigratorTrait;
+use sea_orm::ConnectOptions;
+use sea_orm::Database;
 use sea_orm::DatabaseConnection;
+use sea_orm::DbConn;
+use std::sync::Arc;
+use std::time::Duration;
+use tokio::{net::TcpListener, signal};
+use tower_http::trace::TraceLayer;
+use tower_http::{compression::CompressionLayer, timeout::TimeoutLayer};
 
-use crate::{
-    controllers,
-    models::_entities::{notes, users},
-    tasks,
-    workers::downloader::DownloadWorker,
-};
+#[derive(Clone)]
+pub struct AppContext {
+    pub conn: DatabaseConnection,
+}
 
-pub struct App;
-#[async_trait]
-impl Hooks for App {
-    fn app_name() -> &'static str {
-        env!("CARGO_CRATE_NAME")
+async fn connect_db(config: &config::Database) -> Result<DbConn> {
+    let mut opt = ConnectOptions::new(&config.uri);
+    opt.max_connections(config.max_connections)
+        .min_connections(config.min_connections)
+        .connect_timeout(Duration::from_millis(config.connect_timeout))
+        .idle_timeout(Duration::from_millis(config.idle_timeout))
+        .sqlx_logging(config.enable_logging);
+
+    if let Some(acquire_timeout) = config.acquire_timeout {
+        opt.acquire_timeout(Duration::from_millis(acquire_timeout));
     }
 
-    fn app_version() -> String {
-        format!(
-            "{} ({})",
-            env!("CARGO_PKG_VERSION"),
-            option_env!("BUILD_SHA")
-                .or(option_env!("GITHUB_SHA"))
-                .unwrap_or("dev")
-        )
-    }
+    Ok(Database::connect(opt).await?)
+}
 
-    async fn boot(mode: StartMode, environment: &Environment) -> Result<BootResult> {
-        create_app::<Self, Migrator>(mode, environment).await
-    }
+pub async fn boot(config: &config::Config) -> Result<DatabaseConnection> {
+    logger::init(&config.logger);
+    let conn = connect_db(&config.database).await?;
+    Migrator::up(&conn, None).await?;
+    Ok(conn)
+}
 
-    fn routes(_ctx: &AppContext) -> AppRoutes {
-        AppRoutes::with_default_routes()
-            .prefix("/api")
-            .add_route(controllers::notes::routes())
-            .add_route(controllers::auth::routes())
-            .add_route(controllers::user::routes())
-    }
+pub async fn boot_server_and_worker(
+    config: &config::Config,
+    conn: DatabaseConnection,
+) -> Result<()> {
+    let app = Router::new()
+        .merge(controllers::defaults::route())
+        .merge(controllers::files::routes())
+        .merge(controllers::versions::routes())
+        .layer((
+            TraceLayer::new_for_http(),
+            CompressionLayer::new(),
+            // Graceful shutdown will wait for outstanding requests to complete. Add a timeout so
+            // requests don't hang forever.
+            TimeoutLayer::new(Duration::from_secs(10)),
+        ))
+        .with_state(AppContext { conn: conn.clone() });
+    let mailer = Mailer::new(&config.mailer)?;
+    let worker_options = WorkerOptions {
+        mailer: Arc::new(mailer),
+        conn: conn.clone(),
+        s3: Arc::new(config.s3.client()?),
+        ak: config.ak.clone(),
+    };
+    let handler = workers::start(worker_options).await?;
 
-    fn connect_workers<'a>(p: &'a mut Processor, ctx: &'a AppContext) {
-        p.register(DownloadWorker::build(ctx));
-    }
+    let listener = TcpListener::bind(config.server.full_url()).await?;
+    axum::serve(listener, app)
+        .with_graceful_shutdown(shutdown_signal())
+        .await?;
+    handler.abort();
+    Ok(())
+}
 
-    fn register_tasks(tasks: &mut Tasks) {
-        tasks.register(tasks::seed::SeedData);
-    }
+async fn shutdown_signal() {
+    let ctrl_c = async {
+        signal::ctrl_c()
+            .await
+            .expect("failed to install Ctrl+C handler");
+    };
 
-    async fn truncate(db: &DatabaseConnection) -> Result<()> {
-        truncate_table(db, users::Entity).await?;
-        truncate_table(db, notes::Entity).await?;
-        Ok(())
-    }
+    #[cfg(unix)]
+    let terminate = async {
+        signal::unix::signal(signal::unix::SignalKind::terminate())
+            .expect("failed to install signal handler")
+            .recv()
+            .await;
+    };
 
-    async fn seed(db: &DatabaseConnection, base: &Path) -> Result<()> {
-        db::seed::<users::ActiveModel>(db, &base.join("users.yaml").display().to_string()).await?;
-        db::seed::<notes::ActiveModel>(db, &base.join("notes.yaml").display().to_string()).await?;
-        Ok(())
+    #[cfg(not(unix))]
+    let terminate = std::future::pending::<()>();
+
+    tokio::select! {
+        _ = ctrl_c => {},
+        _ = terminate => {},
     }
 }
