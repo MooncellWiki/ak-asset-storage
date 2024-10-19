@@ -1,45 +1,47 @@
-//! This task implements data seeding functionality for initializing new
-//! development/demo environments.
-//!
-//! # Example
-//!
-//! Run the task with the following command:
-//! ```sh
-//! cargo run task
-//! ```
-//!
-//! To override existing data and reset the data structure, use the following
-//! command with the `refresh:true` argument:
-//! ```sh
-//! cargo run task seed_data refresh:true
-//! ```
+use crate::{
+    error::Result,
+    models::_entities::{sea_orm_active_enums::StatusEnum, versions},
+    workers::{
+        check_and_download::{CheckAndDownload, RemoteVersion, UpdateList},
+        WorkerOptions,
+    },
+};
+use sea_orm::{ActiveModelTrait, ActiveValue::NotSet, IntoActiveModel, Set};
+use std::{fs, path::PathBuf};
 
-use loco_rs::{db, prelude::*};
-use migration::Migrator;
-
-use crate::app::App;
-
-#[allow(clippy::module_name_repetitions)]
-pub struct SeedData;
-#[async_trait]
-impl Task for SeedData {
-    fn task(&self) -> TaskInfo {
-        TaskInfo {
-            name: "seed_data".to_string(),
-            detail: "Task for seeding data".to_string(),
+pub async fn seed(path: PathBuf, opt: WorkerOptions) -> Result<()> {
+    let content = fs::read_to_string(path)?;
+    let versions = content
+        .split("\n")
+        .filter(|line| !line.is_empty())
+        .map(|line| {
+            let parts = line.split(",").collect::<Vec<&str>>();
+            (parts[1].to_string(), parts[2].to_string())
+        })
+        .collect::<Vec<(String, String)>>();
+    let worker = CheckAndDownload::new(opt.clone())?;
+    let client = reqwest::Client::new();
+    for (res_version, client_version) in versions {
+        let update_list = UpdateList::get(&opt.ak.base_url, &res_version, &client).await?;
+        let version = versions::ActiveModel {
+            client: Set(client_version.clone()),
+            res: Set(res_version.clone()),
+            hot_update_list: Set(update_list.raw),
+            status: Set(StatusEnum::Working),
+            id: NotSet,
         }
-    }
-
-    async fn run(&self, app_context: &AppContext, vars: &task::Vars) -> Result<()> {
-        let refresh = vars
-            .cli_arg("refresh")
-            .is_ok_and(|refresh| refresh == "true");
-
-        if refresh {
-            db::reset::<Migrator>(&app_context.db).await?;
+        .insert(&opt.conn)
+        .await?;
+        let remove_verion = RemoteVersion {
+            client_version,
+            res_version,
+        };
+        for ab in update_list.ab_infos {
+            worker.sync(ab, &remove_verion, version.id).await?;
         }
-        let path = std::path::Path::new("src/fixtures");
-        db::run_app_seed::<App>(&app_context.db, path).await?;
-        Ok(())
+        let mut version = version.into_active_model();
+        version.status = Set(StatusEnum::Ready);
+        version.save(&opt.conn).await?;
     }
+    Ok(())
 }
