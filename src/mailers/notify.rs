@@ -17,38 +17,36 @@ impl Mailer {
         new_res: &str,
     ) -> Result<()> {
         let email = Message::builder()
-            .from("ak-asset-storage bot <dev.xwbx@qq.com>".parse().unwrap())
-            .to("xwbx <1677759063@qq.com>".parse().unwrap())
-            .subject(format!("ak res update: {} -> {} ", old_res, new_res))
+            .from("ak-asset-storage bot <dev.xwbx@qq.com>".parse()?)
+            .to("xwbx <1677759063@qq.com>".parse()?)
+            .subject(format!("ak res update: {old_res} -> {new_res} "))
             .multipart(
                 MultiPart::alternative()
                     .singlepart(
                         SinglePart::builder()
                             .header(header::ContentType::TEXT_PLAIN) // plain fallback
                             .body(format!(
-                                "UPDATE: {} {} -> {} {} \n {}/{}...{}",
-                                old_client, old_res, new_client, new_res, fe_url, old_res, new_res
+                                "UPDATE: {old_client} {old_res} -> {new_client} {new_res} \n {fe_url}/{old_res}...{new_res}"
                             )),
                     )
                     .singlepart(
                         SinglePart::builder()
                             .header(header::ContentType::TEXT_HTML)
                             .body(format!(
-                                "UPDATE: {} {} -> {} {} \n <a href='{}/#{}...{}'>details</a>",
-                                old_client, old_res, new_client, new_res, fe_url, old_res, new_res
+                                "UPDATE: {old_client} {old_res} -> {new_client} {new_res} \n <a href='{fe_url}/#{old_res}...{new_res}'>details</a>"
                             )),
                     ),
             )
             .map_err(any_anyhow)?;
-        self.send(email)
+        self.send(&email)
     }
     pub fn notify_error(&self, err: &Error) -> Result<()> {
         let email = Message::builder()
-            .from("ak-asset-storage bot <dev.xwbx@qq.com>".parse().unwrap())
-            .to("xwbx <1677759063@qq.com>".parse().unwrap())
-            .subject(format!("ak res update error: {:?}", err))
+            .from("ak-asset-storage bot <dev.xwbx@qq.com>".parse()?)
+            .to("xwbx <1677759063@qq.com>".parse()?)
+            .subject(format!("ak res update error: {err:?}"))
             .body(err.to_string())
             .map_err(any_anyhow)?;
-        self.send(email)
+        self.send(&email)
     }
 }

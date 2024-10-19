@@ -14,11 +14,11 @@ pub struct Config {
     pub server: Server,
     pub database: Database,
     pub mailer: Mailer,
-    pub ak: AkConfig,
-    pub s3: S3Config,
+    pub ak: Ak,
+    pub s3: S3,
 }
 #[derive(Debug, Clone, Deserialize, Serialize)]
-pub struct AkConfig {
+pub struct Ak {
     pub base_url: String,
 }
 
@@ -119,13 +119,13 @@ pub struct MailerAuth {
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
-pub struct S3Config {
+pub struct S3 {
     pub endpoint: String,
     pub access_key_id: String,
     pub secret_access_key: String,
     pub bucket_name: String,
 }
-impl S3Config {
+impl S3 {
     pub fn client(&self) -> Result<AmazonS3> {
         let s3 = AmazonS3Builder::new()
             .with_endpoint(self.endpoint.clone())

@@ -9,10 +9,10 @@ impl ActiveModelBehavior for ActiveModel {
     // extend activemodel below (keep comment for generators)
 }
 impl Model {
-    pub async fn latest(db: &DatabaseConnection, check_status: bool) -> Result<Option<Model>> {
+    pub async fn latest(db: &DatabaseConnection, check_status: bool) -> Result<Option<Self>> {
         let mut select = Entity::find().order_by_desc(Column::Id);
         if check_status {
-            select = select.filter(Column::Status.eq(StatusEnum::Ready))
+            select = select.filter(Column::Status.eq(StatusEnum::Ready));
         }
         Ok(select.one(db).await?)
     }

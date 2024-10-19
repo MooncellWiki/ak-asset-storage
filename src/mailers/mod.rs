@@ -15,15 +15,14 @@ impl Mailer {
             config.smtp.auth.user.clone(),
             config.smtp.auth.password.clone(),
         );
-        let smtp = SmtpTransport::relay(&config.smtp.host)
-            .unwrap()
+        let smtp = SmtpTransport::relay(&config.smtp.host)?
             .port(config.smtp.port)
             .credentials(creds)
             .build();
         Ok(Self { smtp })
     }
-    pub fn send(&self, email: Message) -> Result<()> {
-        self.smtp.send(&email).map_err(any_anyhow)?;
+    pub fn send(&self, email: &Message) -> Result<()> {
+        self.smtp.send(email).map_err(any_anyhow)?;
         Ok(())
     }
 }

@@ -42,7 +42,9 @@ async fn main() -> Result<()> {
     let cli = Cli::parse();
     match cli.command {
         Commands::Start { config } => {
-            let config = Config::new(Path::new(&config.unwrap_or("config.toml".to_string())))?;
+            let config = Config::new(Path::new(
+                &config.unwrap_or_else(|| "config.toml".to_string()),
+            ))?;
             let conn = boot(&config).await?;
             boot_server_and_worker(&config, conn).await?;
         }
@@ -54,7 +56,9 @@ async fn main() -> Result<()> {
                 .unwrap_or("dev")
         ),
         Commands::Seed { config, csv_path } => {
-            let config = Config::new(Path::new(&config.unwrap_or("config.toml".to_string())))?;
+            let config = Config::new(Path::new(
+                &config.unwrap_or_else(|| "config.toml".to_string()),
+            ))?;
             let conn = boot(&config).await?;
             let mailer = Mailer::new(&config.mailer)?;
             seed(

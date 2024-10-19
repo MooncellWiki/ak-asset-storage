@@ -12,7 +12,7 @@ impl Model {
     pub async fn find_by_md5(
         db: &DatabaseConnection,
         md5: &str,
-    ) -> Result<Option<(Model, Option<files::Model>)>> {
+    ) -> Result<Option<(Self, Option<files::Model>)>> {
         Ok(Entity::find()
             .filter(Column::Key.eq("md5"))
             .filter(Column::Value.eq(md5))
