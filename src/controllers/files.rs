@@ -25,10 +25,7 @@ pub async fn get_one(Path(id): Path<i32>, State(ctx): State<Context>) -> Result<
 }
 
 #[debug_handler]
-pub async fn filter(
-    Query(query): Query<Filter>,
-    State(ctx): State<Context>,
-) -> Result<Response> {
+pub async fn filter(Query(query): Query<Filter>, State(ctx): State<Context>) -> Result<Response> {
     Model::filter(&ctx.conn, query).await.map(json)
 }
 
