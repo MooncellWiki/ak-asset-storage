@@ -11,7 +11,7 @@ publish = false
 [dependencies]
 migration = { path = "migration" }
 serde = { version = "1.0.210", features = ["derive"] }
-serde_json = "1.0.131"
+serde_json = "1.0.132"
 tokio = { version = "1.40.0", features = ["signal"] }
 async-trait = "0.1.83"
 tracing = "0.1.40"
@@ -23,7 +23,7 @@ sea-orm = { version = "1.1.0", features = [
   "macros",
 ] }
 clap = "4.5.20"
-axum = {version = "0.7.7", features = ["macros"]}
+axum = { version = "0.7.7", features = ["macros"] }
 include_dir = "0.7.4"
 uuid = { version = "1.11.0", features = ["v4"] }
 tracing-subscriber = { version = "0.3.18", features = ["env-filter", "json"] }
@@ -40,8 +40,11 @@ thiserror = "1.0.64"
 toml = "0.8.19"
 lettre = { version = "0.11.9", features = ["tokio1-native-tls"] }
 serde_variant = "0.1.3"
-object_store = { version = "0.11.0", features = ["aws"] }
+object_store = { version = "0.11.1", features = ["aws"] }
 sha256 = "1.5.0"
+utoipa = { version = "5.1.1", features = ["debug", "axum_extras"] }
+utoipa-axum = { version = "0.1.1", features = ["debug"] }
+utoipa-scalar = { version = "0.2.0", features = ["axum"] }
 
 [lints.clippy]
 all = { level = "warn", priority = -1 }
