@@ -1,17 +1,18 @@
-use axum::{extract::State, response::Response, routing::get, Router};
-use serde::Serialize;
-
 use crate::{app::Context, views::utils::json};
+use axum::{extract::State, response::Response};
+use serde::Serialize;
+use utoipa_axum::{router::OpenApiRouter, routes};
 
-#[derive(Serialize)]
+#[derive(utoipa::ToSchema, Serialize)]
 struct Health {
     pub ok: bool,
 }
-
+#[utoipa::path(get, path = "/_ping", responses((status = OK, body = Health)))]
 async fn ping() -> Response {
     json(Health { ok: true })
 }
 
+#[utoipa::path(get, path = "/_health", responses((status = OK, body = Health)))]
 async fn health(State(ctx): State<Context>) -> Response {
     let is_ok = match ctx.conn.ping().await {
         Ok(()) => true,
@@ -23,8 +24,8 @@ async fn health(State(ctx): State<Context>) -> Response {
     json(Health { ok: is_ok })
 }
 
-pub fn route() -> Router<Context> {
-    Router::new()
-        .route("/_ping", get(ping))
-        .route("/_health", get(health))
+pub fn route() -> OpenApiRouter<Context> {
+    OpenApiRouter::new()
+        .routes(routes!(ping))
+        .routes(routes!(health))
 }

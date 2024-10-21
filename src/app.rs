@@ -5,7 +5,6 @@ use crate::logger;
 use crate::mailers::Mailer;
 use crate::workers;
 use crate::workers::WorkerOptions;
-use axum::Router;
 use migration::Migrator;
 use migration::MigratorTrait;
 use sea_orm::ConnectOptions;
@@ -17,6 +16,11 @@ use std::time::Duration;
 use tokio::{net::TcpListener, signal};
 use tower_http::trace::TraceLayer;
 use tower_http::{compression::CompressionLayer, timeout::TimeoutLayer};
+use tracing::info;
+use utoipa::OpenApi;
+use utoipa_axum::router::OpenApiRouter;
+use utoipa_scalar::Scalar;
+use utoipa_scalar::Servable;
 
 #[derive(Clone)]
 pub struct Context {
@@ -49,10 +53,23 @@ pub async fn boot_server_and_worker(
     config: &config::Config,
     conn: DatabaseConnection,
 ) -> Result<()> {
-    let app = Router::new()
-        .merge(controllers::defaults::route())
-        .merge(controllers::files::routes())
-        .merge(controllers::versions::routes())
+    #[derive(OpenApi)]
+    #[openapi(
+        tags((name="file"),(name="version"))
+    )]
+    struct ApiDoc;
+    let (router, api) = OpenApiRouter::with_openapi(ApiDoc::openapi())
+        .nest(
+            "/api/v1",
+            OpenApiRouter::new()
+                .merge(controllers::defaults::route())
+                .merge(controllers::files::routes())
+                .merge(controllers::versions::routes()),
+        )
+        .split_for_parts();
+
+    let router = router
+        .merge(Scalar::with_url("/scalar", api.clone()))
         .layer((
             TraceLayer::new_for_http(),
             CompressionLayer::new(),
@@ -71,7 +88,8 @@ pub async fn boot_server_and_worker(
     let (check_handler, download_handler) = workers::start(worker_options)?;
 
     let listener = TcpListener::bind(config.server.full_url()).await?;
-    axum::serve(listener, app)
+    info!("Server is running on {}", config.server.full_url());
+    axum::serve(listener, router)
         .with_graceful_shutdown(shutdown_signal())
         .await?;
     check_handler.abort();

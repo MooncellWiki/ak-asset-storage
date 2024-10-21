@@ -3,11 +3,13 @@ pub use super::_entities::files::{self, Column, Entity, Model};
 use crate::error::Result;
 use sea_orm::{entity::prelude::*, Condition};
 use serde::Deserialize;
+use utoipa::IntoParams;
 
 impl ActiveModelBehavior for ActiveModel {
     // extend activemodel below (keep comment for generators)
 }
-#[derive(Deserialize, Debug)]
+
+#[derive(IntoParams, Deserialize, Debug)]
 pub struct Filter {
     path: Option<String>,
     hash: Option<String>,
