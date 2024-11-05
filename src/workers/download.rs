@@ -1,13 +1,15 @@
-use crate::error::{any_anyhow, Error, Result};
+use crate::error::{any_anyhow, Result};
 use crate::mailers::Mailer;
-use crate::models::_entities::{file_metas, files, versions};
+use crate::models::_entities::{files, versions};
+use itertools::Itertools;
 use object_store::aws::AmazonS3;
 use object_store::path::Path;
 use object_store::{ObjectStore, WriteMultipart};
 use sea_orm::ActiveValue::NotSet;
-use sea_orm::{ActiveModelTrait, DatabaseConnection, IntoActiveModel, Set, TransactionTrait};
+use sea_orm::{ActiveModelTrait, DatabaseConnection, IntoActiveModel, Set};
 use serde::Deserialize;
 use sha256::digest;
+use std::io::{Cursor, Read};
 use std::sync::Arc;
 use tracing::{debug, info};
 
@@ -68,40 +70,16 @@ impl Download {
                     info!("{} is already downloaded, skip", info.name);
                     continue;
                 }
-                if let Some((_, Some(file))) =
-                    file_metas::Model::find_by_md5(&self.conn, &info.md5).await?
-                {
-                    info!("{} MD5 matches, skipping download", info.name);
-                    let file = files::ActiveModel {
-                        id: NotSet,
-                        path: Set(info.name),
-                        hash: Set(file.hash.clone()),
-                        version: Set(version.id),
-                    }
-                    .insert(&self.conn)
-                    .await?;
-                    file_metas::Model::set_md5(&self.conn, file.id, &info.md5).await?;
-                    continue;
-                }
                 let url = format!("{}/{}/{}", self.asset_url, version.res, info.url());
                 let sha = self.sync_file(&url).await?;
-                // 跳过时我们只检查files表 不检查file_metas表，所以这里用事务保证两个一起成功
-                self.conn
-                    .transaction::<_, (), Error>(|txn| {
-                        Box::pin(async move {
-                            let file = files::ActiveModel {
-                                id: NotSet,
-                                path: Set(info.name),
-                                hash: Set(sha),
-                                version: Set(version.id),
-                            }
-                            .insert(txn)
-                            .await?;
-                            file_metas::Model::set_md5(txn, file.id, &info.md5).await
-                        })
-                    })
-                    .await
-                    .map_err(any_anyhow)?;
+                files::ActiveModel {
+                    id: NotSet,
+                    path: Set(info.name),
+                    hash: Set(sha),
+                    version: Set(version.id),
+                }
+                .insert(&self.conn)
+                .await?;
             }
             let mut active = version.clone().into_active_model();
             active.is_ready = Set(true);
@@ -115,8 +93,23 @@ impl Download {
     }
     async fn sync_file(&self, url: &str) -> Result<String> {
         let bytes = self.client.get(url).send().await?.bytes().await?;
-        let sha = digest(&*bytes);
+        let mut zip = zip::ZipArchive::new(Cursor::new(&bytes)).map_err(any_anyhow)?;
+        let mut buffer = Vec::new();
+        let name_list: Vec<String> = zip
+            .file_names()
+            .sorted()
+            .map(std::string::ToString::to_string)
+            .collect();
+        for name in &name_list {
+            let mut file = zip.by_name(name).map_err(any_anyhow)?;
+            file.read_to_end(&mut buffer)?;
+        }
+        let sha = digest(&buffer);
+
         let path = Path::from(format!("/{}/{}/{}", &sha[..2], &sha[2..4], &sha[4..]));
+        if self.s3.head(&path).await.is_ok() {
+            return Ok(sha);
+        };
         // 5MiB
         if bytes.len() > 5 * 1024 * 1024 {
             let upload = self.s3.put_multipart(&path).await?;

@@ -5,6 +5,8 @@ use crate::logger;
 use crate::mailers::Mailer;
 use crate::workers;
 use crate::workers::WorkerOptions;
+use axum::routing::get;
+use axum::Json;
 use migration::Migrator;
 use migration::MigratorTrait;
 use sea_orm::ConnectOptions;
@@ -70,6 +72,10 @@ pub async fn boot_server_and_worker(
 
     let router = router
         .merge(Scalar::with_url("/scalar", api.clone()))
+        .route(
+            "/openapi.json",
+            get(|| async move { Json(api) }),
+        )
         .layer((
             TraceLayer::new_for_http(),
             CompressionLayer::new(),

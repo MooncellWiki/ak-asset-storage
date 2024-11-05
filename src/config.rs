@@ -125,15 +125,17 @@ pub struct S3 {
     pub access_key_id: String,
     pub secret_access_key: String,
     pub bucket_name: String,
+    pub with_virtual_hosted_style_request: bool,
 }
 impl S3 {
     pub fn client(&self) -> Result<AmazonS3> {
         let s3 = AmazonS3Builder::new()
+            .with_allow_http(true)
             .with_endpoint(self.endpoint.clone())
             .with_bucket_name(self.bucket_name.clone())
             .with_access_key_id(self.access_key_id.clone())
             .with_secret_access_key(self.secret_access_key.clone())
-            .with_virtual_hosted_style_request(true)
+            .with_virtual_hosted_style_request(self.with_virtual_hosted_style_request)
             .build()?;
         Ok(s3)
     }
