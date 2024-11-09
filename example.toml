@@ -1,0 +1,38 @@
+# Application logging configuration
+[logger]
+enable = true
+level = "debug"
+format = "compact"
+# override_filter = "trace"  # Uncomment to override filters
+
+# Web server configuration
+[server]
+port = 25150
+host = "http://localhost"
+
+# Mailer Configuration
+[mailer.smtp]
+host = "smtp.example.com"
+port = 465
+auth.user = "user@example.com"  # Uncomment and add SMTP user
+auth.password = "password"  # Uncomment and add SMTP password
+
+# Database Configuration
+[database]
+uri = "postgres://ak:ak@localhost:25432/ak_asset_storage_next"
+enable_logging = false
+connect_timeout = 500
+idle_timeout = 500
+min_connections = 0
+max_connections = 3
+
+[ak]
+asset_url = "https://ak.hycdn.cn/assetbundle/official/Android/assets"
+conf_url = "https://ak-conf.hypergryph.com/config/prod/official/Android"
+
+[s3]
+endpoint = "http://127.0.0.1:29000"
+bucket_name = "arknights-assets"
+access_key_id = "Ges7WCPlQWhYZAPwcMFw"
+secret_access_key = "2L4H5kjtkIabdQ4DpHP35NTPX6ljmVjhPhcAMrPR"
+with_virtual_hosted_style_request = false

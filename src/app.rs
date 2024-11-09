@@ -72,10 +72,7 @@ pub async fn boot_server_and_worker(
 
     let router = router
         .merge(Scalar::with_url("/scalar", api.clone()))
-        .route(
-            "/openapi.json",
-            get(|| async move { Json(api) }),
-        )
+        .route("/openapi.json", get(|| async move { Json(api) }))
         .layer((
             TraceLayer::new_for_http(),
             CompressionLayer::new(),
