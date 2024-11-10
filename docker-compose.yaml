@@ -12,6 +12,7 @@ services:
   minio:
     image: minio/minio:latest
     command: server /data --console-address ":9001"
+    restart: unless-stopped
     env_file:
       - .env
     volumes:

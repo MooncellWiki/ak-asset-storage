@@ -65,7 +65,7 @@ pub async fn boot_server_and_worker(
             "/api/v1",
             OpenApiRouter::new()
                 .merge(controllers::defaults::route())
-                .merge(controllers::files::routes())
+                .merge(controllers::bundles::routes())
                 .merge(controllers::versions::routes()),
         )
         .split_for_parts();

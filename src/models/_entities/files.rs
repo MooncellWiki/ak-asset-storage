@@ -3,41 +3,24 @@
 use sea_orm::entity::prelude::*;
 use serde::{Deserialize, Serialize};
 
-#[derive(
-    Clone, Debug, PartialEq, DeriveEntityModel, Eq, Serialize, Deserialize, utoipa :: ToSchema,
-)]
+#[derive(Clone, Debug, PartialEq, DeriveEntityModel, Eq, Serialize, Deserialize)]
 #[sea_orm(table_name = "files")]
-#[schema(as = FileModel)]
 pub struct Model {
     #[sea_orm(primary_key)]
     pub id: i32,
-    pub path: String,
+    #[sea_orm(unique)]
     pub hash: String,
-    pub version: i32,
+    pub size: i32,
 }
 
 #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
 pub enum Relation {
-    #[sea_orm(has_many = "super::file_metas::Entity")]
-    FileMetas,
-    #[sea_orm(
-        belongs_to = "super::versions::Entity",
-        from = "Column::Version",
-        to = "super::versions::Column::Id",
-        on_update = "NoAction",
-        on_delete = "NoAction"
-    )]
-    Versions,
+    #[sea_orm(has_many = "super::bundles::Entity")]
+    Bundles,
 }
 
-impl Related<super::file_metas::Entity> for Entity {
+impl Related<super::bundles::Entity> for Entity {
     fn to() -> RelationDef {
-        Relation::FileMetas.def()
-    }
-}
-
-impl Related<super::versions::Entity> for Entity {
-    fn to() -> RelationDef {
-        Relation::Versions.def()
+        Relation::Bundles.def()
     }
 }

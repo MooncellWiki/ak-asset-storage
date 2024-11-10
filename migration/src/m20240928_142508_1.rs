@@ -24,42 +24,36 @@ impl MigrationTrait for Migration {
                 Table::create()
                     .table(Files::Table)
                     .col(pk_auto(Files::Id))
-                    .col(string_len(Files::Path, 256))
                     .col(char_len(Files::Hash, 64))
-                    .col(integer(Files::Version))
-                    .foreign_key(
-                        ForeignKey::create()
-                            .from(Files::Table, Files::Version)
-                            .to(Versions::Table, Versions::Id),
-                    )
-                    .index(
-                        Index::create()
-                            .col(Files::Version)
-                            .col(Files::Path)
-                            .unique(),
-                    )
+                    .col(integer(Files::Size))
+                    .index(Index::create().col(Files::Hash).unique())
                     .take(),
             )
             .await?;
         manager
             .create_table(
                 Table::create()
-                    .table(FileMetas::Table)
+                    .table(Bundles::Table)
                     .if_not_exists()
-                    .col(pk_auto(FileMetas::Id))
-                    .col(string_len(FileMetas::Key, 255))
-                    .col(text(FileMetas::Value))
-                    .col(integer(FileMetas::FileId))
+                    .col(pk_auto(Bundles::Id))
+                    .col(string_len(Bundles::Path, 256))
+                    .col(integer(Bundles::Version))
                     .foreign_key(
                         ForeignKey::create()
-                            .from(FileMetas::Table, FileMetas::FileId)
+                            .from(Bundles::Table, Bundles::Version)
+                            .to(Versions::Table, Versions::Id),
+                    )
+                    .col(integer(Bundles::File))
+                    .foreign_key(
+                        ForeignKey::create()
+                            .from(Bundles::Table, Bundles::File)
                             .to(Files::Table, Files::Id),
                     )
                     .index(
                         Index::create()
-                            .col(FileMetas::FileId)
-                            .col(FileMetas::Value)
-                            .col(FileMetas::Key)
+                            .col(Bundles::Path)
+                            .col(Bundles::Version)
+                            .col(Bundles::File)
                             .unique(),
                     )
                     .take(),
@@ -70,7 +64,7 @@ impl MigrationTrait for Migration {
 
     async fn down(&self, manager: &SchemaManager) -> Result<(), DbErr> {
         manager
-            .drop_table(Table::drop().table(FileMetas::Table).to_owned())
+            .drop_table(Table::drop().table(Bundles::Table).to_owned())
             .await?;
         manager
             .drop_table(Table::drop().table(Files::Table).to_owned())
@@ -96,16 +90,15 @@ enum Versions {
 enum Files {
     Table,
     Id,
-    Path,
-    Version,
     Hash,
+    Size,
 }
 
 #[derive(DeriveIden)]
-enum FileMetas {
+enum Bundles {
     Table,
     Id,
-    Key,
-    Value,
-    FileId,
+    Path,
+    Version,
+    File,
 }

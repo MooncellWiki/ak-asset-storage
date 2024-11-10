@@ -2,6 +2,6 @@
 
 pub mod prelude;
 
-pub mod file_metas;
+pub mod bundles;
 pub mod files;
 pub mod versions;

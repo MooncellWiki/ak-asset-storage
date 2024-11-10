@@ -1,12 +1,12 @@
 use crate::error::{any_anyhow, Result};
 use crate::mailers::Mailer;
-use crate::models::_entities::{files, versions};
+use crate::models::{bundles, files, versions};
 use itertools::Itertools;
 use object_store::aws::AmazonS3;
 use object_store::path::Path;
 use object_store::{ObjectStore, WriteMultipart};
 use sea_orm::ActiveValue::NotSet;
-use sea_orm::{ActiveModelTrait, DatabaseConnection, IntoActiveModel, Set};
+use sea_orm::{ActiveModelTrait, DatabaseConnection, IntoActiveModel, Set, TryIntoModel};
 use serde::Deserialize;
 use sha256::digest;
 use std::io::{Cursor, Read};
@@ -65,18 +65,19 @@ impl Download {
             let info: UpdateList = serde_json::from_str(&version.hot_update_list)?;
             for info in info.ab_infos {
                 let local =
-                    files::Model::find_by_version_path(&self.conn, version.id, &info.name).await?;
+                    bundles::Model::find_by_version_path(&self.conn, version.id, &info.name)
+                        .await?;
                 if local.is_some() {
                     info!("{} is already downloaded, skip", info.name);
                     continue;
                 }
                 let url = format!("{}/{}/{}", self.asset_url, version.res, info.url());
-                let sha = self.sync_file(&url).await?;
-                files::ActiveModel {
+                let file_id = self.sync_file(&url).await?;
+                bundles::ActiveModel {
                     id: NotSet,
                     path: Set(info.name),
-                    hash: Set(sha),
                     version: Set(version.id),
+                    file: Set(file_id),
                 }
                 .insert(&self.conn)
                 .await?;
@@ -91,7 +92,7 @@ impl Download {
         }
         Ok(())
     }
-    async fn sync_file(&self, url: &str) -> Result<String> {
+    async fn sync_file(&self, url: &str) -> Result<i32> {
         let bytes = self.client.get(url).send().await?.bytes().await?;
         let mut zip = zip::ZipArchive::new(Cursor::new(&bytes)).map_err(any_anyhow)?;
         let mut buffer = Vec::new();
@@ -107,11 +108,12 @@ impl Download {
         let sha = digest(&buffer);
 
         let path = Path::from(format!("/{}/{}/{}", &sha[..2], &sha[2..4], &sha[4..]));
-        if self.s3.head(&path).await.is_ok() {
-            return Ok(sha);
+        if let Ok(Some(file)) = files::Model::find_by_hash(&self.conn, &sha).await {
+            return Ok(file.id);
         };
+        let len = bytes.len();
         // 5MiB
-        if bytes.len() > 5 * 1024 * 1024 {
+        if len > 5 * 1024 * 1024 {
             let upload = self.s3.put_multipart(&path).await?;
             let mut write = WriteMultipart::new(upload);
             write.write(&bytes);
@@ -119,7 +121,15 @@ impl Download {
         } else {
             self.s3.put(&path, bytes.into()).await?;
         }
+        let resp = files::files::ActiveModel {
+            id: NotSet,
+            hash: Set(sha),
+            size: Set(len.try_into().unwrap()),
+        }
+        .save(&self.conn)
+        .await?;
+        let resp = resp.try_into_model()?;
         debug!("sync file {} finished", url);
-        Ok(sha)
+        Ok(resp.id)
     }
 }
