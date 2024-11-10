@@ -1,11 +1,11 @@
 use crate::{
     app::Context,
     error::{Error, Result},
-    models::_entities::{
-        files,
-        versions::{Entity, Model},
+    models::{
+        _entities::versions::{Entity, Model},
+        bundles,
     },
-    views::utils::json,
+    views::{utils::json, FileDetail},
 };
 use axum::{
     debug_handler,
@@ -36,9 +36,9 @@ pub async fn get(Path(id): Path<i32>, State(ctx): State<Context>) -> Result<Resp
 }
 
 #[debug_handler]
-#[utoipa::path(get, path = "/{id}/files",tag = "version", responses((status = OK, body = [files::Model])))]
+#[utoipa::path(get, path = "/{id}/files",tag = "version", responses((status = OK, body = [FileDetail])))]
 pub async fn list_files(Path(id): Path<i32>, State(ctx): State<Context>) -> Result<Response> {
-    files::Model::list_by_version_id(&ctx.conn, id)
+    bundles::Model::list_by_version_id(&ctx.conn, id)
         .await
         .map(json)
 }

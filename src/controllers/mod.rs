@@ -1,3 +1,3 @@
+pub mod bundles;
 pub mod defaults;
-pub mod files;
 pub mod versions;

@@ -1,13 +1,13 @@
 {
   "author": "Unnamed",
   "title": "Untitled Diagram",
-  "date": "2024-10-19T13:22:38.002Z",
+  "date": "2024-11-09T13:22:17.617Z",
   "tables": [
     {
       "id": 0,
-      "name": "files",
-      "x": -104.66650390625017,
-      "y": -244,
+      "name": "bundles",
+      "x": -163.33312988281267,
+      "y": -212,
       "fields": [
         {
           "name": "id",
@@ -49,8 +49,8 @@
           "values": []
         },
         {
-          "name": "hash",
-          "type": "CHAR",
+          "name": "file",
+          "type": "INTEGER",
           "default": "",
           "check": "",
           "primary": false,
@@ -59,7 +59,8 @@
           "increment": false,
           "comment": "sha-256",
           "id": 3,
-          "size": 64
+          "size": "",
+          "values": []
         }
       ],
       "comment": "",
@@ -156,9 +157,9 @@
     },
     {
       "id": 2,
-      "name": "file_metas",
-      "x": -496.6668395996092,
-      "y": -175.33331298828125,
+      "name": "files",
+      "x": -503.33352661132795,
+      "y": -108.00000000000003,
       "fields": [
         {
           "name": "id",
@@ -173,34 +174,20 @@
           "id": 0
         },
         {
-          "name": "key",
-          "type": "VARCHAR",
+          "name": "hash",
+          "type": "CHAR",
           "default": "",
           "check": "",
           "primary": false,
-          "unique": false,
+          "unique": true,
           "notNull": true,
           "increment": false,
           "comment": "",
           "id": 1,
-          "size": 255
+          "size": 64
         },
         {
-          "name": "value",
-          "type": "TEXT",
-          "default": "",
-          "check": "",
-          "primary": false,
-          "unique": false,
-          "notNull": true,
-          "increment": false,
-          "comment": "",
-          "id": 2,
-          "size": "",
-          "values": []
-        },
-        {
-          "name": "file_id",
+          "name": "size",
           "type": "INTEGER",
           "default": "",
           "check": "",
@@ -209,7 +196,7 @@
           "notNull": true,
           "increment": false,
           "comment": "",
-          "id": 3,
+          "id": 2,
           "size": "",
           "values": []
         }
@@ -245,13 +232,13 @@
     },
     {
       "startTableId": 2,
-      "startFieldId": 3,
+      "startFieldId": 0,
       "endTableId": 0,
-      "endFieldId": 0,
-      "cardinality": "one_to_one",
+      "endFieldId": 3,
+      "cardinality": "many_to_one",
       "updateConstraint": "No action",
       "deleteConstraint": "No action",
-      "name": "file_metas_file_id_fk",
+      "name": "files_id_fk",
       "id": 1
     }
   ],

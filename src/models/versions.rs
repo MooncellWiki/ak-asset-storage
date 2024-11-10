@@ -1,4 +1,4 @@
-use super::_entities::versions::{ActiveModel, Column, Entity, Model};
+pub use super::_entities::versions::{ActiveModel, Column, Entity, Model};
 use crate::error::Result;
 use sea_orm::{entity::prelude::*, Order, QueryOrder};
 

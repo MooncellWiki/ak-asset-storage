@@ -120,4 +120,4 @@ with_virtual_hosted_style_request = false
 
 ## Example Configuration
 
-See the `config.toml` file for a complete example configuration.
+See the `example.toml` file for a complete example configuration.
