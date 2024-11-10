@@ -3,7 +3,7 @@ use std::{
     sync::Arc,
 };
 
-use ak_asset_storage_next::{
+use ak_asset_storage::{
     app::{boot, boot_server_and_worker},
     config::Config,
     error::Result,
