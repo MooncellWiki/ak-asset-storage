@@ -1,6 +1,6 @@
 <template>
   <div class="flex items-center justify-center">
-    <NSelect v-model:value="left" class="w-72" :options="versionOpts"></NSelect>
+    <NSelect v-model:value="left" class="w-80" :options="versionOpts"></NSelect>
     <NButton class="mx-2" secondary circle @click="switchVer">
       <template #icon>
         <CarbonArrowsHorizontal />
@@ -8,7 +8,7 @@
     </NButton>
     <NSelect
       v-model:value="right"
-      class="w-72"
+      class="w-80"
       :options="versionOpts"
     ></NSelect>
   </div>
