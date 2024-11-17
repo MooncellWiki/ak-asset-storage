@@ -8,3 +8,6 @@ up:
 
 entity:
     sea-orm-cli generate entity --model-extra-derives utoipa::ToSchema --with-serde both --output-dir src/models/_entities/
+
+pre-release version:
+    git cliff -o CHANGELOG.md --tag {{version}} && git add CHANGELOG.md
