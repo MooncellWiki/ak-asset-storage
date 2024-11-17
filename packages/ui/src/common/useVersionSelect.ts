@@ -24,13 +24,16 @@ export function useVersionSelect() {
           key: prev,
           children: [
             {
-              label: version.res,
+              label: version.res + (version.is_ready ? "" : " (未完成)"),
               value: version.id,
             },
           ],
         };
       } else {
-        group!.children!.push({ label: version.res, value: version.id });
+        group!.children!.push({
+          label: version.res + (version.is_ready ? "" : " (未完成)"),
+          value: version.id,
+        });
       }
     }
     result.push(group!);
