@@ -43,7 +43,8 @@
     "markdown",
     "json",
     "jsonc",
-    "yaml"
+    "yaml",
+    "toml"
   ],
   "typescript.tsdk": "node_modules/typescript/lib"
 }

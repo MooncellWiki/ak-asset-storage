@@ -2,7 +2,7 @@ _default:
   @just --list -u
 
 init:
-    cargo install sea-orm-cli
+    cargo install sea-orm-cli cargo-release git-cliff
 up:
     sea-orm-cli migrate up -d ./migration/
 
