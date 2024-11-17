@@ -1,5 +1,6 @@
 use crate::config;
 use crate::controllers;
+use crate::controllers::defaults::static_handler;
 use crate::error::Result;
 use crate::logger;
 use crate::mailers::Mailer;
@@ -73,6 +74,7 @@ pub async fn boot_server_and_worker(
     let router = router
         .merge(Scalar::with_url("/scalar", api.clone()))
         .route("/openapi.json", get(|| async move { Json(api) }))
+        .fallback(static_handler)
         .layer((
             TraceLayer::new_for_http(),
             CompressionLayer::new(),

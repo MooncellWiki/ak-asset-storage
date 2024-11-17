@@ -23,11 +23,11 @@ sea-orm = { version = "1.1.1", features = [
 ] }
 clap = "4.5.20"
 axum = { version = "0.7.7", features = [ "macros" ] }
-include_dir = "0.7.4"
+rust-embed = "8.5.0"
 uuid = { version = "1.11.0", features = [ "v4" ] }
 tracing-subscriber = { version = "0.3.18", features = [
   "env-filter",
-  "json" 
+  "json"
 ] }
 reqwest = { version = "0.12.9", features = [ "json" ] }
 zip = "2.2.0"
@@ -46,8 +46,9 @@ object_store = { version = "0.11.1", features = [ "aws" ] }
 sha256 = "1.5.0"
 utoipa = { version = "5.2.0", features = [
   "debug",
-  "axum_extras" 
+  "axum_extras"
 ] }
 utoipa-axum = { version = "0.1.2", features = [ "debug" ] }
 utoipa-scalar = { version = "0.2.0", features = [ "axum" ] }
 itertools = "0.13.0"
+mime_guess = { version = "2.0.5" }

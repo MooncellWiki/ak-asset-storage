@@ -1,5 +1,10 @@
 use crate::{app::Context, views::utils::json};
-use axum::{extract::State, response::Response};
+use axum::{
+    extract::State,
+    http::{header, StatusCode, Uri},
+    response::{Html, IntoResponse, Response},
+};
+use rust_embed::Embed;
 use serde::Serialize;
 use utoipa_axum::{router::OpenApiRouter, routes};
 
@@ -22,6 +27,36 @@ async fn health(State(ctx): State<Context>) -> Response {
         }
     };
     json(Health { ok: is_ok })
+}
+
+#[derive(Embed)]
+#[folder = "../../packages/ui/dist"]
+struct Assets;
+static INDEX_HTML: &str = "index.html";
+pub async fn static_handler(uri: Uri) -> impl IntoResponse {
+    let path = uri.path().trim_start_matches('/');
+
+    if path.is_empty() || path == INDEX_HTML {
+        return index_html();
+    }
+
+    match Assets::get(path) {
+        Some(content) => {
+            let mime = mime_guess::from_path(path).first_or_octet_stream();
+
+            ([(header::CONTENT_TYPE, mime.as_ref())], content.data).into_response()
+        }
+        None => (StatusCode::NOT_FOUND, "404").into_response(),
+    }
+}
+fn index_html() -> Response {
+    match Assets::get(INDEX_HTML) {
+        Some(content) => Html(content.data).into_response(),
+        None => not_found(),
+    }
+}
+fn not_found() -> Response {
+    (StatusCode::NOT_FOUND, "404").into_response()
 }
 
 pub fn route() -> OpenApiRouter<Context> {
