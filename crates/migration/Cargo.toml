@@ -14,7 +14,7 @@ path = "src/lib.rs"
 [dependencies]
 async-std = { version = "1.13.0", features = [
   "attributes",
-  "tokio1" 
+  "tokio1"
 ] }
 
 [dependencies.sea-orm-migration]
@@ -26,3 +26,6 @@ features = [
   "sqlx-postgres",
   "runtime-tokio-native-tls", # `ASYNC_RUNTIME` feature
 ]
+
+[package.metadata.release]
+release = false
