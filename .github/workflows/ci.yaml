@@ -54,6 +54,7 @@ jobs:
           args: --all-features -- -D warnings
   eslint:
     name: Check frontend style
+    runs-on: ubuntu-latest
     steps:
       - name: Setup Node
         uses: ./.github/actions/node
