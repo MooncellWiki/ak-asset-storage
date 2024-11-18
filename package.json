@@ -4,7 +4,9 @@
   "packageManager": "pnpm@9.12.3",
   "scripts": {
     "prepare": "node .husky/install.mjs",
-    "build:ui": "pnpm --filter=ui run build"
+    "build:ui": "pnpm --filter=ui run build",
+    "lint": "eslint .",
+    "lint:fix": "eslint --fix ."
   },
   "devDependencies": {
     "@unocss/eslint-config": "^0.64.0",
