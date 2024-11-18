@@ -56,6 +56,8 @@ jobs:
     name: Check frontend style
     runs-on: ubuntu-latest
     steps:
+      - name: Checkout the code
+        uses: actions/checkout@v4
       - name: Setup Node
         uses: ./.github/actions/node
       - name: Run eslint
