@@ -2,7 +2,6 @@ name: CI
 on:
   push:
     branches:
-      - master
       - main
   pull_request:
 
@@ -12,7 +11,7 @@ env:
 
 jobs:
   rustfmt:
-    name: Check Style
+    name: Check Rust Style
     runs-on: ubuntu-latest
 
     permissions:
@@ -53,3 +52,11 @@ jobs:
         with:
           command: clippy
           args: --all-features -- -D warnings
+  eslint:
+    name: Check frontend style
+    steps:
+      - name: Setup Node
+        uses: ./.github/actions/node
+      - name: Run eslint
+        shell: bash
+        run: pnpm run lint
