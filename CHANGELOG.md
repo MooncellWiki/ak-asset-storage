@@ -2,9 +2,17 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.3.0] - 2024-11-21
+
+[ba4ddaa](ba4ddaac8494a5769e810e3fffef23441f54bf63)...[7dbd6e9](7dbd6e901a29098fed215abc0f33eee8fa4b4e71)
+
+### 🐛 Bug Fixes
+
+- 优化seed逻辑 ([7dbd6e9](https://github.com/MooncellWiki/ak-asset-storage/commit/7dbd6e901a29098fed215abc0f33eee8fa4b4e71))
+
 ## [0.2.0] - 2024-11-18
 
-[b66077e](b66077ef302e733603f736e85bf87805cb12259f)...[327382c](327382c55ab2a49e09fdfada22519bbb3394b25e)
+[b66077e](b66077ef302e733603f736e85bf87805cb12259f)...[ba4ddaa](ba4ddaac8494a5769e810e3fffef23441f54bf63)
 
 ### ⚙️ Miscellaneous Tasks
 
@@ -12,6 +20,7 @@ All notable changes to this project will be documented in this file.
 - Release docker image ([1bc93f3](https://github.com/MooncellWiki/ak-asset-storage/commit/1bc93f31af71837af58bf227bad44db14bd37ac4))
 - Fix eslint ([6c714d3](https://github.com/MooncellWiki/ak-asset-storage/commit/6c714d323a65369208846a3570c2e6c359639a3c))
 - Update changelog template ([327382c](https://github.com/MooncellWiki/ak-asset-storage/commit/327382c55ab2a49e09fdfada22519bbb3394b25e))
+- Release 0.2.0 ([ba4ddaa](https://github.com/MooncellWiki/ak-asset-storage/commit/ba4ddaac8494a5769e810e3fffef23441f54bf63))
 
 ## [0.1.0] - 2024-11-17
 
