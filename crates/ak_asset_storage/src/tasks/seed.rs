@@ -1,9 +1,11 @@
 use object_store::aws::AmazonS3;
 use sea_orm::DatabaseConnection;
+use tracing::info;
 
 use crate::{
     config::Ak,
     error::Result,
+    models,
     workers::{
         check::{self, RemoteVersion},
         download,
@@ -47,9 +49,28 @@ pub async fn seed(
         asset_url: ak.asset_url.clone(),
     };
     for remote in versions {
-        checker.update(remote).await?;
-        downloader.sync_all().await?;
+        if models::versions::Model::find_by_client_res(
+            &conn,
+            &remote.client_version,
+            &remote.res_version,
+        )
+        .await?
+        .is_none()
+        {
+            checker.update(remote).await?;
+        } else {
+            info!("find {:?} in db, skip", remote)
+        }
     }
-
+    loop {
+        if models::versions::Model::first_unready(&conn)
+            .await?
+            .is_some()
+        {
+            downloader.sync_all().await?;
+        } else {
+            break;
+        }
+    }
     Ok(())
 }

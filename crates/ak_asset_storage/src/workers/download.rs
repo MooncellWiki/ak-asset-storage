@@ -62,6 +62,7 @@ impl Download {
     pub async fn sync_all(&self) -> Result<()> {
         let version = versions::Model::first_unready(&self.conn).await?;
         if let Some(version) = version {
+            info!("start sync {:?}", version);
             let info: UpdateList = serde_json::from_str(&version.hot_update_list)?;
             for info in info.ab_infos {
                 let local =
