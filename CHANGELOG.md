@@ -2,13 +2,29 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.4.0] - 2024-11-25
+
+[972e9dc](972e9dcc72bd77adc30693b32d15fa7f05583d68)...[b7af8cd](b7af8cd0ef9fdfa3bdf9d3511507ca65d684cbe6)
+
+### 🐛 Bug Fixes
+
+- Check resp code when download ([b7af8cd](https://github.com/MooncellWiki/ak-asset-storage/commit/b7af8cd0ef9fdfa3bdf9d3511507ca65d684cbe6))
+
+### ⚙️ Miscellaneous Tasks
+
+- Update dependencies ([a3e10d8](https://github.com/MooncellWiki/ak-asset-storage/commit/a3e10d8c9293307195ed92b69cbe1993e68f9ce5))
+
 ## [0.3.0] - 2024-11-21
 
-[ba4ddaa](ba4ddaac8494a5769e810e3fffef23441f54bf63)...[7dbd6e9](7dbd6e901a29098fed215abc0f33eee8fa4b4e71)
+[ba4ddaa](ba4ddaac8494a5769e810e3fffef23441f54bf63)...[972e9dc](972e9dcc72bd77adc30693b32d15fa7f05583d68)
 
 ### 🐛 Bug Fixes
 
 - 优化seed逻辑 ([7dbd6e9](https://github.com/MooncellWiki/ak-asset-storage/commit/7dbd6e901a29098fed215abc0f33eee8fa4b4e71))
+
+### ⚙️ Miscellaneous Tasks
+
+- Release 0.3.0 ([972e9dc](https://github.com/MooncellWiki/ak-asset-storage/commit/972e9dcc72bd77adc30693b32d15fa7f05583d68))
 
 ## [0.2.0] - 2024-11-18
 
