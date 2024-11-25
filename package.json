@@ -1,7 +1,7 @@
 {
   "type": "module",
   "private": true,
-  "packageManager": "pnpm@9.13.2",
+  "packageManager": "pnpm@9.14.2",
   "scripts": {
     "prepare": "node .husky/install.mjs",
     "build:ui": "pnpm --filter=ui run build",
@@ -11,9 +11,9 @@
   "devDependencies": {
     "@unocss/eslint-config": "^0.64.1",
     "@unocss/eslint-plugin": "^0.64.1",
-    "@xwbx/eslint-config": "^0.2.1",
+    "@xwbx/eslint-config": "^0.2.2",
     "eslint": "^9.15.0",
-    "husky": "^9.1.6",
+    "husky": "^9.1.7",
     "lint-staged": "^15.2.10"
   },
   "lint-staged": {

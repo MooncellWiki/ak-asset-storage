@@ -3,5 +3,6 @@
   "extends": [
     "github>daflyinbed/renovate-config",
     "github>Turbo87/renovate-config"
-  ]
+  ],
+  "ignoreDeps": ["postgres"]
 }
