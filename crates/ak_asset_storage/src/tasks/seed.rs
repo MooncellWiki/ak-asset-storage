@@ -59,7 +59,10 @@ pub async fn seed(
         {
             checker.update(remote).await?;
         } else {
-            info!("find {:?} in db, skip", remote)
+            info!(
+                "find {}-{} in db, skip",
+                remote.client_version, remote.res_version
+            )
         }
     }
     loop {

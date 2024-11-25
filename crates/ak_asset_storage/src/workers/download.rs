@@ -1,6 +1,7 @@
 use crate::error::{any_anyhow, Result};
 use crate::mailers::Mailer;
 use crate::models::{bundles, files, versions};
+use anyhow::anyhow;
 use itertools::Itertools;
 use object_store::aws::AmazonS3;
 use object_store::path::Path;
@@ -62,7 +63,7 @@ impl Download {
     pub async fn sync_all(&self) -> Result<()> {
         let version = versions::Model::first_unready(&self.conn).await?;
         if let Some(version) = version {
-            info!("start sync {:?}", version);
+            info!("start sync {}-{}", version.res, version.client);
             let info: UpdateList = serde_json::from_str(&version.hot_update_list)?;
             for info in info.ab_infos {
                 let local =
@@ -76,12 +77,13 @@ impl Download {
                 let file_id = self.sync_file(&url).await?;
                 bundles::ActiveModel {
                     id: NotSet,
-                    path: Set(info.name),
+                    path: Set(info.name.clone()),
                     version: Set(version.id),
                     file: Set(file_id),
                 }
                 .insert(&self.conn)
                 .await?;
+                info!("{} sync finished", info.name);
             }
             let mut active = version.clone().into_active_model();
             active.is_ready = Set(true);
@@ -94,7 +96,12 @@ impl Download {
         Ok(())
     }
     async fn sync_file(&self, url: &str) -> Result<i32> {
-        let bytes = self.client.get(url).send().await?.bytes().await?;
+        let resp = self.client.get(url).send().await?;
+        let code = resp.status();
+        if !code.is_success() {
+            return Err(any_anyhow(anyhow!("download failed")));
+        }
+        let bytes = resp.bytes().await?;
         let mut zip = zip::ZipArchive::new(Cursor::new(&bytes)).map_err(any_anyhow)?;
         let mut buffer = Vec::new();
         let name_list: Vec<String> = zip
