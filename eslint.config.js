@@ -6,4 +6,5 @@ export default xwbx({
   rules: {
     "antfu/top-level-function": "error",
   },
+  typescript: true,
 });
