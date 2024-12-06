@@ -2,6 +2,7 @@ use sea_orm::FromQueryResult;
 use serde::Serialize;
 
 pub mod utils;
+pub mod versions;
 
 #[derive(Debug, Clone, Serialize, utoipa::ToSchema, FromQueryResult)]
 pub struct FileDetail {
