@@ -141,7 +141,7 @@ export interface components {
             /** Format: int32 */
             file: number;
             hash: string;
-            is_ready: boolean;
+            isReady: boolean;
             path: string;
             res: string;
             /** Format: int32 */
@@ -152,12 +152,19 @@ export interface components {
         Health: {
             ok: boolean;
         };
-        VersionModel: {
+        VersionListItem: {
             client: string;
-            hot_update_list: string;
             /** Format: int32 */
             id: number;
-            is_ready: boolean;
+            isReady: boolean;
+            res: string;
+        };
+        VersionModel: {
+            client: string;
+            hotUpdateList: string;
+            /** Format: int32 */
+            id: number;
+            isReady: boolean;
             res: string;
         };
     };
@@ -266,7 +273,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["VersionModel"][];
+                    "application/json": components["schemas"]["VersionListItem"][];
                 };
             };
         };
