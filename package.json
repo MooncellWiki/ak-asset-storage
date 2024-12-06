@@ -1,7 +1,7 @@
 {
   "type": "module",
   "private": true,
-  "packageManager": "pnpm@9.14.2",
+  "packageManager": "pnpm@9.15.0",
   "scripts": {
     "prepare": "node .husky/install.mjs",
     "build:ui": "pnpm --filter=ui run build",
