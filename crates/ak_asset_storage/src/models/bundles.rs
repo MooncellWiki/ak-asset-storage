@@ -1,21 +1,13 @@
 pub use super::_entities::bundles::{self, ActiveModel, Column, Entity, Model};
 use super::_entities::{files, versions};
-
-use crate::{error::Result, views::FileDetail};
+use crate::{
+    error::Result,
+    views::{bundles::Filter, FileDetail},
+};
 use sea_orm::{entity::prelude::*, Condition, JoinType, QuerySelect, SelectColumns};
-use serde::Deserialize;
-use utoipa::IntoParams;
 
 impl ActiveModelBehavior for ActiveModel {
     // extend activemodel below (keep comment for generators)
-}
-
-#[derive(IntoParams, Deserialize, Debug)]
-pub struct Filter {
-    path: Option<String>,
-    hash: Option<String>,
-    file: Option<i32>,
-    version: Option<i32>,
 }
 
 impl Model {

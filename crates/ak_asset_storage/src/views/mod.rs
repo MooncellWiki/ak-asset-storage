@@ -1,10 +1,11 @@
 use sea_orm::FromQueryResult;
 use serde::Serialize;
-
+pub mod bundles;
 pub mod utils;
 pub mod versions;
 
 #[derive(Debug, Clone, Serialize, utoipa::ToSchema, FromQueryResult)]
+#[serde(rename_all = "camelCase")]
 pub struct FileDetail {
     path: String,
 
