@@ -25,6 +25,9 @@ enum Commands {
     Start {
         #[arg(short, long, action)]
         config: Option<String>,
+
+        #[arg(short, long)]
+        no_worker: bool,
     },
     Version {},
     Seed {
@@ -39,12 +42,12 @@ enum Commands {
 async fn main() -> Result<()> {
     let cli = Cli::parse();
     match cli.command {
-        Commands::Start { config } => {
+        Commands::Start { config, no_worker } => {
             let config = Config::new(Path::new(
                 &config.unwrap_or_else(|| "config.toml".to_string()),
             ))?;
             let conn = boot(&config).await?;
-            boot_server_and_worker(&config, conn).await?;
+            boot_server_and_worker(&config, conn, no_worker).await?;
         }
         Commands::Version {} => println!(
             "{} ({})",

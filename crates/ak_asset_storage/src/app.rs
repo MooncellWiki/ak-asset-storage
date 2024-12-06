@@ -55,6 +55,7 @@ pub async fn boot(config: &config::Config) -> Result<DatabaseConnection> {
 pub async fn boot_server_and_worker(
     config: &config::Config,
     conn: DatabaseConnection,
+    no_worker: bool,
 ) -> Result<()> {
     #[derive(OpenApi)]
     #[openapi(
@@ -90,15 +91,21 @@ pub async fn boot_server_and_worker(
         s3: Arc::new(config.s3.client()?),
         ak: config.ak.clone(),
     };
-    let (check_handler, download_handler) = workers::start(worker_options)?;
+    let worker = if !no_worker {
+        Some(workers::start(worker_options)?)
+    } else {
+        None
+    };
 
     let listener = TcpListener::bind(config.server.full_url()).await?;
     info!("Server is running on {}", config.server.full_url());
     axum::serve(listener, router)
         .with_graceful_shutdown(shutdown_signal())
         .await?;
-    check_handler.abort();
-    download_handler.abort();
+    if let Some((check_handle, download_handle)) = worker {
+        check_handle.abort();
+        download_handle.abort();
+    }
     Ok(())
 }
 
