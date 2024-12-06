@@ -9,6 +9,9 @@ use crate::error::{any_anyhow, Error, Result};
 use super::Mailer;
 
 impl Mailer {
+    fn diff_url(&self) -> String {
+        format!("{0}/diif?diff=", self.fe_url)
+    }
     pub fn notify_update(&self, old_client: &str, old_res: &str, new_client: &str, new_res: &str) {
         if let Err(e) = self.inner_notify_update(old_client, old_res, new_client, new_res) {
             error!("notify update failed: {e:?} {old_client} {old_res} {new_client} {new_res}");
@@ -31,14 +34,14 @@ impl Mailer {
                         SinglePart::builder()
                             .header(header::ContentType::TEXT_PLAIN) // plain fallback
                             .body(format!(
-                                "UPDATE: {old_client} {old_res} -> {new_client} {new_res} \n {0}/{old_res}...{new_res}", self.fe_url
+                                "UPDATE: {old_client} {old_res} -> {new_client} {new_res} \n {0}{old_res}...{new_res}", self.diff_url()
                             )),
                     )
                     .singlepart(
                         SinglePart::builder()
                             .header(header::ContentType::TEXT_HTML)
                             .body(format!(
-                                "UPDATE: {old_client} {old_res} -> {new_client} {new_res} \n <a href='{0}/#{old_res}...{new_res}'>details</a>", self.fe_url
+                                "UPDATE: {old_client} {old_res} -> {new_client} {new_res} \n <a href='{0}{old_res}...{new_res}'>details</a>", self.diff_url()
                             )),
                     ),
             )
@@ -76,12 +79,12 @@ impl Mailer {
                     .singlepart(
                         SinglePart::builder()
                             .header(header::ContentType::TEXT_PLAIN) // plain fallback
-                            .body(format!("ak res update finished: {new_client} {new_res} <a href='{0}/#...{new_res}'>details</a>", self.fe_url)),
+                            .body(format!("ak res update finished: {new_client} {new_res} <a href='{0}{new_res}'>details</a>", self.diff_url())),
                     )
                     .singlepart(
                         SinglePart::builder()
                             .header(header::ContentType::TEXT_HTML)
-                            .body(format!("ak res update finished: {new_client} {new_res} <a href='{0}/#...{new_res}'>details</a>", self.fe_url)),
+                            .body(format!("ak res update finished: {new_client} {new_res} <a href='{0}{new_res}'>details</a>", self.diff_url())),
                     ),
             )
             .map_err(any_anyhow)?;
