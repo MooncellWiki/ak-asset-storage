@@ -5,7 +5,7 @@ COPY . /app
 RUN pnpm i
 RUN pnpm run build:ui
 
-FROM rust:1.82-bookworm as build-stage
+FROM rust:1.83-bookworm as build-stage
 WORKDIR /app
 COPY . /app/
 COPY --from=frontend-build-stage /app/packages/ui/dist /app/packages/ui/dist
