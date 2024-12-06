@@ -5,7 +5,7 @@ import type { SelectGroupOption } from "naive-ui";
 
 export function useVersionSelect() {
   const versionOpts = ref<SelectGroupOption[]>([]);
-  const versions = ref<components["schemas"]["VersionModel"][]>([]);
+  const versions = ref<components["schemas"]["VersionListItem"][]>([]);
   onBeforeMount(async () => {
     const { data } = await client.GET("/api/v1/version");
     const result: SelectGroupOption[] = [];
@@ -24,14 +24,14 @@ export function useVersionSelect() {
           key: prev,
           children: [
             {
-              label: version.res + (version.is_ready ? "" : " (未完成)"),
+              label: version.res + (version.isReady ? "" : " (未完成)"),
               value: version.id,
             },
           ],
         };
       } else {
         group!.children!.push({
-          label: version.res + (version.is_ready ? "" : " (未完成)"),
+          label: version.res + (version.isReady ? "" : " (未完成)"),
           value: version.id,
         });
       }
