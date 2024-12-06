@@ -1,8 +1,9 @@
-use crate::error::{Error, Result};
-use crate::models::bundles::Filter;
-use crate::views::utils::json;
-use crate::views::FileDetail;
-use crate::{app::Context, models::_entities::bundles::Model};
+use crate::{
+    app::Context,
+    error::{Error, Result},
+    models::bundles::Model,
+    views::{bundles::Filter, utils::json, FileDetail},
+};
 use axum::extract::{Path, State};
 use axum::response::Response;
 use axum::{debug_handler, extract::Query};
