@@ -1,7 +1,8 @@
+use sea_orm::FromQueryResult;
 use serde::Serialize;
 use utoipa::ToSchema;
 
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, ToSchema)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, ToSchema, FromQueryResult)]
 #[serde(rename_all = "camelCase")]
 pub struct VersionListItem {
     pub id: i32,

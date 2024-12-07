@@ -1,6 +1,6 @@
 pub use super::_entities::versions::{ActiveModel, Column, Entity, Model};
-use crate::error::Result;
-use sea_orm::{entity::prelude::*, Order, QueryOrder};
+use crate::{error::Result, views::versions::VersionListItem};
+use sea_orm::{entity::prelude::*, Order, QueryOrder, QuerySelect};
 
 impl ActiveModelBehavior for ActiveModel {
     // extend activemodel below (keep comment for generators)
@@ -31,5 +31,14 @@ impl Model {
             .filter(Column::Res.eq(res))
             .one(db)
             .await?)
+    }
+    pub async fn list(db: &DatabaseConnection) -> Result<Vec<VersionListItem>> {
+        let resp = Entity::find()
+            .select_only()
+            .columns([Column::Id, Column::Client, Column::Res, Column::IsReady])
+            .into_model::<VersionListItem>()
+            .all(db)
+            .await?;
+        Ok(resp)
     }
 }
