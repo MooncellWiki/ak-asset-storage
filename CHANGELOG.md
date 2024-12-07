@@ -2,9 +2,36 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.5.0] - 2024-12-07
+
+[65438c0](65438c063cc6e7c6d6cd1244f0128a9e1bcc68fa)...[b57581c](b57581c59b740e9905a85f9468bde612affa8b54)
+
+### 🚀 Features
+
+- Support start server without start worker ([9472b80](https://github.com/MooncellWiki/ak-asset-storage/commit/9472b80c33dedcd8da8131a924d8cfe9521290db))
+- Version list接口不响应hot update list ([6792b9c](https://github.com/MooncellWiki/ak-asset-storage/commit/6792b9ce568b0a72d67feb92f2f8e83595f4ede3))
+
+### 🐛 Bug Fixes
+
+- Fallback to index.html when asset not found ([a56654b](https://github.com/MooncellWiki/ak-asset-storage/commit/a56654ba7bb8335c1680b715e4deaed4cd766cb4))
+- Email url ([244e875](https://github.com/MooncellWiki/ak-asset-storage/commit/244e875b34dacd54184ea5ed16a27521c1b52722))
+- Update field ([73a478c](https://github.com/MooncellWiki/ak-asset-storage/commit/73a478cf50ec31b9ef27606de4d1a242aee7a403))
+
+### 🚜 Refactor
+
+- Move position ([be335ac](https://github.com/MooncellWiki/ak-asset-storage/commit/be335ac03d5e335e7afff8a5caa279f5357dc2fe))
+
+### ⚙️ Miscellaneous Tasks
+
+- Update dependencies ([95d0377](https://github.com/MooncellWiki/ak-asset-storage/commit/95d0377c394a945395b4c61830f72975753543ce))
+- Update dependencies ([74995fb](https://github.com/MooncellWiki/ak-asset-storage/commit/74995fb3b8fdff6f7b7bcfc56017b820af2df849))
+- Update pnpm to v9.15.0 (#27) ([1865ff1](https://github.com/MooncellWiki/ak-asset-storage/commit/1865ff18b7d7c6744cbe01d42516b68d134b35e1)), Co-authored-by:renovate[bot] <29139614+renovate[bot]@users.noreply.github.com>
+- Update tokio-tracing monorepo (#26) ([c26a31b](https://github.com/MooncellWiki/ak-asset-storage/commit/c26a31b4b2eb76aedbef0e79453b29f41672f45c)), Co-authored-by:renovate[bot] <29139614+renovate[bot]@users.noreply.github.com>
+- Lock file maintenance (#28) ([b57581c](https://github.com/MooncellWiki/ak-asset-storage/commit/b57581c59b740e9905a85f9468bde612affa8b54)), Co-authored-by:renovate[bot] <29139614+renovate[bot]@users.noreply.github.com>
+
 ## [0.4.0] - 2024-11-25
 
-[972e9dc](972e9dcc72bd77adc30693b32d15fa7f05583d68)...[b7af8cd](b7af8cd0ef9fdfa3bdf9d3511507ca65d684cbe6)
+[972e9dc](972e9dcc72bd77adc30693b32d15fa7f05583d68)...[65438c0](65438c063cc6e7c6d6cd1244f0128a9e1bcc68fa)
 
 ### 🐛 Bug Fixes
 
@@ -13,6 +40,7 @@ All notable changes to this project will be documented in this file.
 ### ⚙️ Miscellaneous Tasks
 
 - Update dependencies ([a3e10d8](https://github.com/MooncellWiki/ak-asset-storage/commit/a3e10d8c9293307195ed92b69cbe1993e68f9ce5))
+- Release 0.4.0 ([65438c0](https://github.com/MooncellWiki/ak-asset-storage/commit/65438c063cc6e7c6d6cd1244f0128a9e1bcc68fa))
 
 ## [0.3.0] - 2024-11-21
 
