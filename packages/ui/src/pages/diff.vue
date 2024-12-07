@@ -1,6 +1,11 @@
 <template>
   <div class="flex items-center justify-center">
-    <NSelect v-model:value="left" class="w-80" :options="versionOpts"></NSelect>
+    <NSelect
+      v-model:value="left"
+      class="w-80"
+      :options="versionOpts"
+      clearable
+    ></NSelect>
     <NButton class="mx-2" secondary circle @click="switchVer">
       <template #icon>
         <CarbonArrowsHorizontal />
@@ -10,10 +15,15 @@
       v-model:value="right"
       class="w-80"
       :options="versionOpts"
+      clearable
     ></NSelect>
   </div>
   <div class="mt-2 flex">
-    <NInput class="flex-grow" placeholder="搜索文件"></NInput>
+    <NInput
+      v-model:value="keyword"
+      class="flex-grow"
+      placeholder="搜索文件"
+    ></NInput>
     <NPopover trigger="click">
       <template #trigger>
         <NButton circle secondary class="ml-2">
@@ -43,13 +53,14 @@
   ></FileDetailDiff>
 </template>
 <script setup lang="ts">
-import { useUrlSearchParams } from "@vueuse/core";
+import { useUrlSearchParams, watchDebounced } from "@vueuse/core";
 import CarbonArrowsHorizontal from "~icons/carbon/arrows-horizontal";
 import CarbonSettings from "~icons/carbon/settings";
 import { NButton, NInput, NPopover, NSelect, NSwitch, NTree } from "naive-ui";
 import { h, onBeforeMount, ref, watch } from "vue";
 import { client } from "~/common/client";
 import { useVersionSelect } from "~/common/useVersionSelect";
+import { isNumber } from "~/common/utils";
 import type { components } from "~/common/schema";
 import FileDetailDiff from "./components/FileDetailDiff.vue";
 import type { TreeOption, TreeOverrideNodeClickBehavior } from "naive-ui";
@@ -59,12 +70,17 @@ import type { VNodeChild } from "vue";
 const params = useUrlSearchParams("history");
 const left = ref<number>();
 const right = ref<number>();
+const keyword = ref<string>("");
 const { versions, versionOpts, load: loadVersions } = useVersionSelect();
 watch(
   () => [left.value, right.value],
   () => {
     const l = versions.value.find((v) => v.id === left.value);
     const r = versions.value.find((v) => v.id === right.value);
+    if (!l && !r) {
+      delete params.diff;
+      return;
+    }
     params.diff = `${l?.res || ""}...${r?.res || ""}`;
   },
 );
@@ -109,9 +125,9 @@ interface VersionFiles {
   pathMap: Record<string, components["schemas"]["FileDetail"]>;
   list: components["schemas"]["FileDetail"][];
 }
-let lData: VersionFiles = { pathMap: {}, list: [] };
-let rData: VersionFiles = { pathMap: {}, list: [] };
-async function loadTree(id: number) {
+const lData = ref<VersionFiles>({ pathMap: {}, list: [] });
+const rData = ref<VersionFiles>({ pathMap: {}, list: [] });
+async function loadDetail(id: number) {
   const resp = await client.GET("/api/v1/version/{id}/files", {
     params: { path: { id } },
   });
@@ -124,66 +140,77 @@ async function loadTree(id: number) {
   }
   return { pathMap, list };
 }
+function buildTree() {
+  const hasLeft = typeof left.value === "number";
+  const hasRight = typeof right.value === "number";
+  const top: TreeOption = { children: [] };
+  function updateTree(list: components["schemas"]["FileDetail"][]) {
+    for (const item of list) {
+      const paths = item.path.split("/");
+      let cur = top;
+      for (let i = 0; i < paths.length; i++) {
+        const curPath = paths.slice(0, i + 1).join("/");
+        const child = cur.children!.find((v) => v.key === curPath);
+        if (!child) {
+          const next = {
+            key: curPath,
+            children: i === paths.length - 1 ? void 0 : [],
+            label: paths[i],
+            isLeaf: i === paths.length - 1,
+          };
+          cur.children!.push(next);
+          cur = next;
+        } else {
+          cur = child;
+        }
+      }
+    }
+  }
+  let lList = lData.value.list.filter((v) => v.path.includes(keyword.value));
+  let rList = rData.value.list.filter((v) => v.path.includes(keyword.value));
+  if (hasLeft && hasRight && changeOnly.value) {
+    lList = lList.filter((v) => {
+      const right = rData!.value.pathMap[v.path];
+      if (!right) {
+        return true;
+      }
+      return v.hash !== right.hash;
+    });
+    rList = rList.filter((v) => {
+      const left = lData!.value.pathMap[v.path];
+      if (!left) {
+        return true;
+      }
+      return v.hash !== left.hash;
+    });
+    updateTree(lList);
+    updateTree(rList);
+  } else {
+    if (hasLeft) {
+      updateTree(lList);
+    }
+    if (hasRight) {
+      updateTree(rList);
+    }
+  }
+  treeData.value = top.children!;
+}
+watchDebounced(
+  () => [lData.value, rData.value, keyword.value],
+  () => {
+    buildTree();
+  },
+  { debounce: 200, maxWait: 500 },
+);
 watch(
   () => [left.value, right.value],
   async () => {
-    const hasLeft = typeof left.value === "number";
-    const hasRight = typeof right.value === "number";
-    if (hasLeft) {
-      lData = await loadTree(left.value!);
-    }
-    if (hasRight) {
-      rData = await loadTree(right.value!);
-    }
-    const top: TreeOption = { children: [] };
-    function updateTree(list: components["schemas"]["FileDetail"][]) {
-      for (const item of list) {
-        const paths = item.path.split("/");
-        let cur = top;
-        for (let i = 0; i < paths.length; i++) {
-          const curPath = paths.slice(0, i + 1).join("/");
-          const child = cur.children!.find((v) => v.key === curPath);
-          if (!child) {
-            const next = {
-              key: curPath,
-              children: i === paths.length - 1 ? void 0 : [],
-              label: paths[i],
-              isLeaf: i === paths.length - 1,
-            };
-            cur.children!.push(next);
-            cur = next;
-          } else {
-            cur = child;
-          }
-        }
-      }
-    }
-    if (hasLeft && hasRight && changeOnly.value) {
-      const lList = lData!.list.filter((v) => {
-        const right = rData!.pathMap[v.path];
-        if (!right) {
-          return true;
-        }
-        return v.hash !== right.hash;
-      });
-      const rList = rData!.list.filter((v) => {
-        const left = lData!.pathMap[v.path];
-        if (!left) {
-          return true;
-        }
-        return v.hash !== left.hash;
-      });
-      updateTree(lList);
-      updateTree(rList);
-    } else {
-      if (hasLeft) {
-        updateTree(lData.list);
-      }
-      if (hasRight) {
-        updateTree(rData.list);
-      }
-    }
-    treeData.value = top.children!;
+    lData.value = isNumber(left.value)
+      ? await loadDetail(left.value!)
+      : { pathMap: {}, list: [] };
+    rData.value = isNumber(right.value)
+      ? await loadDetail(right.value!)
+      : { pathMap: {}, list: [] };
   },
 );
 
@@ -194,11 +221,24 @@ const override: TreeOverrideNodeClickBehavior = ({ option }) => {
   return "default";
 };
 function renderLabel(props: TreeRenderProps): VNodeChild {
+  const l = lData.value.pathMap[props.option.key!];
+  const r = rData.value.pathMap[props.option.key!];
   if (typeof left.value !== "number" || typeof right.value !== "number") {
-    return h("div", undefined, props.option.label);
+    return h(
+      "div",
+      {
+        onClick: () => {
+          if (typeof left.value === "number") {
+            onLabelClick(l);
+          } else {
+            onLabelClick(r);
+          }
+        },
+      },
+      props.option.label,
+    );
   }
-  const l = lData.pathMap[props.option.key!];
-  const r = rData.pathMap[props.option.key!];
+
   if (l && r) {
     if (l.hash === r.hash) {
       return h("div", { onClick: () => onLabelClick(r) }, props.option.label);
