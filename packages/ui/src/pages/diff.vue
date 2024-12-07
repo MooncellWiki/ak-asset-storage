@@ -59,7 +59,7 @@ import type { VNodeChild } from "vue";
 const params = useUrlSearchParams("history");
 const left = ref<number>();
 const right = ref<number>();
-const { versions, versionOpts } = useVersionSelect();
+const { versions, versionOpts, load: loadVersions } = useVersionSelect();
 watch(
   () => [left.value, right.value],
   () => {
@@ -70,6 +70,7 @@ watch(
 );
 
 onBeforeMount(async () => {
+  await loadVersions();
   if (params.diff) {
     const arr = (params.diff as string).split("...");
     if (arr.length === 2) {
@@ -110,31 +111,30 @@ interface VersionFiles {
 }
 let lData: VersionFiles = { pathMap: {}, list: [] };
 let rData: VersionFiles = { pathMap: {}, list: [] };
+async function loadTree(id: number) {
+  const resp = await client.GET("/api/v1/version/{id}/files", {
+    params: { path: { id } },
+  });
+  const pathMap: Record<string, components["schemas"]["FileDetail"]> = {};
+  const list = (resp.data ?? []).sort((a, b) => {
+    return dirOrder(a.path, b.path);
+  });
+  for (const item of list) {
+    pathMap[item.path] = item;
+  }
+  return { pathMap, list };
+}
 watch(
   () => [left.value, right.value],
   async () => {
-    if (typeof left.value !== "number" || typeof right.value !== "number") {
-      return;
+    const hasLeft = typeof left.value === "number";
+    const hasRight = typeof right.value === "number";
+    if (hasLeft) {
+      lData = await loadTree(left.value!);
     }
-    const arr = await Promise.all([
-      client.GET("/api/v1/version/{id}/files", {
-        params: { path: { id: left.value } },
-      }),
-      client.GET("/api/v1/version/{id}/files", {
-        params: { path: { id: right.value } },
-      }),
-    ]);
-    const [leftData, rightData] = arr.map((v) => {
-      const pathMap: Record<string, components["schemas"]["FileDetail"]> = {};
-      const list = (v.data ?? []).sort((a, b) => {
-        return dirOrder(a.path, b.path);
-      });
-      for (const item of list) {
-        pathMap[item.path] = item;
-      }
-      return { pathMap, list };
-    });
-
+    if (hasRight) {
+      rData = await loadTree(right.value!);
+    }
     const top: TreeOption = { children: [] };
     function updateTree(list: components["schemas"]["FileDetail"][]) {
       for (const item of list) {
@@ -158,16 +158,16 @@ watch(
         }
       }
     }
-    if (changeOnly.value) {
-      const lList = leftData!.list.filter((v) => {
-        const right = rightData!.pathMap[v.path];
+    if (hasLeft && hasRight && changeOnly.value) {
+      const lList = lData!.list.filter((v) => {
+        const right = rData!.pathMap[v.path];
         if (!right) {
           return true;
         }
         return v.hash !== right.hash;
       });
-      const rList = rightData!.list.filter((v) => {
-        const left = leftData!.pathMap[v.path];
+      const rList = rData!.list.filter((v) => {
+        const left = lData!.pathMap[v.path];
         if (!left) {
           return true;
         }
@@ -176,11 +176,13 @@ watch(
       updateTree(lList);
       updateTree(rList);
     } else {
-      updateTree(leftData!.list);
-      updateTree(rightData!.list);
+      if (hasLeft) {
+        updateTree(lData.list);
+      }
+      if (hasRight) {
+        updateTree(rData.list);
+      }
     }
-    lData = leftData!;
-    rData = rightData!;
     treeData.value = top.children!;
   },
 );
@@ -192,6 +194,9 @@ const override: TreeOverrideNodeClickBehavior = ({ option }) => {
   return "default";
 };
 function renderLabel(props: TreeRenderProps): VNodeChild {
+  if (typeof left.value !== "number" || typeof right.value !== "number") {
+    return h("div", undefined, props.option.label);
+  }
   const l = lData.pathMap[props.option.key!];
   const r = rData.pathMap[props.option.key!];
   if (l && r) {

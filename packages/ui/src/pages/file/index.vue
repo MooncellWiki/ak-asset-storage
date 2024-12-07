@@ -46,7 +46,7 @@ import {
   NModal,
   NSelect,
 } from "naive-ui";
-import { h, ref } from "vue";
+import { h, onBeforeMount, ref } from "vue";
 import { client } from "~/common/client";
 import { useVersionSelect } from "~/common/useVersionSelect";
 import type { components } from "~/common/schema";
@@ -58,8 +58,10 @@ const model = ref<{
   hash?: string;
   version?: number;
 }>({});
-const { versionOpts } = useVersionSelect();
-
+const { versionOpts, load } = useVersionSelect();
+onBeforeMount(() => {
+  load();
+});
 const list = ref<components["schemas"]["FileDetail"][]>([]);
 async function search() {
   if (model.value.path || model.value.hash || model.value.version) {

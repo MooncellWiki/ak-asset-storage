@@ -1,4 +1,4 @@
-import { onBeforeMount, ref } from "vue";
+import { ref } from "vue";
 import { client } from "./client";
 import type { components } from "./schema";
 import type { SelectGroupOption } from "naive-ui";
@@ -6,7 +6,7 @@ import type { SelectGroupOption } from "naive-ui";
 export function useVersionSelect() {
   const versionOpts = ref<SelectGroupOption[]>([]);
   const versions = ref<components["schemas"]["VersionListItem"][]>([]);
-  onBeforeMount(async () => {
+  async function load() {
     const { data } = await client.GET("/api/v1/version");
     const result: SelectGroupOption[] = [];
     versions.value = (data ?? []).reverse();
@@ -38,9 +38,10 @@ export function useVersionSelect() {
     }
     result.push(group!);
     versionOpts.value = result;
-  });
+  }
   return {
     versionOpts,
     versions,
+    load,
   };
 }
