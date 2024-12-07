@@ -20,7 +20,7 @@ use utoipa_axum::{router::OpenApiRouter, routes};
 #[debug_handler]
 #[utoipa::path(get, path = "",tag = "version", responses((status = OK, body = [VersionListItem])))]
 pub async fn list(State(ctx): State<Context>) -> Result<Response> {
-    let resp = Entity::find().all(&ctx.conn).await?;
+    let resp = Model::list(&ctx.conn).await?;
     Ok(json(resp))
 }
 
