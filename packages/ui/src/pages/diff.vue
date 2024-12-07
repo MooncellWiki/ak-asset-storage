@@ -226,15 +226,17 @@ function renderLabel(props: TreeRenderProps): VNodeChild {
   if (typeof left.value !== "number" || typeof right.value !== "number") {
     return h(
       "div",
-      {
-        onClick: () => {
-          if (typeof left.value === "number") {
-            onLabelClick(l);
-          } else {
-            onLabelClick(r);
+      props.option.isLeaf
+        ? {
+            onClick: () => {
+              if (typeof left.value === "number") {
+                onLabelClick(l);
+              } else {
+                onLabelClick(r);
+              }
+            },
           }
-        },
-      },
+        : undefined,
       props.option.label,
     );
   }
