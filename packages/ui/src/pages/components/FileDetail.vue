@@ -22,7 +22,7 @@ function download() {
   const path = `/storage/${props.detail.hash.slice(0, 2)}/${props.detail.hash.slice(2, 4)}/${props.detail.hash.slice(4)}`;
   const a = document.createElement("a");
   a.href = path;
-  a.download = `${props.detail.hash}.zip`;
+  a.download = `${props.detail.client}_${props.detail.res}_${props.detail.path}.zip`;
   a.click();
 }
 function fmtSize(size?: number) {
