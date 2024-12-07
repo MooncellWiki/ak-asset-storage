@@ -2,13 +2,25 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.5.2] - 2024-12-07
+
+[793075a](793075a29eb98d0c61ebc225aed81800ab2799c7)...[3938d36](3938d36300a84f6f03f3ae0553912dd4c682015b)
+
+### 🐛 Bug Fixes
+
+- Content type ([3938d36](https://github.com/MooncellWiki/ak-asset-storage/commit/3938d36300a84f6f03f3ae0553912dd4c682015b))
+
 ## [0.5.1] - 2024-12-07
 
-[11d072a](11d072a7445176695e990159ba2cb325a80361a4)...[63c2fcd](63c2fcd0a446553f09bd3e71caac74bd6393d222)
+[11d072a](11d072a7445176695e990159ba2cb325a80361a4)...[793075a](793075a29eb98d0c61ebc225aed81800ab2799c7)
 
 ### 🐛 Bug Fixes
 
 - Version list接口不响应hot update list ([63c2fcd](https://github.com/MooncellWiki/ak-asset-storage/commit/63c2fcd0a446553f09bd3e71caac74bd6393d222))
+
+### ⚙️ Miscellaneous Tasks
+
+- Release 0.5.1 ([793075a](https://github.com/MooncellWiki/ak-asset-storage/commit/793075a29eb98d0c61ebc225aed81800ab2799c7))
 
 ## [0.5.0] - 2024-12-07
 
