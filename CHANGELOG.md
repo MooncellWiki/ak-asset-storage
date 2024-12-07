@@ -2,14 +2,26 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.7.1] - 2024-12-07
+
+[8c82239](8c82239735d4d1783c85b3102da56f4c9585d135)...[69112af](69112af898ee06b5236a8eb44987d78178a23cf2)
+
+### 🐛 Bug Fixes
+
+- 点到父节点上时不显示弹窗 ([69112af](https://github.com/MooncellWiki/ak-asset-storage/commit/69112af898ee06b5236a8eb44987d78178a23cf2))
+
 ## [0.7.0] - 2024-12-07
 
-[241f48b](241f48b09e2c22830c370a47b4a8bfe2d231e9bf)...[d9757ea](d9757eaf4399c94e0d07fa79e29c151ae5c098cc)
+[241f48b](241f48b09e2c22830c370a47b4a8bfe2d231e9bf)...[8c82239](8c82239735d4d1783c85b3102da56f4c9585d135)
 
 ### 🚀 Features
 
 - 支持搜索 ([6ca3365](https://github.com/MooncellWiki/ak-asset-storage/commit/6ca33658224cce598b38160b4c7cbe5ccd7519f2))
 - Better download file name ([d9757ea](https://github.com/MooncellWiki/ak-asset-storage/commit/d9757eaf4399c94e0d07fa79e29c151ae5c098cc))
+
+### ⚙️ Miscellaneous Tasks
+
+- Release 0.7.0 ([8c82239](https://github.com/MooncellWiki/ak-asset-storage/commit/8c82239735d4d1783c85b3102da56f4c9585d135))
 
 ## [0.6.0] - 2024-12-07
 
