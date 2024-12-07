@@ -2,9 +2,17 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.5.1] - 2024-12-07
+
+[11d072a](11d072a7445176695e990159ba2cb325a80361a4)...[63c2fcd](63c2fcd0a446553f09bd3e71caac74bd6393d222)
+
+### 🐛 Bug Fixes
+
+- Version list接口不响应hot update list ([63c2fcd](https://github.com/MooncellWiki/ak-asset-storage/commit/63c2fcd0a446553f09bd3e71caac74bd6393d222))
+
 ## [0.5.0] - 2024-12-07
 
-[65438c0](65438c063cc6e7c6d6cd1244f0128a9e1bcc68fa)...[b57581c](b57581c59b740e9905a85f9468bde612affa8b54)
+[65438c0](65438c063cc6e7c6d6cd1244f0128a9e1bcc68fa)...[11d072a](11d072a7445176695e990159ba2cb325a80361a4)
 
 ### 🚀 Features
 
@@ -28,6 +36,7 @@ All notable changes to this project will be documented in this file.
 - Update pnpm to v9.15.0 (#27) ([1865ff1](https://github.com/MooncellWiki/ak-asset-storage/commit/1865ff18b7d7c6744cbe01d42516b68d134b35e1)), Co-authored-by:renovate[bot] <29139614+renovate[bot]@users.noreply.github.com>
 - Update tokio-tracing monorepo (#26) ([c26a31b](https://github.com/MooncellWiki/ak-asset-storage/commit/c26a31b4b2eb76aedbef0e79453b29f41672f45c)), Co-authored-by:renovate[bot] <29139614+renovate[bot]@users.noreply.github.com>
 - Lock file maintenance (#28) ([b57581c](https://github.com/MooncellWiki/ak-asset-storage/commit/b57581c59b740e9905a85f9468bde612affa8b54)), Co-authored-by:renovate[bot] <29139614+renovate[bot]@users.noreply.github.com>
+- Release 0.5.0 ([11d072a](https://github.com/MooncellWiki/ak-asset-storage/commit/11d072a7445176695e990159ba2cb325a80361a4))
 
 ## [0.4.0] - 2024-11-25
 
