@@ -38,7 +38,7 @@ tower-http = { version = "0.6.2", features = [
   "cors",
   "compression-full",
 ] }
-thiserror = "2.0.4"
+thiserror = "2.0.6"
 toml = "0.8.19"
 lettre = { version = "0.11.11", features = [ "tokio1-native-tls" ] }
 serde_variant = "0.1.3"
