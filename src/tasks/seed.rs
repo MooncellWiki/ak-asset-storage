@@ -1,18 +1,20 @@
 use crate::{
-    config::Ak,
-    db,
+    config::Config,
+    sentry, utils,
     workers::{
         check::{self, RemoteVersion},
-        download,
+        download, WorkerContext,
     },
 };
 use anyhow::Result;
-use object_store::aws::AmazonS3;
 use sqlx::query;
-use std::{fs, path::PathBuf, sync::Arc, time::Duration};
+use std::{fs, path::PathBuf};
 use tracing::info;
 
-pub async fn seed(path: PathBuf, conn: db::Pool, s3: Arc<AmazonS3>, ak: Ak) -> Result<()> {
+pub async fn seed(path: PathBuf, config: &Config) -> Result<()> {
+    let _sentry = sentry::init(&config.sentry);
+    utils::tracing::init(&config.logger);
+    let ctx = WorkerContext::new(config).await?;
     let content = fs::read_to_string(path)?;
     let versions = content
         .split('\n')
@@ -25,30 +27,15 @@ pub async fn seed(path: PathBuf, conn: db::Pool, s3: Arc<AmazonS3>, ak: Ak) -> R
             }
         })
         .collect::<Vec<RemoteVersion>>();
-    let client = reqwest::ClientBuilder::new()
-        .timeout(Duration::from_secs(60 * 5))
-        .build()?;
-    let checker = check::Check {
-        client: client.clone(),
-        conn: conn.clone(),
-        mailer: None,
-        conf_url: ak.conf_url.clone(),
-        asset_url: ak.asset_url.clone(),
-    };
-    let downloader = download::Download {
-        client: client.clone(),
-        conn: conn.clone(),
-        s3: s3.clone(),
-        mailer: None,
-        asset_url: ak.asset_url.clone(),
-    };
+    let checker = check::Check { ctx: ctx.clone() };
+    let downloader = download::Download { ctx: ctx.clone() };
     for remote in versions {
         if query!(
             "SELECT * FROM versions where client = $1 and res = $2",
             remote.client_version,
             remote.res_version
         )
-        .fetch_optional(&conn)
+        .fetch_optional(&ctx.conn)
         .await?
         .is_none()
         {
@@ -62,7 +49,7 @@ pub async fn seed(path: PathBuf, conn: db::Pool, s3: Arc<AmazonS3>, ak: Ak) -> R
     }
     loop {
         if query!("SELECT * FROM versions where is_ready = false")
-            .fetch_optional(&conn)
+            .fetch_optional(&ctx.conn)
             .await?
             .is_some()
         {
