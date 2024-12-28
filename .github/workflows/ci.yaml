@@ -8,6 +8,7 @@ on:
 env:
   RUST_TOOLCHAIN: stable
   TOOLCHAIN_PROFILE: minimal
+  SQLX_OFFLINE: true
 
 jobs:
   rustfmt:
@@ -20,14 +21,11 @@ jobs:
     steps:
       - name: Checkout the code
         uses: actions/checkout@v4
-      - uses: ./.github/actions/rustup
+      - uses: actions-rust-lang/setup-rust-toolchain@v1
         with:
           components: rustfmt
-      - name: Run cargo fmt
-        uses: actions-rs/cargo@v1
-        with:
-          command: fmt
-          args: --all -- --check
+      - name: Rustfmt Check
+        uses: actions-rust-lang/rustfmt@v1
 
   clippy:
     name: Run Clippy
@@ -39,7 +37,7 @@ jobs:
     steps:
       - name: Checkout the code
         uses: actions/checkout@v4
-      - uses: ./.github/actions/rustup
+      - uses: actions-rust-lang/setup-rust-toolchain@v1
         with:
           components: clippy
       - name: Setup Node
@@ -48,10 +46,9 @@ jobs:
         shell: bash
         run: pnpm run build:ui
       - name: Run cargo clippy
-        uses: actions-rs/cargo@v1
-        with:
-          command: clippy
-          args: --all-features -- -D warnings
+        shell: bash
+        run: cargo run clippy --all-features -- -D warnings
+
   eslint:
     name: Check frontend style
     runs-on: ubuntu-latest

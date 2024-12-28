@@ -1,0 +1,12 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO bundles (path, version, file) VALUES ($1, $2, $3)",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": ["Varchar", "Int4", "Int4"]
+    },
+    "nullable": []
+  },
+  "hash": "cd2411efd61c53062de255b999a2f4b8a78cf0a56ef6d45866d108a9aee5a7ef"
+}

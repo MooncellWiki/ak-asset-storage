@@ -1,0 +1,12 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE versions SET is_ready = true WHERE id = $1",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": ["Int4"]
+    },
+    "nullable": []
+  },
+  "hash": "fe3823b351e233f44ca182ab92e9e14def3936a1542f62af008983ef8d5ef8ac"
+}

@@ -1,0 +1,23 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        SELECT res, client FROM versions ORDER BY ID DESC",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "res",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 1,
+        "name": "client",
+        "type_info": "Varchar"
+      }
+    ],
+    "parameters": {
+      "Left": []
+    },
+    "nullable": [false, false]
+  },
+  "hash": "ce883df4d14eba745c0270f452037ea82acb13f0f765ca0d9bd1e91a7b12616c"
+}

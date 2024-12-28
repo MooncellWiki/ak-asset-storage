@@ -1,0 +1,38 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT * FROM versions where is_ready = false ORDER BY id ASC",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 1,
+        "name": "res",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 2,
+        "name": "client",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 3,
+        "name": "is_ready",
+        "type_info": "Bool"
+      },
+      {
+        "ordinal": 4,
+        "name": "hot_update_list",
+        "type_info": "Text"
+      }
+    ],
+    "parameters": {
+      "Left": []
+    },
+    "nullable": [false, false, false, false, false]
+  },
+  "hash": "e9b0e48f4e8190eec0f44b9a0749ad0996add006c9223d2f638612ae6def31b7"
+}
