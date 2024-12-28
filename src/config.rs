@@ -14,6 +14,7 @@ pub struct Config {
     pub mailer: Mailer,
     pub ak: Ak,
     pub s3: S3,
+    pub sentry: Sentry,
 }
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct Ak {
@@ -136,4 +137,10 @@ impl std::fmt::Display for Config {
         let content = toml::to_string(self).unwrap_or_default();
         write!(f, "{content}")
     }
+}
+#[derive(Debug, Clone, Deserialize, Serialize)]
+pub struct Sentry {
+    pub dsn: String,
+    /// The sample rate for tracing transactions.
+    pub traces_sample_rate: f32,
 }

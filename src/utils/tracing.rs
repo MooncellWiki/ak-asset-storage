@@ -1,5 +1,7 @@
+use sentry::integrations::tracing::EventFilter;
 use serde::{Deserialize, Serialize};
 use serde_variant::to_variant_name;
+use tracing::{level_filters::LevelFilter, Level, Metadata};
 use tracing_subscriber::{
     fmt::{self, MakeWriter},
     layer::SubscriberExt,
@@ -105,7 +107,13 @@ where
             .boxed(),
     }
 }
-
+fn event_filter(metadata: &Metadata<'_>) -> EventFilter {
+    match metadata.level() {
+        &Level::ERROR | &Level::WARN => EventFilter::Exception,
+        &Level::INFO => EventFilter::Breadcrumb,
+        _ => EventFilter::Ignore,
+    }
+}
 pub fn init(config: &config::Logger) {
     let mut layers: Vec<Box<dyn Layer<Registry> + Sync + Send>> = Vec::new();
     if config.enable {
@@ -115,9 +123,14 @@ pub fn init(config: &config::Logger) {
 
     if !layers.is_empty() {
         let env_filter = init_env_filter(config.override_filter.as_ref(), &config.level);
+        let sentry_layer = sentry::integrations::tracing::layer()
+            .event_filter(event_filter)
+            .with_filter(LevelFilter::INFO);
+
         tracing_subscriber::registry()
             .with(layers)
             .with(env_filter)
+            .with(sentry_layer)
             .init();
     }
 }

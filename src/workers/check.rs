@@ -1,12 +1,9 @@
-use crate::{db, mailers::Mailer};
+use super::WorkerContext;
 use anyhow::Result;
 use serde::Deserialize;
 use sqlx::query;
-use std::{
-    sync::Arc,
-    time::{SystemTime, UNIX_EPOCH},
-};
-use tracing::{error, info};
+use std::time::{SystemTime, UNIX_EPOCH};
+use tracing::{error, info, instrument};
 
 #[derive(Deserialize, Debug)]
 #[serde(rename_all = "camelCase")]
@@ -46,20 +43,17 @@ pub async fn get_hot_update_list(
 
 #[derive(Debug)]
 pub struct Check {
-    pub conf_url: String,
-    pub asset_url: String,
-    pub client: reqwest::Client,
-    pub conn: db::Pool,
-    pub mailer: Option<Arc<Mailer>>,
+    pub ctx: WorkerContext,
 }
 impl Check {
+    #[instrument(name = "worker.check", skip_all)]
     pub async fn perform(&self) {
         if let Err(e) = self.inner_perform().await {
             error!("check failed: {e:?}");
         }
     }
     pub async fn inner_perform(&self) -> Result<()> {
-        let remote = RemoteVersion::get(&self.conf_url, &self.client).await?;
+        let remote = RemoteVersion::get(&self.ctx.ak.conf_url, &self.ctx.client).await?;
         self.update(remote).await?;
         Ok(())
     }
@@ -68,7 +62,7 @@ impl Check {
             r#"
         SELECT res, client FROM versions ORDER BY ID DESC"#,
         )
-        .fetch_optional(&self.conn)
+        .fetch_optional(&self.ctx.conn)
         .await?;
         match local_version {
             Some(local) => {
@@ -76,7 +70,7 @@ impl Check {
                     info!("no change, skip");
                     return Ok(());
                 }
-                if let Some(mailer) = &self.mailer {
+                if let Some(mailer) = &self.ctx.mailer {
                     mailer.notify_update(
                         &local.client,
                         &local.res,
@@ -86,13 +80,17 @@ impl Check {
                 }
             }
             None => {
-                if let Some(mailer) = &self.mailer {
+                if let Some(mailer) = &self.ctx.mailer {
                     mailer.notify_update("", "", &remote.client_version, &remote.res_version);
                 }
             }
         }
-        let update =
-            get_hot_update_list(&self.asset_url, &remote.res_version, &self.client).await?;
+        let update = get_hot_update_list(
+            &self.ctx.ak.asset_url,
+            &remote.res_version,
+            &self.ctx.client,
+        )
+        .await?;
         query!(
             "INSERT INTO versions (client, res, is_ready, hot_update_list) VALUES ($1, $2, $3, $4)",
             remote.client_version,
@@ -100,7 +98,7 @@ impl Check {
             false,
             update
         )
-        .execute(&self.conn)
+        .execute(&self.ctx.conn)
         .await?;
 
         Ok(())

@@ -1,12 +1,6 @@
-use std::{
-    path::{Path, PathBuf},
-    sync::Arc,
-};
-
-use ak_asset_storage::{
-    config::Config, db, error::Result, server::start, tasks::seed::seed, workers,
-};
+use ak_asset_storage::{config::Config, error::Result, server::start, tasks::seed::seed, workers};
 use clap::{command, Parser};
+use std::path::{Path, PathBuf};
 
 #[derive(Parser, Debug)]
 #[command(author, version, about, long_about = None)]
@@ -51,14 +45,7 @@ async fn main() -> Result<()> {
             let config = Config::new(Path::new(
                 &config.unwrap_or_else(|| "config.toml".to_string()),
             ))?;
-            let conn = db::connect(&config.database).await?;
-            seed(
-                PathBuf::from(&csv_path),
-                conn,
-                Arc::new(config.s3.client()?),
-                config.ak,
-            )
-            .await?;
+            seed(PathBuf::from(&csv_path), &config).await?;
         }
         Commands::Worker { config } => {
             let config = Config::new(Path::new(
