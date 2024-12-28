@@ -44,7 +44,7 @@ jobs:
         uses: ./.github/actions/node
       - name: Build frontend
         shell: bash
-        run: pnpm run build:ui
+        run: pnpm run build
       - name: Run cargo clippy
         shell: bash
         run: cargo run clippy --all-features -- -D warnings
