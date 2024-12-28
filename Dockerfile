@@ -3,13 +3,14 @@ RUN corepack enable
 WORKDIR /app
 COPY . /app
 RUN pnpm i
-RUN pnpm run build:ui
+RUN pnpm run build
 
 FROM rust:1.83-bookworm as build-stage
+ENV SQLX_OFFLINE=true
 WORKDIR /app
 COPY . /app/
-COPY --from=frontend-build-stage /app/packages/ui/dist /app/packages/ui/dist
-RUN cd packages/ui/dist && ls -la
+COPY --from=frontend-build-stage /app/dist /app/dist
+RUN cd dist && ls -la
 RUN cargo build --all --release
 
 FROM debian:bookworm

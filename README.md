@@ -47,22 +47,11 @@ Database connection and pool settings.
 ```toml
 [database]
 uri = "postgres://user:password@localhost:5432/dbname"
-enable_logging = false
-connect_timeout = 500
-idle_timeout = 500
-min_connections = 0
-max_connections = 3
 ```
 
-| Field             | Description                                |
-| ----------------- | ------------------------------------------ |
-| `uri`             | Database connection URI                    |
-| `enable_logging`  | Enable SQLx statement logging              |
-| `connect_timeout` | Connection timeout in milliseconds         |
-| `idle_timeout`    | Idle connection timeout in milliseconds    |
-| `min_connections` | Minimum number of connections in pool      |
-| `max_connections` | Maximum number of connections in pool      |
-| `acquire_timeout` | Optional timeout for acquiring connections |
+| Field | Description             |
+| ----- | ----------------------- |
+| `uri` | Database connection URI |
 
 ## Mailer Configuration
 

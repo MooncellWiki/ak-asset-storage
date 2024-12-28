@@ -2,12 +2,10 @@ _default:
   @just --list -u
 
 init:
-    cargo install sea-orm-cli cargo-release git-cliff
-up:
-    sea-orm-cli migrate up -d ./migration/
+    cargo install cargo-release git-cliff sqlx-cli
 
-entity:
-    sea-orm-cli generate entity --model-extra-derives utoipa::ToSchema --with-serde both --output-dir src/models/_entities/
+up:
+    sqlx migrate run
 
 pre-release version:
     git cliff -o CHANGELOG.md --tag {{version}} && git add CHANGELOG.md

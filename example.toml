@@ -21,11 +21,6 @@ auth.password = "password"  # Uncomment and add SMTP password
 # Database Configuration
 [database]
 uri = "postgres://ak:ak@localhost:25432/ak_asset_storage_next"
-enable_logging = false
-connect_timeout = 500
-idle_timeout = 500
-min_connections = 0
-max_connections = 3
 
 [ak]
 asset_url = "https://ak.hycdn.cn/assetbundle/official/Android/assets"
