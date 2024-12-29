@@ -29,7 +29,7 @@ pub async fn health(ctx: AppState) -> Response {
 }
 
 #[derive(Embed)]
-#[folder = "./dist"]
+#[folder = "dist"]
 struct Assets;
 static INDEX_HTML: &str = "index.html";
 pub async fn static_handler(uri: Uri) -> impl IntoResponse {
