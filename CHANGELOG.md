@@ -2,13 +2,40 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.8.0] - 2024-12-29
+
+[844a861](844a861d77d6d938e4da79af4b5dbfc09ba86ed1)...[e72d063](e72d06362fcd089b2e753faeb6d8e9d89ae0e08f)
+
+### 🚀 Features
+
+- Add sentry for backend ([1c34d35](https://github.com/MooncellWiki/ak-asset-storage/commit/1c34d35aeb86e10441d053ad033e676ed2177ac6))
+
+### 🐛 Bug Fixes
+
+- Embed path ([7ce48f0](https://github.com/MooncellWiki/ak-asset-storage/commit/7ce48f094b419a50d34149a1089a446c88a9334f))
+
+### 🚜 Refactor
+
+- 拉平目录结构，从sea-orm换成sqlx ([df09245](https://github.com/MooncellWiki/ak-asset-storage/commit/df09245c1ab9bb4307bc5800311920a24f8bfcf4))
+
+### ⚙️ Miscellaneous Tasks
+
+- Fix ([7c3c978](https://github.com/MooncellWiki/ak-asset-storage/commit/7c3c978cc7a95a67b4f0d0d83357a50e84e52e2e))
+- Update deps ([0683640](https://github.com/MooncellWiki/ak-asset-storage/commit/0683640ce664d0886fac852a2add6c564abaa7f4))
+- Fix ([741aa60](https://github.com/MooncellWiki/ak-asset-storage/commit/741aa60ef25bda5eb51a4833652ce2cdcef0460e))
+- Add desc ([e72d063](https://github.com/MooncellWiki/ak-asset-storage/commit/e72d06362fcd089b2e753faeb6d8e9d89ae0e08f))
+
 ## [0.7.1] - 2024-12-07
 
-[8c82239](8c82239735d4d1783c85b3102da56f4c9585d135)...[69112af](69112af898ee06b5236a8eb44987d78178a23cf2)
+[8c82239](8c82239735d4d1783c85b3102da56f4c9585d135)...[844a861](844a861d77d6d938e4da79af4b5dbfc09ba86ed1)
 
 ### 🐛 Bug Fixes
 
 - 点到父节点上时不显示弹窗 ([69112af](https://github.com/MooncellWiki/ak-asset-storage/commit/69112af898ee06b5236a8eb44987d78178a23cf2))
+
+### ⚙️ Miscellaneous Tasks
+
+- Release 0.7.1 ([844a861](https://github.com/MooncellWiki/ak-asset-storage/commit/844a861d77d6d938e4da79af4b5dbfc09ba86ed1))
 
 ## [0.7.0] - 2024-12-07
 
