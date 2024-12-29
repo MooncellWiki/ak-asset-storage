@@ -2,9 +2,17 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.8.1] - 2024-12-29
+
+[61c430a](61c430aa3a6116642f07e7d962b73f19edd8fa02)...[8bd54c8](8bd54c8f3878aea3ca31f5ca4aa25055d6258911)
+
+### ⚙️ Miscellaneous Tasks
+
+- Disable debug sentry ([8bd54c8](https://github.com/MooncellWiki/ak-asset-storage/commit/8bd54c8f3878aea3ca31f5ca4aa25055d6258911))
+
 ## [0.8.0] - 2024-12-29
 
-[844a861](844a861d77d6d938e4da79af4b5dbfc09ba86ed1)...[e72d063](e72d06362fcd089b2e753faeb6d8e9d89ae0e08f)
+[844a861](844a861d77d6d938e4da79af4b5dbfc09ba86ed1)...[61c430a](61c430aa3a6116642f07e7d962b73f19edd8fa02)
 
 ### 🚀 Features
 
@@ -24,6 +32,7 @@ All notable changes to this project will be documented in this file.
 - Update deps ([0683640](https://github.com/MooncellWiki/ak-asset-storage/commit/0683640ce664d0886fac852a2add6c564abaa7f4))
 - Fix ([741aa60](https://github.com/MooncellWiki/ak-asset-storage/commit/741aa60ef25bda5eb51a4833652ce2cdcef0460e))
 - Add desc ([e72d063](https://github.com/MooncellWiki/ak-asset-storage/commit/e72d06362fcd089b2e753faeb6d8e9d89ae0e08f))
+- Release 0.8.0 ([61c430a](https://github.com/MooncellWiki/ak-asset-storage/commit/61c430aa3a6116642f07e7d962b73f19edd8fa02))
 
 ## [0.7.1] - 2024-12-07
 
