@@ -29,7 +29,6 @@ pub fn init(config: &config::Sentry) -> ClientInitGuard {
             release: sentry::release_name!(),
             max_breadcrumbs: 10,
             traces_sampler: Some(Arc::new(traces_sampler)),
-            debug: true,
             ..Default::default()
         },
     ))

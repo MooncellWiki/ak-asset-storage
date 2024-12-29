@@ -1,4 +1,5 @@
-use ak_asset_storage::{config::Config, error::Result, server::start, tasks::seed::seed, workers};
+use ak_asset_storage::{config::Config, server::start, tasks::seed::seed, workers};
+use anyhow::Result;
 use clap::{command, Parser};
 use std::path::{Path, PathBuf};
 
