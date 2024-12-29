@@ -2,7 +2,7 @@
 name = "ak_asset_storage"
 edition = "2021"
 license = "MIT"
-version = "0.8.0"
+version = "0.8.1"
 description = "arknights asset storage"
 homepage = "https://asset-storage.prts.wiki"
 
