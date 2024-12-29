@@ -3,6 +3,8 @@ name = "ak_asset_storage"
 edition = "2021"
 license = "MIT"
 version = "0.7.1"
+description = "arknights asset storage"
+homepage = "https://asset-storage.prts.wiki"
 
 [lints.clippy]
 all = { level = "warn", priority = -1 }
@@ -11,19 +13,6 @@ nursery = { level = "warn", priority = -1 }
 missing_errors_doc = { level = "allow", priority = 1 }
 missing_panics_doc = { level = "allow", priority = 1 }
 module_name_repetitions = { level = "allow", priority = 1 }
-
-[metadata.release]
-publish = false
-tag-prefix = ""
-shared-version = true
-pre-release-commit-message = "chore: Release {{version}}"
-# Don't talk to crates.io https://github.com/crate-ci/cargo-release/pull/735
-registry = ""
-pre-release-hook = [
-  "just",
-  "pre-release",
-  "{{version}}"
-]
 
 [dependencies]
 serde = { version = "=1.0.217", features = [ "derive" ] }
@@ -83,3 +72,16 @@ sentry = { version = "=0.35.0", features = [
   "tower-http"
 ] }
 tower = "=0.5.2"
+
+[package.metadata.release]
+publish = false
+tag-prefix = ""
+shared-version = true
+pre-release-commit-message = "chore: Release {{version}}"
+# Don't talk to crates.io https://github.com/crate-ci/cargo-release/pull/735
+registry = ""
+pre-release-hook = [
+  "just",
+  "pre-release",
+  "{{version}}"
+]
