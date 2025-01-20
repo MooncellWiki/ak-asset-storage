@@ -12,7 +12,7 @@ importers:
         specifier: ^12.4.0
         version: 12.4.0(typescript@5.7.3)
       naive-ui:
-        specifier: ^2.40.4
+        specifier: ^2.41.0
         version: 2.41.0(vue@3.5.13(typescript@5.7.3))
       openapi-fetch:
         specifier: ^0.13.4
@@ -31,7 +31,7 @@ importers:
         specifier: ^1.2.5
         version: 1.2.5
       '@types/node':
-        specifier: ^22.10.5
+        specifier: ^22.10.7
         version: 22.10.7
       '@unocss/eslint-config':
         specifier: ^65.4.2
@@ -61,10 +61,10 @@ importers:
         specifier: ^9.1.7
         version: 9.1.7
       lint-staged:
-        specifier: ^15.3.0
+        specifier: ^15.4.1
         version: 15.4.1
       openapi-typescript:
-        specifier: ^7.4.4
+        specifier: ^7.5.2
         version: 7.5.2(typescript@5.7.3)
       typescript:
         specifier: ^5.7.3
