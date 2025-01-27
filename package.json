@@ -13,7 +13,7 @@
     "api": "openapi-typescript http://localhost:25150/api/v1/openapi.json -o ./app/common/schema.d.ts"
   },
   "dependencies": {
-    "@vueuse/core": "^12.4.0",
+    "@vueuse/core": "^12.5.0",
     "naive-ui": "^2.41.0",
     "openapi-fetch": "^0.13.4",
     "unplugin-vue-components": "^28.0.0",
