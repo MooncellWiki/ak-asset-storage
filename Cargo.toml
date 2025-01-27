@@ -25,7 +25,7 @@ async-trait = "=0.1.85"
 tracing = "=0.1.41"
 chrono = "=0.4.39"
 validator = { version = "=0.19.0" }
-clap = { version = "=4.5.26", features = [ "derive" ] }
+clap = { version = "=4.5.27", features = [ "derive" ] }
 axum = { version = "=0.7.9", features = [ "macros" ] }
 rust-embed = "=8.5.0"
 uuid = { version = "=1.11.1", features = [ "v4" ] }
