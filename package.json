@@ -1,7 +1,7 @@
 {
   "type": "module",
   "private": true,
-  "packageManager": "pnpm@9.15.4",
+  "packageManager": "pnpm@9.15.5",
   "scripts": {
     "prepare": "node .husky/install.mjs",
     "lint": "eslint .",
@@ -21,7 +21,7 @@
     "vue-router": "^4.5.0"
   },
   "devDependencies": {
-    "@iconify-json/carbon": "^1.2.5",
+    "@iconify-json/carbon": "^1.2.6",
     "@types/node": "^22.10.10",
     "@unocss/eslint-config": "^65.4.3",
     "@unocss/eslint-plugin": "^65.4.3",
@@ -33,7 +33,7 @@
     "eslint": "^9.19.0",
     "husky": "^9.1.7",
     "lint-staged": "^15.4.3",
-    "openapi-typescript": "^7.5.2",
+    "openapi-typescript": "^7.6.1",
     "typescript": "^5.7.3",
     "unocss": "^65.4.3",
     "unplugin-icons": "^22.0.0",
