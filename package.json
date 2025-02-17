@@ -21,8 +21,8 @@
     "vue-router": "^4.5.0"
   },
   "devDependencies": {
-    "@iconify-json/carbon": "^1.2.6",
-    "@types/node": "^22.13.1",
+    "@iconify-json/carbon": "^1.2.7",
+    "@types/node": "^22.13.4",
     "@unocss/eslint-config": "^65.4.3",
     "@unocss/eslint-plugin": "^65.4.3",
     "@unocss/reset": "^65.4.3",
@@ -38,8 +38,8 @@
     "unocss": "^65.4.3",
     "unplugin-icons": "^22.0.0",
     "unplugin-vue-router": "^0.10.9",
-    "vite": "^6.0.11",
-    "vue-tsc": "^2.2.0"
+    "vite": "^6.1.0",
+    "vue-tsc": "^2.2.2"
   },
   "lint-staged": {
     "*": "eslint --fix"
