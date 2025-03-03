@@ -16,16 +16,16 @@ module_name_repetitions = { level = "allow", priority = 1 }
 
 [dependencies]
 serde = { version = "=1.0.218", features = [ "derive" ] }
-serde_json = "=1.0.139"
+serde_json = "=1.0.140"
 tokio = { version = "=1.42.0", features = [
   "signal",
   "rt-multi-thread"
 ] }
-async-trait = "=0.1.86"
+async-trait = "=0.1.87"
 tracing = "=0.1.41"
-chrono = "=0.4.39"
+chrono = "=0.4.40"
 validator = { version = "=0.19.0" }
-clap = { version = "=4.5.30", features = [ "derive" ] }
+clap = { version = "=4.5.31", features = [ "derive" ] }
 axum = { version = "=0.7.9", features = [ "macros" ] }
 rust-embed = "=8.5.0"
 uuid = { version = "=1.11.1", features = [ "v4" ] }
@@ -34,15 +34,15 @@ tracing-subscriber = { version = "=0.3.19", features = [
   "json"
 ] }
 reqwest = { version = "=0.12.12", features = [ "json" ] }
-zip = "=2.2.2"
-anyhow = "=1.0.96"
+zip = "=2.2.3"
+anyhow = "=1.0.97"
 tower-http = { version = "=0.6.2", features = [
   "timeout",
   "trace",
   "cors",
   "compression-full",
 ] }
-thiserror = "=2.0.11"
+thiserror = "=2.0.12"
 toml = "=0.8.20"
 lettre = { version = "=0.11.14", features = [ "tokio1-native-tls" ] }
 serde_variant = "=0.1.3"
