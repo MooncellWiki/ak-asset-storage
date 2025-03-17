@@ -15,7 +15,7 @@
   "dependencies": {
     "@vueuse/core": "^12.8.2",
     "naive-ui": "^2.41.0",
-    "openapi-fetch": "^0.13.4",
+    "openapi-fetch": "^0.13.5",
     "unplugin-vue-components": "^28.4.1",
     "vue": "^3.5.13",
     "vue-router": "^4.5.0"
@@ -27,8 +27,8 @@
     "@unocss/eslint-plugin": "^65.5.0",
     "@unocss/reset": "^65.5.0",
     "@unocss/transformer-directives": "^65.5.0",
-    "@vitejs/plugin-vue": "^5.2.1",
-    "@vitejs/plugin-vue-jsx": "^4.1.1",
+    "@vitejs/plugin-vue": "^5.2.2",
+    "@vitejs/plugin-vue-jsx": "^4.1.2",
     "@xwbx/eslint-config": "^0.2.3",
     "eslint": "^9.22.0",
     "husky": "^9.1.7",
@@ -38,7 +38,7 @@
     "unocss": "^65.5.0",
     "unplugin-icons": "^22.1.0",
     "unplugin-vue-router": "^0.10.9",
-    "vite": "^6.2.1",
+    "vite": "^6.2.2",
     "vue-tsc": "^2.2.8"
   },
   "lint-staged": {
