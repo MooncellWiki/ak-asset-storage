@@ -22,7 +22,7 @@
   },
   "devDependencies": {
     "@iconify-json/carbon": "^1.2.8",
-    "@types/node": "^22.13.11",
+    "@types/node": "^22.13.14",
     "@unocss/eslint-config": "^65.5.0",
     "@unocss/eslint-plugin": "^65.5.0",
     "@unocss/reset": "^65.5.0",
@@ -38,7 +38,7 @@
     "unocss": "^65.5.0",
     "unplugin-icons": "^22.1.0",
     "unplugin-vue-router": "^0.10.9",
-    "vite": "^6.2.2",
+    "vite": "^6.2.3",
     "vue-tsc": "^2.2.8"
   },
   "lint-staged": {
