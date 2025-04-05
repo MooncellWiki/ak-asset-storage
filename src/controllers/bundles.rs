@@ -1,18 +1,24 @@
 use crate::{
     app::AppState,
     error::Result,
-    views::{bundles::Filter, files::FileDetail, utils::json},
+    views::{
+        bundles::{BundleDetail, Filter},
+        utils::json,
+    },
 };
-use axum::debug_handler;
-use axum::extract::Path;
-use axum::response::Response;
+use axum::{debug_handler, extract::Path, response::Response};
 use sqlx::query_as;
 
 #[debug_handler(state = AppState)]
-#[utoipa::path(get, path = "/bundle/{id}", tag="bundle", responses((status = OK, body = FileDetail)))]
-pub async fn get_one(Path(id): Path<i32>, state: AppState) -> Result<Response> {
+#[utoipa::path(
+    get,
+    path = "/bundle/{id}",
+    tag="bundle",
+    responses((status = OK, body = BundleDetail))
+)]
+pub async fn get_bundle_by_id(Path(id): Path<i32>, state: AppState) -> Result<Response> {
     let result = query_as!(
-        FileDetail,
+        BundleDetail,
         r#"
 SELECT
     b.path as "path!",
@@ -40,10 +46,16 @@ WHERE
 }
 
 #[debug_handler(state = AppState)]
-#[utoipa::path(get, path = "/bundle", tag="bundle", params(Filter), responses((status = OK, body = [FileDetail])))]
-pub async fn filter(query: Filter, ctx: AppState) -> Result<Response> {
+#[utoipa::path(
+    get,
+    path = "/bundle",
+    tag="bundle",
+    params(Filter),
+    responses((status = OK, body = [BundleDetail]))
+)]
+pub async fn list_bundle(query: Filter, ctx: AppState) -> Result<Response> {
     let result = query_as!(
-        FileDetail,
+        BundleDetail,
         r#"
 SELECT
     b.path as "path!",

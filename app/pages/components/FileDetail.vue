@@ -15,7 +15,7 @@ import { NButton } from "naive-ui";
 import type { components } from "~/common/schema";
 
 const props = defineProps<{
-  detail: components["schemas"]["FileDetail"];
+  detail: components["schemas"]["BundleDetail"];
 }>();
 
 function download() {

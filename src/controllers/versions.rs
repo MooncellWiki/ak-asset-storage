@@ -2,7 +2,7 @@ use crate::{
     app::AppState,
     error::Result,
     views::{
-        files::FileDetail,
+        bundles::BundleDetail,
         utils::json,
         versions::{LatestFlag, VersionDetail, VersionListItem},
     },
@@ -32,10 +32,10 @@ pub async fn get(Path(id): Path<i32>, ctx: AppState) -> Result<Response> {
 }
 
 #[debug_handler(state = AppState)]
-#[utoipa::path(get, path = "/version/{id}/files",tag = "version", responses((status = OK, body = [FileDetail])))]
+#[utoipa::path(get, path = "/version/{id}/files",tag = "version", responses((status = OK, body = [BundleDetail])))]
 pub async fn list_files(Path(id): Path<i32>, ctx: AppState) -> Result<Response> {
     let result = query_as!(
-        FileDetail,
+        BundleDetail,
         r#"
         SELECT
             b.path as "path!",

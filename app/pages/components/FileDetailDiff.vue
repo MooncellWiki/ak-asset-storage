@@ -15,8 +15,8 @@ import FileDetail from "./FileDetail.vue";
 
 const props = defineProps<{
   visible: boolean;
-  left?: components["schemas"]["FileDetail"];
-  right?: components["schemas"]["FileDetail"];
+  left?: components["schemas"]["BundleDetail"];
+  right?: components["schemas"]["BundleDetail"];
 }>();
 const emit = defineEmits<{ "update:visible": [boolean] }>();
 const show = useVModel(props, "visible", emit);

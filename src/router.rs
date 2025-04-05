@@ -1,6 +1,6 @@
 use crate::{
     app::AppState,
-    controllers::{bundles, misc, versions},
+    controllers::{assets, bundles, file, misc, tokens, unpack, versions},
     openapi::BaseOpenApi,
 };
 use axum::{routing::get, Json, Router};
@@ -14,12 +14,24 @@ pub fn build_axum_router(state: AppState) -> Router<()> {
             OpenApiRouter::new()
                 .routes(routes!(misc::ping))
                 .routes(routes!(misc::health))
-                .routes(routes!(bundles::get_one))
-                .routes(routes!(bundles::filter))
+                .routes(routes!(bundles::get_bundle_by_id))
+                .routes(routes!(bundles::list_bundle))
                 .routes(routes!(versions::list))
                 .routes(routes!(versions::get))
                 .routes(routes!(versions::list_files))
-                .routes(routes!(versions::latest)),
+                .routes(routes!(versions::latest))
+                .routes(routes!(assets::get_asset_by_id))
+                .routes(routes!(assets::reuse_assets_by_bundle))
+                .routes(routes!(assets::create_asset))
+                .routes(routes!(file::upload))
+                .routes(routes!(
+                    unpack::list_unpack_versions,
+                    unpack::create_unpack_version
+                ))
+                .routes(routes!(unpack::get_latest_finished_version))
+                .routes(routes!(unpack::finish_unpack_version))
+                .routes(routes!(unpack::list_assets))
+                .routes(routes!(tokens::list_tokens)),
         )
         .split_for_parts();
     router

@@ -1,0 +1,24 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "WITH assets_data AS (\n            SELECT a.id as id, a.file as file, a.path as path\n            FROM assets a\n            INNER JOIN unpack_relation r ON a.id = r.asset\n            INNER JOIN bundles b ON b.id = r.bundle\n            WHERE a.version = $1 AND b.id = $2\n        )\n        INSERT INTO assets(file, path, version)\n        SELECT file, path, $3 FROM assets_data\n        RETURNING id",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Int4"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int4",
+        "Int4",
+        "Int4"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "1e750e6e84918ae7fc98efce77746e096ccc78c501347ddde028897034f7c6db"
+}

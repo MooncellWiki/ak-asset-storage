@@ -16,6 +16,7 @@ pub struct Config {
     pub s3: S3,
     pub sentry: Sentry,
 }
+
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct Ak {
     pub asset_url: String,

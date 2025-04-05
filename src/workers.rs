@@ -21,7 +21,7 @@ pub mod download;
 pub struct WorkerContext {
     pub mailer: Option<Arc<Mailer>>,
     pub conn: db::Pool,
-    pub s3: Arc<AmazonS3>,
+    pub s3: AmazonS3,
     pub ak: Ak,
     pub client: Client,
 }
@@ -30,7 +30,7 @@ impl WorkerContext {
         Ok(Self {
             mailer: Some(Arc::new(Mailer::new(&config.mailer, &config.server.host)?)),
             conn: db::connect(&config.database).await?,
-            s3: Arc::new(config.s3.client().unwrap()),
+            s3: config.s3.client().unwrap(),
             ak: config.ak.clone(),
             client: reqwest::ClientBuilder::new()
                 .timeout(Duration::from_secs(60 * 5))

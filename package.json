@@ -42,6 +42,6 @@
     "vue-tsc": "^2.2.0"
   },
   "lint-staged": {
-    "*": "eslint --fix"
+    "!*.toml": "eslint --fix"
   }
 }

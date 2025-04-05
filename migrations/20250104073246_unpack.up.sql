@@ -1,0 +1,34 @@
+-- Add up migration script here
+CREATE TABLE IF NOT EXISTS tokens (
+    id INT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    name CHAR(64) NOT NULL,
+    token CHAR(64) NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS unpack_versions (
+    id INT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    bundle_version INTEGER NOT NULL,
+    start_time TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    end_time TIMESTAMP,
+    token INTEGER NOT NULL,
+    FOREIGN KEY (bundle_version) REFERENCES versions(id),
+    FOREIGN KEY (token) REFERENCES tokens(id)
+);
+
+CREATE TABLE IF NOT EXISTS assets (
+    id INT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    file INTEGER NOT NULL,
+    path VARCHAR NOT NULL,
+    version INTEGER NOT NULL,
+    FOREIGN KEY (file) REFERENCES files(id),
+    FOREIGN KEY (version) REFERENCES unpack_versions(id)
+);
+
+CREATE TABLE IF NOT EXISTS unpack_relation (
+    id INT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    asset INTEGER NOT NULL,
+    bundle INTEGER NOT NULL,
+    FOREIGN KEY (asset) REFERENCES assets(id) ON DELETE CASCADE,
+    FOREIGN KEY (bundle) REFERENCES bundles(id) ON DELETE CASCADE,
+    UNIQUE (asset, bundle)
+);

@@ -12,6 +12,7 @@ The configuration is divided into several main sections:
 - Mailer
 - AK (Arknights)
 - S3 Storage
+- Sentry
 
 ## Logger Configuration
 
@@ -108,6 +109,19 @@ with_virtual_hosted_style_request = false
 | `access_key_id`                     | S3 access key ID                     |
 | `secret_access_key`                 | S3 secret access key                 |
 | `with_virtual_hosted_style_request` | Enable virtual hosted style requests |
+
+## Sentry
+
+```toml
+[sentry]
+dsn = "dsn"
+traces_sample_rate = 0.1
+```
+
+| Field                | Description                  |
+| -------------------- | ---------------------------- |
+| `dsn`                | sentry dsn                   |
+| `traces_sample_rate` | sample rate for transactions |
 
 ## Example Configuration
 

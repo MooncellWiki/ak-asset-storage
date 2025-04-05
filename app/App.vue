@@ -53,5 +53,13 @@ const opts = [
       ),
     key: "diff",
   },
+  {
+    label: () => h(RouterLink, { to: { path: "/unpack" } }, () => "unpack"),
+    key: "unpack",
+  },
+  {
+    label: () => h(RouterLink, { to: { path: "/asset" } }, () => "asset"),
+    key: "asset",
+  },
 ];
 </script>

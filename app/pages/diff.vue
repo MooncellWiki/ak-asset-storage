@@ -121,8 +121,8 @@ function dirOrder(a: string, b: string) {
 const treeData = ref<TreeOption[]>([]);
 const changeOnly = ref(true);
 interface VersionFiles {
-  pathMap: Record<string, components["schemas"]["FileDetail"]>;
-  list: components["schemas"]["FileDetail"][];
+  pathMap: Record<string, components["schemas"]["BundleDetail"]>;
+  list: components["schemas"]["BundleDetail"][];
 }
 const lData = ref<VersionFiles>({ pathMap: {}, list: [] });
 const rData = ref<VersionFiles>({ pathMap: {}, list: [] });
@@ -130,7 +130,7 @@ async function loadDetail(id: number) {
   const resp = await client.GET("/api/v1/version/{id}/files", {
     params: { path: { id } },
   });
-  const pathMap: Record<string, components["schemas"]["FileDetail"]> = {};
+  const pathMap: Record<string, components["schemas"]["BundleDetail"]> = {};
   const list = (resp.data ?? []).sort((a, b) => {
     return dirOrder(a.path, b.path);
   });
@@ -143,7 +143,7 @@ function buildTree() {
   const hasLeft = typeof left.value === "number";
   const hasRight = typeof right.value === "number";
   const top: TreeOption = { children: [] };
-  function updateTree(list: components["schemas"]["FileDetail"][]) {
+  function updateTree(list: components["schemas"]["BundleDetail"][]) {
     for (const item of list) {
       const paths = item.path.split("/");
       let cur = top;
@@ -267,11 +267,11 @@ function renderLabel(props: TreeRenderProps): VNodeChild {
   }
 }
 const detailVisible = ref(false);
-const leftDetail = ref<components["schemas"]["FileDetail"]>();
-const rightDetail = ref<components["schemas"]["FileDetail"]>();
+const leftDetail = ref<components["schemas"]["BundleDetail"]>();
+const rightDetail = ref<components["schemas"]["BundleDetail"]>();
 function onLabelClick(
-  left?: components["schemas"]["FileDetail"],
-  right?: components["schemas"]["FileDetail"],
+  left?: components["schemas"]["BundleDetail"],
+  right?: components["schemas"]["BundleDetail"],
 ) {
   leftDetail.value = left;
   rightDetail.value = right;

@@ -19,19 +19,23 @@ serde = { version = "=1.0.217", features = [ "derive" ] }
 serde_json = "=1.0.134"
 tokio = { version = "=1.42.0", features = [
   "signal",
-  "rt-multi-thread"
+  "rt-multi-thread" 
 ] }
 async-trait = "=0.1.83"
 tracing = "=0.1.41"
 chrono = "=0.4.39"
 validator = { version = "=0.19.0" }
 clap = { version = "=4.5.23", features = [ "derive" ] }
-axum = { version = "=0.7.9", features = [ "macros" ] }
+axum = { version = "=0.7.9", features = [
+  "macros",
+  "multipart" 
+] }
+bytes = { version = "1.9.0" }
 rust-embed = "=8.5.0"
 uuid = { version = "=1.11.0", features = [ "v4" ] }
 tracing-subscriber = { version = "=0.3.19", features = [
   "env-filter",
-  "json"
+  "json" 
 ] }
 reqwest = { version = "=0.12.11", features = [ "json" ] }
 zip = "=2.2.2"
@@ -50,7 +54,7 @@ object_store = { version = "=0.11.2", features = [ "aws" ] }
 sha256 = "=1.5.0"
 utoipa = { version = "=5.3.0", features = [
   "debug",
-  "axum_extras"
+  "axum_extras" 
 ] }
 utoipa-axum = { version = "=0.1.3", features = [ "debug" ] }
 utoipa-scalar = { version = "=0.2.0", features = [ "axum" ] }
@@ -59,20 +63,29 @@ mime_guess = { version = "=2.0.5" }
 derive_more = { version = "=1.0.0", features = [
   "deref",
   "deref_mut",
-  "display"
+  "display",
 ] }
 sqlx = { version = "=0.8.2", features = [
   "runtime-tokio",
   "postgres",
-  "tls-rustls"
+  "tls-rustls",
+  "time",
 ] }
 sentry = { version = "=0.35.0", features = [
   "tracing",
   "tower",
   "tower-axum-matched-path",
-  "tower-http"
+  "tower-http",
 ] }
 tower = "=0.5.2"
+time = { version = "=0.3.37", features = [
+  "serde",
+  "serde-well-known" 
+] }
+jsonwebtoken = "=9.3.1"
+ring = "0.17.14"
+rand_chacha = "=0.9.0"
+rand_core = { version = "=0.9.3", features = [ "os_rng" ] }
 
 [package.metadata.release]
 publish = false
@@ -84,5 +97,5 @@ registry = ""
 pre-release-hook = [
   "just",
   "pre-release",
-  "{{version}}"
+  "{{version}}" 
 ]

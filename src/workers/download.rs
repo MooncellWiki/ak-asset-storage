@@ -1,9 +1,8 @@
 use super::WorkerContext;
+use crate::utils::upload::upload;
 use anyhow::{bail, Result};
 use itertools::Itertools;
-use object_store::{path::Path, ObjectStore, WriteMultipart};
 use serde::Deserialize;
-use sha256::digest;
 use sqlx::query;
 use std::io::{Cursor, Read};
 use tracing::{debug, error, info, instrument};
@@ -112,35 +111,9 @@ impl Download {
             let mut file = zip.by_name(name)?;
             file.read_to_end(&mut buffer)?;
         }
-        let sha = digest(&buffer);
-
-        let path = Path::from(format!("/{}/{}/{}", &sha[..2], &sha[2..4], &sha[4..]));
-        let file = query!("SELECT * FROM files WHERE hash = $1", sha)
-            .fetch_optional(&self.ctx.conn)
-            .await?;
-        if let Some(file) = file {
-            return Ok(file.id);
-        };
-
-        let len = i32::try_from(bytes.len())?;
-        // 5MiB
-        if len > 5 * 1024 * 1024 {
-            let upload = self.ctx.s3.put_multipart(&path).await?;
-            let mut write = WriteMultipart::new(upload);
-            write.write(&bytes);
-            write.finish().await?;
-        } else {
-            self.ctx.s3.put(&path, bytes.into()).await?;
-        }
-
-        let resp = query!(
-            "INSERT INTO files (hash, size) VALUES ($1, $2) RETURNING id",
-            sha,
-            len
-        )
-        .fetch_one(&self.ctx.conn)
-        .await?;
+        let mut conn = self.ctx.conn.acquire().await?;
+        let id = upload(&mut conn, &self.ctx.s3, buffer).await?;
         debug!("sync file {} finished", url);
-        Ok(resp.id)
+        Ok(id)
     }
 }

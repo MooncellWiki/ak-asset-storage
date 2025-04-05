@@ -1,0 +1,67 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        SELECT uv.id as id, uv.token as token, uv.bundle_version as bundle_version, uv.start_time as start_time, uv.end_time as end_time, t.name as token_name, v.res as res, v.client as client\n        FROM unpack_versions uv\n        INNER JOIN tokens t ON uv.token = t.id\n        INNER JOIN versions v ON uv.bundle_version = v.id\n        WHERE\n            ($1::timestamp IS NULL OR start_time >= $1)\n            AND ($2::timestamp IS NULL OR end_time <= $2)\n            AND ($3::int IS NULL OR bundle_version = $3)\n            AND ($4::int IS NULL OR uv.token = $4)\n        ORDER BY start_time DESC\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 1,
+        "name": "token",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 2,
+        "name": "bundle_version",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 3,
+        "name": "start_time",
+        "type_info": "Timestamp"
+      },
+      {
+        "ordinal": 4,
+        "name": "end_time",
+        "type_info": "Timestamp"
+      },
+      {
+        "ordinal": 5,
+        "name": "token_name",
+        "type_info": "Bpchar"
+      },
+      {
+        "ordinal": 6,
+        "name": "res",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 7,
+        "name": "client",
+        "type_info": "Varchar"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Timestamp",
+        "Timestamp",
+        "Int4",
+        "Int4"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      true,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "7c0e0ebbfc1cf5fe8c9462143dd57c798717fc7ac9698243c13897b3b51eca6a"
+}

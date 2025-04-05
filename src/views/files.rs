@@ -1,16 +1,13 @@
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
+use utoipa::ToSchema;
 
-#[derive(Debug, Clone, Serialize, utoipa::ToSchema)]
-#[serde(rename_all = "camelCase")]
-pub struct FileDetail {
-    pub path: String,
+#[derive(Debug, Deserialize, ToSchema)]
+pub struct CreateFileReq {
+    #[schema(content_media_type = "application/octet-stream")]
+    pub file: Vec<u8>,
+}
 
-    pub file: i32,
-    pub hash: String,
-    pub size: i32,
-
-    pub version: i32,
-    pub res: String,
-    pub client: String,
-    pub is_ready: bool,
+#[derive(Debug, Serialize, ToSchema)]
+pub struct CreateFileResp {
+    pub id: i32,
 }

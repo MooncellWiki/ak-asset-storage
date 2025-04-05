@@ -1,0 +1,52 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        SELECT\n            a.id as \"id!\",\n            a.path as \"path!\",\n            a.version as \"unpack_version!\",\n            a.file as \"file!\",\n            f.hash as \"hash!\",\n            r.bundle as \"bundle!\"\n        FROM assets a\n        INNER JOIN unpack_relation r ON a.id = r.asset\n        INNER JOIN files f ON a.file = f.id\n        WHERE a.id = $1\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id!",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 1,
+        "name": "path!",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 2,
+        "name": "unpack_version!",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 3,
+        "name": "file!",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 4,
+        "name": "hash!",
+        "type_info": "Bpchar"
+      },
+      {
+        "ordinal": 5,
+        "name": "bundle!",
+        "type_info": "Int4"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int4"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "f4f1b83d5e7a123bf8785ecad4ee11a4351c066d9034ea3cc2b459d9e752f93f"
+}

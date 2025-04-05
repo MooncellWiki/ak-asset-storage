@@ -1,6 +1,9 @@
-use ak_asset_storage::{config::Config, server::start, tasks::seed::seed, workers};
+use ak_asset_storage::{
+    config::Config, db, server::start, tasks::seed::seed, utils::token::create_token, workers,
+};
 use anyhow::Result;
 use clap::{command, Parser};
+use sqlx::query;
 use std::path::{Path, PathBuf};
 
 #[derive(Parser, Debug)]
@@ -22,6 +25,12 @@ enum Commands {
     Worker {
         #[arg(short, long, action)]
         config: Option<String>,
+    },
+    AddToken {
+        #[arg(short, long, action)]
+        config: Option<String>,
+        #[arg(short, long, action)]
+        name: String,
     },
 }
 
@@ -53,6 +62,21 @@ async fn main() -> Result<()> {
                 &config.unwrap_or_else(|| "config.toml".to_string()),
             ))?;
             workers::start(config).await?;
+        }
+        Commands::AddToken { config, name } => {
+            let config = Config::new(Path::new(
+                &config.unwrap_or_else(|| "config.toml".to_string()),
+            ))?;
+            let conn = db::connect(&config.database).await?;
+            let token = create_token()?;
+            query!(
+                "INSERT into tokens (name, token) VALUES ($1, $2)",
+                name,
+                token
+            )
+            .execute(&conn)
+            .await?;
+            println!("token created: {token}");
         }
     }
 
