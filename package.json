@@ -22,7 +22,7 @@
   },
   "devDependencies": {
     "@iconify-json/carbon": "^1.2.8",
-    "@types/node": "^22.13.14",
+    "@types/node": "^22.13.17",
     "@unocss/eslint-config": "^65.5.0",
     "@unocss/eslint-plugin": "^65.5.0",
     "@unocss/reset": "^65.5.0",
@@ -34,11 +34,11 @@
     "husky": "^9.1.7",
     "lint-staged": "^15.4.3",
     "openapi-typescript": "^7.6.1",
-    "typescript": "^5.8.2",
+    "typescript": "^5.8.3",
     "unocss": "^65.5.0",
     "unplugin-icons": "^22.1.0",
     "unplugin-vue-router": "^0.10.9",
-    "vite": "^6.2.3",
+    "vite": "^6.2.5",
     "vue-tsc": "^2.2.8"
   },
   "lint-staged": {
