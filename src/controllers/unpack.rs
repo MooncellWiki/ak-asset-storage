@@ -4,8 +4,8 @@ use crate::{
     utils::token::{check_version_is_create_by_token, TokenId},
     views::{
         unpack::{
-            AssetsDto, AssetsSearch, CreateUnpackVersionReq, CreateUnpackVersionResp,
-            SearchUnpackVersionReq, UnpackVersionDetailDto, UnpackVersionDto,
+            CreateUnpackVersionReq, CreateUnpackVersionResp, SearchUnpackVersionReq,
+            UnpackVersionDetailDto, UnpackVersionDto,
         },
         utils::json,
     },
@@ -148,39 +148,4 @@ pub async fn finish_unpack_version(
         return Ok(StatusCode::NOT_FOUND.into_response());
     }
     Ok(StatusCode::OK.into_response())
-}
-
-#[debug_handler(state = AppState)]
-#[utoipa::path(
-    get,
-    path = "/unpack-version/{id}/asset",
-    tag = "assets",
-    params(AssetsSearch),
-    responses((status = OK, body = Vec<AssetsDto>))
-)]
-pub async fn list_assets(
-    ctx: AppState,
-    query: AssetsSearch,
-    Path(id): Path<i32>,
-) -> Result<Response> {
-    let assets = query_as!(
-        AssetsDto,
-        r#"
-        SELECT a.id as id, a.file as file, a.path as path, a.version as unpack_version, f.hash as hash, f.size as size
-        FROM assets a
-        INNER JOIN
-            files f ON a.file = f.id
-        WHERE
-            a.version = $1
-            AND ($1::varchar IS NULL OR a.path LIKE $2)
-            AND ($2::varchar IS NULL OR f.hash = $3)
-        "#,
-        id,
-        query.path.map(|v| format!("%{v}%")),
-        query.hash,
-    )
-    .fetch_all(&ctx.database)
-    .await?;
-
-    Ok((StatusCode::OK, Json(assets)).into_response())
 }

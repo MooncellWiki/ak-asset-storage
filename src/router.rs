@@ -23,6 +23,7 @@ pub fn build_axum_router(state: AppState) -> Router<()> {
                 .routes(routes!(assets::get_asset_by_id))
                 .routes(routes!(assets::reuse_assets_by_bundle))
                 .routes(routes!(assets::create_asset))
+                .routes(routes!(assets::list_assets))
                 .routes(routes!(file::upload))
                 .routes(routes!(
                     unpack::list_unpack_versions,
@@ -30,7 +31,6 @@ pub fn build_axum_router(state: AppState) -> Router<()> {
                 ))
                 .routes(routes!(unpack::get_latest_finished_version))
                 .routes(routes!(unpack::finish_unpack_version))
-                .routes(routes!(unpack::list_assets))
                 .routes(routes!(tokens::list_tokens)),
         )
         .split_for_parts();
