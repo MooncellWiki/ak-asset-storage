@@ -59,6 +59,7 @@ dependencies = [
  "chrono",
  "clap",
  "derive_more",
+ "futures",
  "itertools",
  "lettre",
  "mime_guess",

@@ -1,5 +1,6 @@
 use super::WorkerContext;
 use anyhow::{bail, Result};
+use futures::{stream, StreamExt, TryStreamExt};
 use itertools::Itertools;
 use object_store::{path::Path, ObjectStore, WriteMultipart};
 use serde::Deserialize;
@@ -56,30 +57,16 @@ impl Download {
         if let Some(version) = version {
             info!("start sync {}-{}", version.res, version.client);
             let info: UpdateList = serde_json::from_str(&version.hot_update_list)?;
-            for info in info.ab_infos {
-                let local = query!(
-                    "SELECT * FROM bundles WHERE version = $1 AND path = $2",
-                    version.id,
-                    info.name
-                )
-                .fetch_optional(&self.ctx.conn)
+
+            let version_id = version.id;
+
+            stream::iter(info.ab_infos)
+                .map(Ok)
+                .try_for_each_concurrent(5, |info| {
+                    self.skip_or_download(info, version_id, &version.res)
+                })
                 .await?;
-                if local.is_some() {
-                    info!("{} is already downloaded, skip", info.name);
-                    continue;
-                }
-                let url = format!("{}/{}/{}", self.ctx.ak.asset_url, version.res, info.url());
-                let file_id = self.sync_file(&url).await?;
-                query!(
-                    "INSERT INTO bundles (path, version, file) VALUES ($1, $2, $3)",
-                    info.name,
-                    version.id,
-                    file_id
-                )
-                .execute(&self.ctx.conn)
-                .await?;
-                info!("{} sync finished", info.name);
-            }
+
             query!(
                 "UPDATE versions SET is_ready = true WHERE id = $1",
                 version.id
@@ -91,6 +78,36 @@ impl Download {
                 mailer.notify_download_finished(&version.client, &version.res);
             }
         }
+        Ok(())
+    }
+
+    async fn skip_or_download(&self, info: UpdateInfo, version_id: i32, res: &str) -> Result<()> {
+        let local = query!(
+            "SELECT * FROM bundles WHERE version = $1 AND path = $2",
+            version_id,
+            info.name
+        )
+        .fetch_optional(&self.ctx.conn)
+        .await?;
+
+        if local.is_some() {
+            info!("{} is already downloaded, skip", info.name);
+            return Ok(());
+        }
+
+        let url = format!("{}/{}/{}", self.ctx.ak.asset_url, res, info.url());
+        let file_id = self.sync_file(&url).await?;
+
+        query!(
+            "INSERT INTO bundles (path, version, file) VALUES ($1, $2, $3)",
+            info.name,
+            version_id,
+            file_id
+        )
+        .execute(&self.ctx.conn)
+        .await?;
+
+        info!("{} sync finished", info.name);
         Ok(())
     }
 
