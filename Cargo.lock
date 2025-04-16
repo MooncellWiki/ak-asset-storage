@@ -60,6 +60,7 @@ dependencies = [
  "chrono",
  "clap",
  "derive_more",
+ "futures",
  "itertools",
  "jsonwebtoken",
  "lettre",
