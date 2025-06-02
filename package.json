@@ -1,7 +1,7 @@
 {
   "type": "module",
   "private": true,
-  "packageManager": "pnpm@9.15.2",
+  "packageManager": "pnpm@10.11.1",
   "scripts": {
     "prepare": "node .husky/install.mjs",
     "lint": "eslint .",
