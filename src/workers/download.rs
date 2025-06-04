@@ -137,7 +137,7 @@ impl Download {
             .await?;
         if let Some(file) = file {
             return Ok(file.id);
-        };
+        }
 
         let len = i32::try_from(bytes.len())?;
         // 5MiB

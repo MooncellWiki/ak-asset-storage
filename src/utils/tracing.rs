@@ -109,7 +109,7 @@ where
 }
 fn event_filter(metadata: &Metadata<'_>) -> EventFilter {
     match metadata.level() {
-        &Level::ERROR | &Level::WARN => EventFilter::Exception,
+        &Level::ERROR | &Level::WARN => EventFilter::Event,
         &Level::INFO => EventFilter::Breadcrumb,
         _ => EventFilter::Ignore,
     }
