@@ -1,11 +1,11 @@
-FROM node:20-slim as frontend-build-stage
+FROM node:20-slim AS frontend-build-stage
 RUN corepack enable
 WORKDIR /app
 COPY . /app
 RUN pnpm i
 RUN pnpm run build
 
-FROM rust:1.83-bookworm as build-stage
+FROM rust:1.87-bookworm AS build-stage
 ENV SQLX_OFFLINE=true
 WORKDIR /app
 COPY . /app/
