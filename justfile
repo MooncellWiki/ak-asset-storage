@@ -2,7 +2,8 @@ _default:
   @just --list -u
 
 init:
-    cargo install cargo-release git-cliff sqlx-cli
+    cargo binstall cargo-release git-cliff
+    cargo install sqlx-cli
 
 up:
     sqlx migrate run
