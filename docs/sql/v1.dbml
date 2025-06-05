@@ -1,0 +1,41 @@
+enum status {
+	working
+	ready
+}
+
+Table bundles {
+	id integer [ pk, increment, not null, unique ]
+	path varchar [ not null ]
+	version integer [ not null ]
+	file integer [ not null, note: 'sha-256' ]
+
+	indexes {
+		(path, version) [ name: 'files_index_0' unique ]
+	}
+}
+
+Table versions {
+	id integer [ pk, increment, not null, unique ]
+	res varchar [ not null, note: 'like 24-09-23-11-27-19-c6564b' ]
+	client varchar [ not null, note: 'like 2.3.61' ]
+	is_ready boolean [ not null ]
+	hot_update_list text [ not null ]
+}
+
+Table files {
+	id integer [ pk, increment, not null, unique ]
+	hash char [ not null, unique ]
+	size integer [ not null ]
+
+	indexes {
+		(key, value, file_id) [ name: 'file_metas_index_0' unique ]
+	}
+}
+
+Ref files_version_fk {
+	bundles.version > versions.id [ delete: no action, update: no action ]
+}
+
+Ref files_id_fk {
+	files.id < bundles.file [ delete: no action, update: no action ]
+}
