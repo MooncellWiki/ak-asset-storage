@@ -2,13 +2,31 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.9.0] - 2025-06-05
+
+[a3cf2da](a3cf2da0f1c86377f68d6fd43a85e9a4ffdf0276)...[0f20f9c](0f20f9cfc39b70d791c1fc60e0291608deecc0f3)
+
+### 🚀 Features
+
+- Concurrent download ([0177171](https://github.com/MooncellWiki/ak-asset-storage/commit/017717148b4a676fff18f1aad699cd694bb3c660))
+
+### ⚙️ Miscellaneous Tasks
+
+- Update ([94c6888](https://github.com/MooncellWiki/ak-asset-storage/commit/94c6888de5999e441171c9e0b866bb6a2d3abb33))
+- Update dependencies ([b425a9d](https://github.com/MooncellWiki/ak-asset-storage/commit/b425a9d65c1fe9779063bbe61f5bfcd873f210cd))
+- Update dependencies ([eb6dfc8](https://github.com/MooncellWiki/ak-asset-storage/commit/eb6dfc8bfa40db18163c8398eddfd2da4c3b974a))
+- Update dependencies ([ec6a01c](https://github.com/MooncellWiki/ak-asset-storage/commit/ec6a01cf4daea6f0c59d819131be43086893f2da))
+- Update node ([9337431](https://github.com/MooncellWiki/ak-asset-storage/commit/93374318a141335c2a28e37bcd944a48f824469b))
+- Disable eslint ([0f20f9c](https://github.com/MooncellWiki/ak-asset-storage/commit/0f20f9cfc39b70d791c1fc60e0291608deecc0f3))
+
 ## [0.8.1] - 2024-12-29
 
-[61c430a](61c430aa3a6116642f07e7d962b73f19edd8fa02)...[8bd54c8](8bd54c8f3878aea3ca31f5ca4aa25055d6258911)
+[61c430a](61c430aa3a6116642f07e7d962b73f19edd8fa02)...[a3cf2da](a3cf2da0f1c86377f68d6fd43a85e9a4ffdf0276)
 
 ### ⚙️ Miscellaneous Tasks
 
 - Disable debug sentry ([8bd54c8](https://github.com/MooncellWiki/ak-asset-storage/commit/8bd54c8f3878aea3ca31f5ca4aa25055d6258911))
+- Release 0.8.1 ([a3cf2da](https://github.com/MooncellWiki/ak-asset-storage/commit/a3cf2da0f1c86377f68d6fd43a85e9a4ffdf0276))
 
 ## [0.8.0] - 2024-12-29
 
