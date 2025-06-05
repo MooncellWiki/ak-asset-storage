@@ -46,5 +46,6 @@
     "yaml",
     "toml"
   ],
-  "typescript.tsdk": "node_modules/typescript/lib"
+  "typescript.tsdk": "node_modules/typescript/lib",
+  "typescript.preferences.autoImportFileExcludePatterns": ["vue-router/auto$"]
 }
