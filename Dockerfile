@@ -1,4 +1,4 @@
-FROM node:20-slim AS frontend-build-stage
+FROM node:22-slim AS frontend-build-stage
 RUN corepack enable
 WORKDIR /app
 COPY . /app
