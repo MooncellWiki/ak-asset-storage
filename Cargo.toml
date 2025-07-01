@@ -52,7 +52,7 @@ lettre = { version = "0.11.16", features = [ "tokio1-native-tls" ] }
 serde_variant = "0.1.3"
 object_store = { version = "0.12.1", features = [ "aws" ] }
 sha256 = "1.6.0"
-utoipa = { version = "5.3.1", features = [
+utoipa = { version = "5.4.0", features = [
   "debug",
   "axum_extras"
 ] }
