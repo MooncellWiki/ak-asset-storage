@@ -1,0 +1,30 @@
+[package]
+name = "cli"
+
+version.workspace = true
+
+edition.workspace = true
+
+license.workspace = true
+
+description = "CLI adapter for ak-asset-storage"
+
+[lints]
+workspace = true
+
+[[bin]]
+name = "ak-asset-storage"
+path = "src/main.rs"
+
+[dependencies]
+domain = { path = "../domain" }
+application = { path = "../application" }
+infrastructure = { path = "../infrastructure" }
+web = { path = "../web" }
+serde = { workspace = true }
+tokio = { workspace = true }
+clap = { workspace = true }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
+anyhow = { workspace = true }
+sqlx = { workspace = true }
