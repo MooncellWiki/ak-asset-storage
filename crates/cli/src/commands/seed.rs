@@ -1,8 +1,7 @@
 use anyhow::Result;
 use application::{AssetDownloadService, ConfigProvider, RemoteVersion, VersionCheckService};
 use infrastructure::{
-    HttpAkApiClient, PostgresBundleRepository, PostgresFileRepository, PostgresVersionRepository,
-    S3StorageClient, SmtpNotificationClient,
+    HttpAkApiClient, PostgresRepository, S3StorageClient, SmtpNotificationClient,
 };
 use sqlx::postgres::PgPoolOptions;
 use std::{fs, path::PathBuf};
@@ -17,8 +16,8 @@ pub async fn execute(config: &impl ConfigProvider, csv_path: &PathBuf) -> Result
         .map(|line| {
             let parts = line.split(',').collect::<Vec<&str>>();
             RemoteVersion {
-                res_version: parts[1].to_string(),
-                client_version: parts[2].to_string(),
+                res_version: parts[0].to_string(),
+                client_version: parts[1].to_string(),
             }
         })
         .collect::<Vec<RemoteVersion>>();
@@ -27,25 +26,17 @@ pub async fn execute(config: &impl ConfigProvider, csv_path: &PathBuf) -> Result
     let pool = PgPoolOptions::new()
         .connect(&config.database_config().uri)
         .await?;
-    let version_repo = PostgresVersionRepository::new(pool.clone());
-    let file_repo = PostgresFileRepository::new(pool.clone());
-    let bundle_repo = PostgresBundleRepository::new(pool.clone());
+    let repository = PostgresRepository { pool };
     let ak_api_client = HttpAkApiClient::new(config.ak_api_config());
     let notification = SmtpNotificationClient::new(config.smtp_config())?;
     let s3 = S3StorageClient::new(config.s3_config())?;
     let version_check_service = VersionCheckService::new(
-        version_repo.clone(),
+        repository.clone(),
         ak_api_client.clone(),
         notification.clone(),
     );
-    let download_service = AssetDownloadService::new(
-        version_repo.clone(),
-        file_repo,
-        bundle_repo,
-        ak_api_client,
-        notification,
-        s3,
-    );
+    let download_service =
+        AssetDownloadService::new(repository.clone(), ak_api_client, notification, s3);
     for remote in versions {
         info!(
             "Inserting new version: {}-{}",

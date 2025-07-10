@@ -1,6 +1,8 @@
-use crate::dto::responses::Health;
+use crate::{dto::responses::Health, state::AppState};
+use application::Repository;
 use axum::{
     debug_handler,
+    extract::State,
     http::{header, StatusCode, Uri},
     response::{Html, IntoResponse, Response},
     Json,
@@ -16,9 +18,10 @@ pub async fn ping() -> Json<Health> {
 /// /_health
 #[debug_handler]
 #[utoipa::path(get, path = "/_health", responses((status = OK, body = Health)))]
-pub async fn health() -> Json<Health> {
-    // TODO: Implement actual health check
-    Json(Health { ok: true })
+pub async fn health(State(state): State<AppState>) -> Json<Health> {
+    Json(Health {
+        ok: state.repository.health_check().await,
+    })
 }
 
 #[derive(Embed)]

@@ -17,7 +17,6 @@ name = "ak-asset-storage"
 path = "src/main.rs"
 
 [dependencies]
-domain = { path = "../domain" }
 application = { path = "../application" }
 infrastructure = { path = "../infrastructure" }
 web = { path = "../web" }

@@ -1,27 +1,11 @@
-use application::{error::AppResult, ports::repositories::VersionRepository};
-use application::{VersionDetailDto, VersionDto};
+use crate::{InfraError, PostgresRepository};
+use application::{AppResult, Version, VersionDetailDto, VersionDto, VersionRepository};
 use async_trait::async_trait;
-use domain::entities::{Version, VersionId};
-use domain::value_objects::{ClientVersion, HotUpdateList, ResVersion};
-use sqlx::{query, query_as, Pool, Postgres};
-
-use crate::error::InfraError;
-
-#[derive(Debug, Clone)]
-pub struct PostgresVersionRepository {
-    pool: Pool<Postgres>,
-}
-
-impl PostgresVersionRepository {
-    #[must_use]
-    pub const fn new(pool: Pool<Postgres>) -> Self {
-        Self { pool }
-    }
-}
+use sqlx::{query, query_as};
 
 #[async_trait]
-impl VersionRepository for PostgresVersionRepository {
-    async fn create(&self, version: Version) -> AppResult<i32> {
+impl VersionRepository for PostgresRepository {
+    async fn create_version(&self, version: Version) -> AppResult<i32> {
         let row = query!(
             "INSERT INTO versions (res, client, is_ready, hot_update_list) VALUES ($1, $2, $3, $4) RETURNING id",
             version.res.as_str(),
@@ -39,7 +23,7 @@ impl VersionRepository for PostgresVersionRepository {
         Ok(row.id)
     }
 
-    async fn get_by_id(&self, id: i32) -> AppResult<Option<Version>> {
+    async fn get_version_by_id(&self, id: i32) -> AppResult<Option<Version>> {
         let result = query!(
             "SELECT id, res, client, is_ready, hot_update_list FROM versions WHERE id = $1",
             id
@@ -50,22 +34,21 @@ impl VersionRepository for PostgresVersionRepository {
             message: "Failed to get version by id".to_string(),
             source: e,
         })?;
-
         if let Some(row) = result {
             let version = Version::with_id(
-                VersionId(row.id),
-                ResVersion::new(&row.res)?,
-                ClientVersion::new(&row.client)?,
+                row.id,
+                row.res,
+                row.client,
                 row.is_ready,
-                HotUpdateList::new(&row.hot_update_list)?,
-            );
+                &row.hot_update_list,
+            )?;
             Ok(Some(version))
         } else {
             Ok(None)
         }
     }
 
-    async fn get_latest(&self) -> AppResult<Option<Version>> {
+    async fn get_latest_version(&self) -> AppResult<Option<Version>> {
         let result = query!(
             "SELECT id, res, client, is_ready, hot_update_list FROM versions ORDER BY id DESC LIMIT 1"
         )
@@ -78,12 +61,12 @@ impl VersionRepository for PostgresVersionRepository {
 
         if let Some(row) = result {
             let version = Version::with_id(
-                VersionId(row.id),
-                ResVersion::new(&row.res)?,
-                ClientVersion::new(&row.client)?,
+                row.id,
+                row.res,
+                row.client,
                 row.is_ready,
-                HotUpdateList::new(&row.hot_update_list)?,
-            );
+                &row.hot_update_list,
+            )?;
             Ok(Some(version))
         } else {
             Ok(None)
@@ -118,19 +101,19 @@ impl VersionRepository for PostgresVersionRepository {
 
         if let Some(row) = result {
             let version = Version::with_id(
-                VersionId(row.id),
-                ResVersion::new(&row.res)?,
-                ClientVersion::new(&row.client)?,
+                row.id,
+                row.res,
+                row.client,
                 row.is_ready,
-                HotUpdateList::new(&row.hot_update_list)?,
-            );
+                &row.hot_update_list,
+            )?;
             Ok(Some(version))
         } else {
             Ok(None)
         }
     }
 
-    async fn mark_ready(&self, id: i32) -> AppResult<()> {
+    async fn mark_version_ready(&self, id: i32) -> AppResult<()> {
         query!("UPDATE versions SET is_ready = true WHERE id = $1", id)
             .execute(&self.pool)
             .await
@@ -141,7 +124,7 @@ impl VersionRepository for PostgresVersionRepository {
 
         Ok(())
     }
-    async fn query(&self) -> AppResult<Vec<VersionDto>> {
+    async fn query_versions(&self) -> AppResult<Vec<VersionDto>> {
         let result = query_as!(
             VersionDto,
             r#"SELECT id, client as "client_version", res as "res_version", is_ready FROM versions"#
@@ -156,7 +139,7 @@ impl VersionRepository for PostgresVersionRepository {
         Ok(result)
     }
 
-    async fn query_detail_by_id(&self, id: i32) -> AppResult<Option<VersionDetailDto>> {
+    async fn query_version_detail_by_id(&self, id: i32) -> AppResult<Option<VersionDetailDto>> {
         let result = query_as!(
             VersionDetailDto,
             r#"SELECT id, client as "client_version", res as "res_version", is_ready, hot_update_list FROM versions WHERE id = $1"#,

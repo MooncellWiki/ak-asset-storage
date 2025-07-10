@@ -1,13 +1,14 @@
-use crate::error::InfraError;
-use crate::InfraResult;
-use application::ports::external_services::StorageService;
-use application::{error::AppResult, S3Config};
+use crate::error::{InfraError, InfraResult};
+use application::{AppResult, S3Config, StorageService};
 use async_trait::async_trait;
 use bytes::Bytes;
-use object_store::aws::AmazonS3Builder;
-use object_store::{aws::AmazonS3, ObjectStore};
+use object_store::{
+    aws::{AmazonS3, AmazonS3Builder},
+    ObjectStore,
+};
 use tracing::{info, instrument};
 
+#[derive(Debug, Clone)]
 pub struct S3StorageClient {
     store: AmazonS3,
 }
@@ -42,45 +43,5 @@ impl StorageService for S3StorageClient {
 
         info!("Uploaded file to S3 {}", path);
         Ok(())
-    }
-
-    #[instrument(name = "s3.download", skip(self))]
-    async fn download(&self, path: &str) -> AppResult<Vec<u8>> {
-        let object_path = object_store::path::Path::from(path);
-
-        let result = self
-            .store
-            .get(&object_path)
-            .await
-            .map_err(InfraError::from)?;
-
-        let bytes = result.bytes().await.map_err(InfraError::from)?;
-
-        info!("Downloaded file from S3 {}", path);
-        Ok(bytes.to_vec())
-    }
-
-    #[instrument(name = "s3.delete", skip(self))]
-    async fn delete(&self, path: &str) -> AppResult<()> {
-        let object_path = object_store::path::Path::from(path);
-
-        self.store
-            .delete(&object_path)
-            .await
-            .map_err(InfraError::from)?;
-
-        info!("Deleted file from S3 {}", path);
-        Ok(())
-    }
-
-    #[instrument(name = "s3.exists", skip(self))]
-    async fn exists(&self, path: &str) -> AppResult<bool> {
-        let object_path = object_store::path::Path::from(path);
-
-        match self.store.head(&object_path).await {
-            Ok(_) => Ok(true),
-            Err(object_store::Error::NotFound { .. }) => Ok(false),
-            Err(e) => Err(InfraError::from(e).into()),
-        }
     }
 }

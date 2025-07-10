@@ -1,6 +1,5 @@
 [workspace]
 members = [
-  "crates/domain",
   "crates/application",
   "crates/infrastructure",
   "crates/web",
@@ -39,14 +38,14 @@ validator = { version = "0.20.0" }
 clap = { version = "4.5.39", features = [ "derive" ] }
 axum = { version = "0.8.4", features = [
   "macros",
-  "multipart" 
+  "multipart"
 ] }
 bytes = { version = "1.10.1" }
 rust-embed = "8.7.2"
 uuid = { version = "1.17.0", features = [ "v4" ] }
 tracing-subscriber = { version = "0.3.19", features = [
   "env-filter",
-  "json" 
+  "json"
 ] }
 reqwest = { version = "0.12.19", features = [ "json" ] }
 zip = "4.0.0"
@@ -65,7 +64,7 @@ object_store = { version = "0.12.1", features = [ "aws" ] }
 sha256 = "1.6.0"
 utoipa = { version = "5.4.0", features = [
   "debug",
-  "axum_extras" 
+  "axum_extras"
 ] }
 utoipa-axum = { version = "0.2.0", features = [ "debug" ] }
 utoipa-scalar = { version = "0.3.0", features = [ "axum" ] }
@@ -92,7 +91,7 @@ sentry = { version = "0.38.1", features = [
 tower = "0.5.2"
 time = { version = "0.3.41", features = [
   "serde",
-  "serde-well-known" 
+  "serde-well-known"
 ] }
 jsonwebtoken = "9.3.1"
 ring = "0.17.14"

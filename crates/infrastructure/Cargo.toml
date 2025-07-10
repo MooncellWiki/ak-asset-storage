@@ -13,7 +13,6 @@ description = "Infrastructure layer for ak-asset-storage"
 workspace = true
 
 [dependencies]
-domain = { path = "../domain" }
 application = { path = "../application" }
 serde = { workspace = true }
 serde_json = { workspace = true }

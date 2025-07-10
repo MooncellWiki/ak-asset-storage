@@ -1,14 +1,12 @@
+use crate::InfraError;
 use application::{
     AkApiConfig, AppResult, DatabaseConfig, LoggerConfig, S3Config, SentryConfig, ServerConfig,
     SmtpConfig,
 };
 use serde::{Deserialize, Serialize};
-use std::fs;
-use std::path::Path;
+use std::{fs, path::Path};
 use thiserror::Error;
 use tracing::info;
-
-use crate::InfraError;
 
 /// Complete application settings that combines all configuration layers
 #[derive(Debug, Clone, Deserialize, Serialize)]

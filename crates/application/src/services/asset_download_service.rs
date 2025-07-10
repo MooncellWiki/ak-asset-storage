@@ -1,53 +1,34 @@
-use crate::error::AppResult;
-use crate::ports::{
-    external_services::{AkApiClient, NotificationService, StorageService},
-    repositories::{BundleRepository, FileRepository, VersionRepository},
+use crate::{
+    ABInfo, AkApiClient, AppResult, Bundle, BundleRepository, File, FileRepository,
+    NotificationService, StorageService, Version, VersionRepository,
 };
-use domain::entities::{Bundle, File, FileId, Version, VersionId};
-use domain::hot_update_list::ABInfo;
-use domain::value_objects::{FileHash, FilePath, FileSize};
 use futures::{stream, StreamExt, TryStreamExt};
 use sha256::digest;
 use tracing::{debug, error, info, instrument};
 
-pub struct AssetDownloadService<V, F, B, A, N, S>
+pub struct AssetDownloadService<R, A, N, S>
 where
-    V: VersionRepository,
-    F: FileRepository,
-    B: BundleRepository,
+    R: VersionRepository + FileRepository + BundleRepository,
     A: AkApiClient,
     N: NotificationService,
     S: StorageService,
 {
-    version_repo: V,
-    file_repo: F,
-    bundle_repo: B,
+    repo: R,
     ak_client: A,
     notification: N,
     storage: S,
 }
 
-impl<V, F, B, A, N, S> AssetDownloadService<V, F, B, A, N, S>
+impl<R, A, N, S> AssetDownloadService<R, A, N, S>
 where
-    V: VersionRepository,
-    F: FileRepository,
-    B: BundleRepository,
+    R: VersionRepository + FileRepository + BundleRepository,
     A: AkApiClient,
     N: NotificationService,
     S: StorageService,
 {
-    pub const fn new(
-        version_repo: V,
-        file_repo: F,
-        bundle_repo: B,
-        ak_client: A,
-        notification: N,
-        storage: S,
-    ) -> Self {
+    pub const fn new(repo: R, ak_client: A, notification: N, storage: S) -> Self {
         Self {
-            version_repo,
-            file_repo,
-            bundle_repo,
+            repo,
             ak_client,
             notification,
             storage,
@@ -81,7 +62,7 @@ where
     /// 返回true 如果没有没完成的版本
     async fn sync_oldest_version(&self) -> AppResult<bool> {
         // 获取未完成的版本
-        let version = self.version_repo.get_oldest_unready_version().await?;
+        let version = self.repo.get_oldest_unready_version().await?;
 
         if let Some(version) = version {
             info!(
@@ -98,8 +79,8 @@ where
 
     async fn sync_specific_version(&self, version_id: i32) -> AppResult<()> {
         let version = self
-            .version_repo
-            .get_by_id(version_id)
+            .repo
+            .get_version_by_id(version_id)
             .await?
             .ok_or_else(|| anyhow::anyhow!("Version not found: {}", version_id))?;
 
@@ -115,8 +96,7 @@ where
         // 并发下载文件，限制并发数为5
         let version_id = version
             .id
-            .ok_or_else(|| anyhow::anyhow!("Version ID is missing"))?
-            .0;
+            .ok_or_else(|| anyhow::anyhow!("Version ID is missing"))?;
         stream::iter(version.hot_update_list.ab_infos())
             .map(Ok)
             .try_for_each_concurrent(5, |info| {
@@ -125,14 +105,14 @@ where
             .await?;
 
         // 标记版本为已完成
-        self.version_repo.mark_ready(version_id).await?;
+        self.repo.mark_version_ready(version_id).await?;
 
         info!("sync version {} finished", version.res.as_str());
 
         // 发送下载完成通知
         self.notification
             .notify_download_finished(version.client.as_str(), version.res.as_str())
-            .await?;
+            .await;
 
         Ok(())
     }
@@ -145,8 +125,8 @@ where
     ) -> AppResult<()> {
         // 检查bundle是否已存在
         let existing_bundle = self
-            .bundle_repo
-            .get_by_version_and_path(version_id, &info.name)
+            .repo
+            .get_bundle_by_version_and_path(version_id, &info.name)
             .await?;
 
         if existing_bundle.is_some() {
@@ -159,13 +139,14 @@ where
 
         // 创建bundle记录
         let bundle_path = info.name.clone();
-        let bundle = Bundle::new(
-            FilePath::new(&info.name)?,
-            VersionId(version_id),
-            FileId(file_id),
-        );
+        let bundle = Bundle {
+            id: None,
+            path: bundle_path.clone(),
+            version_id,
+            file_id,
+        };
 
-        self.bundle_repo.create(bundle).await?;
+        self.repo.create_bundle(bundle).await?;
         info!("{} sync finished", bundle_path);
 
         Ok(())
@@ -178,11 +159,10 @@ where
         let sha = digest(&bytes);
 
         // 检查文件是否已存在
-        if let Some(file) = self.file_repo.get_by_hash(&sha).await? {
+        if let Some(file) = self.repo.get_file_by_hash(&sha).await? {
             return Ok(file
                 .id
-                .ok_or_else(|| anyhow::anyhow!("File ID is missing"))?
-                .0);
+                .ok_or_else(|| anyhow::anyhow!("File ID is missing"))?);
         }
 
         // 上传到存储服务
@@ -190,9 +170,13 @@ where
         self.storage.upload(&storage_path, &bytes).await?;
 
         // 创建文件记录
-        let file = File::new(FileHash::new(&sha)?, FileSize::new(bytes.len() as i32)?);
+        let file = File {
+            id: None,
+            hash: sha,
+            size: bytes.len() as i32,
+        };
 
-        let file_id = self.file_repo.create(file).await?;
+        let file_id = self.repo.create_file(file).await?;
         debug!("sync file {} finished", path);
 
         Ok(file_id)

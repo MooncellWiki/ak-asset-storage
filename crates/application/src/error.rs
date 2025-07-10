@@ -1,16 +1,12 @@
-use domain::error::DomainError;
 use thiserror::Error;
 
 /// Application layer errors - use case and service errors
 #[derive(Debug, Error)]
 pub enum AppError {
-    #[error("Domain error")]
-    Domain(#[from] DomainError),
-
-    #[error("External service error")]
+    #[error("External service error:\n{0}")]
     ExternalService(anyhow::Error),
 
-    #[error("Application error")]
+    #[error("Application error:\n{0}")]
     Application(#[from] anyhow::Error),
 }
 

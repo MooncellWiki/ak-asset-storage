@@ -1,4 +1,5 @@
-use crate::error::{DomainError, DomainResult};
+use crate::AppResult;
+use anyhow::Context;
 use serde::Deserialize;
 
 #[derive(Debug, Clone, Deserialize)]
@@ -34,12 +35,10 @@ pub struct HotUpdateList {
 
 impl HotUpdateList {
     /// Create a new hot update list
-    pub fn new(json_string: &str) -> DomainResult<Self> {
+    pub fn new(json_string: &str) -> AppResult<Self> {
         // Validate that it's valid JSON
         let parsed: Self =
-            serde_json::from_str(json_string).map_err(|e| DomainError::InvalidValue {
-                message: format!("Invalid JSON in hot update list: {e}"),
-            })?;
+            serde_json::from_str(json_string).context("Invalid JSON in hot update list")?;
 
         Ok(Self {
             raw: json_string.to_string(),
@@ -112,11 +111,5 @@ mod tests {
 
         let result = HotUpdateList::new(invalid_json);
         assert!(result.is_err());
-
-        if let Err(DomainError::InvalidValue { message }) = result {
-            assert!(message.contains("Invalid JSON in hot update list"));
-        } else {
-            panic!("Expected InvalidValue error");
-        }
     }
 }

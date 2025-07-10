@@ -13,7 +13,6 @@ description = "Web adapter layer for ak-asset-storage"
 workspace = true
 
 [dependencies]
-domain = { path = "../domain" }
 application = { path = "../application" }
 infrastructure = { path = "../infrastructure" }
 # Web layer should not directly depend on infrastructure

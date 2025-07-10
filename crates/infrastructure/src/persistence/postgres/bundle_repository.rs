@@ -1,32 +1,16 @@
-use application::{error::AppResult, ports::repositories::BundleRepository};
-use application::{BundleDetailsDto, BundleFilterDto};
+use crate::{InfraError, PostgresRepository};
+use application::{AppResult, Bundle, BundleDetailsDto, BundleFilterDto, BundleRepository};
 use async_trait::async_trait;
-use domain::entities::{Bundle, FileId, VersionId};
-use domain::value_objects::FilePath;
-use sqlx::{query, query_as, Pool, Postgres};
-
-use crate::error::InfraError;
-
-#[derive(Debug, Clone)]
-pub struct PostgresBundleRepository {
-    pool: Pool<Postgres>,
-}
-
-impl PostgresBundleRepository {
-    #[must_use]
-    pub const fn new(pool: Pool<Postgres>) -> Self {
-        Self { pool }
-    }
-}
+use sqlx::{query, query_as};
 
 #[async_trait]
-impl BundleRepository for PostgresBundleRepository {
-    async fn create(&self, bundle: Bundle) -> AppResult<i32> {
+impl BundleRepository for PostgresRepository {
+    async fn create_bundle(&self, bundle: Bundle) -> AppResult<i32> {
         let row = query!(
             "INSERT INTO bundles (path, version, file) VALUES ($1, $2, $3) RETURNING id",
             bundle.path.as_str(),
-            bundle.version_id.0,
-            bundle.file_id.0
+            bundle.version_id,
+            bundle.file_id
         )
         .fetch_one(&self.pool)
         .await
@@ -38,13 +22,14 @@ impl BundleRepository for PostgresBundleRepository {
         Ok(row.id)
     }
 
-    async fn get_by_version_and_path(
+    async fn get_bundle_by_version_and_path(
         &self,
         version_id: i32,
         path: &str,
     ) -> AppResult<Option<Bundle>> {
-        let result = query!(
-            "SELECT id, path, version, file FROM bundles WHERE version = $1 AND path = $2",
+        let result = query_as!(
+            Bundle,
+            r#"SELECT id, path, version as "version_id", file as "file_id" FROM bundles WHERE version = $1 AND path = $2"#,
             version_id,
             path
         )
@@ -54,20 +39,12 @@ impl BundleRepository for PostgresBundleRepository {
             message: "Failed to get bundle by version and path".to_string(),
             source: e,
         })?;
-
-        if let Some(row) = result {
-            let bundle = Bundle::with_id(
-                domain::entities::BundleId(row.id),
-                FilePath::new(&row.path)?,
-                VersionId(row.version),
-                FileId(row.file),
-            );
-            Ok(Some(bundle))
-        } else {
-            Ok(None)
-        }
+        Ok(result)
     }
-    async fn query_by_id_with_details(&self, id: i32) -> AppResult<Option<BundleDetailsDto>> {
+    async fn query_bundle_by_id_with_details(
+        &self,
+        id: i32,
+    ) -> AppResult<Option<BundleDetailsDto>> {
         let result = query_as!(
             BundleDetailsDto,
             r#"
@@ -101,7 +78,10 @@ WHERE
 
         Ok(result)
     }
-    async fn query_with_details(&self, query: BundleFilterDto) -> AppResult<Vec<BundleDetailsDto>> {
+    async fn query_bundles_with_details(
+        &self,
+        query: BundleFilterDto,
+    ) -> AppResult<Vec<BundleDetailsDto>> {
         let result = query_as!(
             BundleDetailsDto,
             r#"
@@ -141,7 +121,10 @@ WHERE
 
         Ok(result)
     }
-    async fn query_by_version_id(&self, version_id: i32) -> AppResult<Vec<BundleDetailsDto>> {
+    async fn query_bundles_by_version_id(
+        &self,
+        version_id: i32,
+    ) -> AppResult<Vec<BundleDetailsDto>> {
         let result = query_as!(
             BundleDetailsDto,
             r#"

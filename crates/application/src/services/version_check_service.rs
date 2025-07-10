@@ -1,11 +1,7 @@
-use crate::dto::RemoteVersion;
-use crate::error::AppResult;
-use crate::ports::{
-    external_services::{AkApiClient, NotificationService},
-    repositories::VersionRepository,
+use crate::{
+    repositories::VersionRepository, AkApiClient, AppResult, HotUpdateList, NotificationService,
+    RemoteVersion, Version,
 };
-use domain::entities::Version;
-use domain::value_objects::{ClientVersion, HotUpdateList, ResVersion};
 use tracing::{error, info, instrument};
 
 pub struct VersionCheckService<V, A, N>
@@ -64,7 +60,7 @@ where
             info!("no change, skip");
             return Ok(false);
         }
-        let prev = self.version_repo.get_latest().await?;
+        let prev = self.version_repo.get_latest_version().await?;
         if let Some(prev) = prev {
             self.notification
                 .notify_update(
@@ -73,11 +69,11 @@ where
                     &remote.client_version,
                     &remote.res_version,
                 )
-                .await?;
+                .await;
         } else {
             self.notification
                 .notify_update("", "", &remote.client_version, &remote.res_version)
-                .await?;
+                .await;
         }
 
         // 获取热更新列表
@@ -87,13 +83,19 @@ where
             .await?;
 
         // 创建新版本记录
-        let version = Version::new(
-            ResVersion::new(&remote.res_version)?,
-            ClientVersion::new(&remote.client_version)?,
-            HotUpdateList::new(&hot_update_list)?,
-        );
+        let RemoteVersion {
+            res_version,
+            client_version,
+        } = remote;
+        let version = Version {
+            id: None,
+            res: res_version,
+            client: client_version,
+            hot_update_list: HotUpdateList::new(&hot_update_list)?,
+            is_ready: false,
+        };
 
-        self.version_repo.create(version).await?;
+        self.version_repo.create_version(version).await?;
         info!("new version created and ready for download");
 
         Ok(true)

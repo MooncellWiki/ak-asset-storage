@@ -1,46 +1,39 @@
-use crate::error::AppResult;
-use crate::ports::scheduler::ScheduledTask;
-use crate::ports::{
-    external_services::{AkApiClient, NotificationService},
-    repositories::VersionRepository,
+use crate::{
+    AkApiClient, AppResult, AssetDownloadService, BundleRepository, FileRepository,
+    NotificationService, ScheduledTask, StorageService, VersionCheckService, VersionRepository,
 };
-use crate::services::AssetDownloadService;
-use crate::{BundleRepository, FileRepository, StorageService, VersionCheckService};
 use async_trait::async_trait;
-use std::sync::{Arc, Mutex};
-use std::time::Duration;
-use tokio::spawn;
-use tokio::task::JoinHandle;
+use std::{
+    sync::{Arc, Mutex},
+    time::Duration,
+};
+use tokio::{spawn, task::JoinHandle};
 use tracing::{error, info, instrument};
 
 /// 版本轮询服务 - 组合版本检查和资源下载
-pub struct SyncTask<V, F, B, A, N, S>
+pub struct SyncTask<R, A, N, S>
 where
-    V: VersionRepository + Send + Sync + 'static,
-    F: FileRepository + Send + Sync + 'static,
-    B: BundleRepository + Send + Sync + 'static,
-    A: AkApiClient + Send + Sync + 'static,
-    N: NotificationService + Send + Sync + 'static,
-    S: StorageService + Send + Sync + 'static,
+    R: VersionRepository + FileRepository + BundleRepository,
+    A: AkApiClient,
+    N: NotificationService,
+    S: StorageService,
 {
-    version_check_service: Arc<VersionCheckService<V, A, N>>,
-    download_service: Arc<AssetDownloadService<V, F, B, A, N, S>>,
+    version_check_service: Arc<VersionCheckService<R, A, N>>,
+    download_service: Arc<AssetDownloadService<R, A, N, S>>,
     poll_interval: Duration,
     download_task: Arc<Mutex<Option<JoinHandle<()>>>>,
 }
 
-impl<V, F, B, A, N, S> SyncTask<V, F, B, A, N, S>
+impl<R, A, N, S> SyncTask<R, A, N, S>
 where
-    V: VersionRepository + Send + Sync + 'static,
-    F: FileRepository + Send + Sync + 'static,
-    B: BundleRepository + Send + Sync + 'static,
-    A: AkApiClient + Send + Sync + 'static,
-    N: NotificationService + Send + Sync + 'static,
-    S: StorageService + Send + Sync + 'static,
+    R: VersionRepository + FileRepository + BundleRepository,
+    A: AkApiClient,
+    N: NotificationService,
+    S: StorageService,
 {
     pub fn new(
-        version_check_service: VersionCheckService<V, A, N>,
-        download_service: AssetDownloadService<V, F, B, A, N, S>,
+        version_check_service: VersionCheckService<R, A, N>,
+        download_service: AssetDownloadService<R, A, N, S>,
         poll_interval: Duration,
     ) -> Self {
         Self {
@@ -95,14 +88,12 @@ where
 }
 
 #[async_trait]
-impl<V, F, B, A, N, S> ScheduledTask for SyncTask<V, F, B, A, N, S>
+impl<R, A, N, S> ScheduledTask for SyncTask<R, A, N, S>
 where
-    V: VersionRepository + Send + Sync + 'static,
-    F: FileRepository + Send + Sync + 'static,
-    B: BundleRepository + Send + Sync + 'static,
-    A: AkApiClient + Send + Sync + 'static,
-    N: NotificationService + Send + Sync + 'static,
-    S: StorageService + Send + Sync + 'static,
+    R: VersionRepository + FileRepository + BundleRepository,
+    A: AkApiClient,
+    N: NotificationService,
+    S: StorageService,
 {
     async fn run(&self) -> AppResult<()> {
         match self.perform_poll().await {

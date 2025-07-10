@@ -1,11 +1,9 @@
 use application::ConfigProvider;
-use axum::extract::FromRef;
-use infrastructure::{PostgresBundleRepository, PostgresVersionRepository};
+use infrastructure::PostgresRepository;
 
 #[derive(Debug, Clone)]
 pub struct AppState {
-    pub bundle_repository: PostgresBundleRepository,
-    pub version_repository: PostgresVersionRepository,
+    pub repository: PostgresRepository,
 }
 
 pub async fn init_state_with_pg(config: &impl ConfigProvider) -> AppState {
@@ -14,23 +12,7 @@ pub async fn init_state_with_pg(config: &impl ConfigProvider) -> AppState {
         .await
         .expect("Failed to connect to the database");
 
-    let bundle_repository = PostgresBundleRepository::new(pool.clone());
-    let version_repository = PostgresVersionRepository::new(pool);
-
     AppState {
-        bundle_repository,
-        version_repository,
-    }
-}
-
-impl FromRef<AppState> for PostgresBundleRepository {
-    fn from_ref(input: &AppState) -> Self {
-        input.bundle_repository.clone()
-    }
-}
-
-impl FromRef<AppState> for PostgresVersionRepository {
-    fn from_ref(input: &AppState) -> Self {
-        input.version_repository.clone()
+        repository: PostgresRepository { pool },
     }
 }

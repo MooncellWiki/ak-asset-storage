@@ -1,7 +1,5 @@
 use crate::error::InfraError;
-use application::ports::external_services::AkApiClient;
-use application::AkApiConfig;
-use application::{error::AppResult, RemoteVersion};
+use application::{AkApiClient, AkApiConfig, AppResult, RemoteVersion};
 use async_trait::async_trait;
 use reqwest::Client;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
@@ -106,12 +104,12 @@ impl AkApiClient for HttpAkApiClient {
 }
 #[derive(Debug, thiserror::Error)]
 pub enum AkApiClientError {
-    #[error("Request error")]
+    #[error("Request error:\n{0}")]
     Request(#[from] reqwest::Error),
 
-    #[error("Failed to parse response")]
+    #[error("Failed to parse response:\n{0}")]
     Parse(#[from] serde_json::Error),
 
-    #[error("Failed to get system time")]
+    #[error("Failed to get system time:\n{0}")]
     Time(#[from] std::time::SystemTimeError),
 }

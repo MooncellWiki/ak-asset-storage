@@ -5,14 +5,14 @@ use serde::Serialize;
 #[derive(thiserror::Error, Debug)]
 pub enum WebError {
     /// 501 Internal Server Error
-    #[error("Internal Server Error: {0}")]
+    #[error("Internal Server Error:\n{0}")]
     CustomApiError(AppError),
     /// 404 Not Found
     #[error("Not found")]
     NotFound,
 
     /// 503 Service Unavailable
-    #[error("Service Unavailable")]
+    #[error("Service Unavailable:\n{0}")]
     ServiceUnavailable(anyhow::Error),
 }
 
@@ -31,7 +31,7 @@ impl From<WebError> for ApiErrorDetail {
 impl From<AppError> for WebError {
     fn from(err: AppError) -> Self {
         match err {
-            err @ (AppError::Domain(..) | AppError::Application(..)) => Self::CustomApiError(err),
+            err @ AppError::Application(..) => Self::CustomApiError(err),
             err @ AppError::ExternalService(..) => Self::ServiceUnavailable(err.into()),
         }
     }

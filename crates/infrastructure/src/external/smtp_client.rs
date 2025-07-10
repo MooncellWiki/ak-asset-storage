@@ -1,6 +1,5 @@
 use crate::error::{InfraError, InfraResult};
-use application::ports::external_services::NotificationService;
-use application::{error::AppResult, SmtpConfig};
+use application::{AppResult, NotificationService, SmtpConfig};
 use async_trait::async_trait;
 use lettre::{
     message::{header, MultiPart, SinglePart},
@@ -50,11 +49,9 @@ impl SmtpNotificationClient {
         Ok(())
     }
 }
-
-#[async_trait]
-impl NotificationService for SmtpNotificationClient {
+impl SmtpNotificationClient {
     #[instrument(name = "smtp.notify_update", skip(self))]
-    async fn notify_update(
+    async fn inner_notify_update(
         &self,
         old_client: &str,
         old_res: &str,
@@ -112,9 +109,8 @@ impl NotificationService for SmtpNotificationClient {
         info!("Version update notification sent");
         Ok(())
     }
-
     #[instrument(name = "smtp.notify_download_finished", skip(self))]
-    async fn notify_download_finished(
+    async fn inner_notify_download_finished(
         &self,
         client_version: &str,
         res_version: &str,
@@ -139,16 +135,42 @@ impl NotificationService for SmtpNotificationClient {
         Ok(())
     }
 }
+#[async_trait]
+impl NotificationService for SmtpNotificationClient {
+    #[instrument(name = "smtp.notify_update", skip(self))]
+    async fn notify_update(
+        &self,
+        old_client: &str,
+        old_res: &str,
+        new_client: &str,
+        new_res: &str,
+    ) {
+        self.inner_notify_update(old_client, old_res, new_client, new_res)
+            .await
+            .unwrap_or_else(|e| {
+                tracing::error!("Failed to send update notification: {:?}", e);
+            });
+    }
+
+    #[instrument(name = "smtp.notify_download_finished", skip(self))]
+    async fn notify_download_finished(&self, client_version: &str, res_version: &str) {
+        self.inner_notify_download_finished(client_version, res_version)
+            .await
+            .unwrap_or_else(|e| {
+                tracing::error!("Failed to send download completion notification: {:?}", e);
+            });
+    }
+}
 
 #[derive(Debug, thiserror::Error)]
 pub enum EmailError {
-    #[error("Transport error")]
+    #[error("Transport error:\n{0}")]
     Transport(#[from] lettre::transport::smtp::Error),
 
-    #[error("Content error")]
+    #[error("Content error:\n{0}")]
     Content(#[from] lettre::error::Error),
 
-    #[error("Address error")]
+    #[error("Address error:\n{0}")]
     Address(#[from] lettre::address::AddressError),
 }
 

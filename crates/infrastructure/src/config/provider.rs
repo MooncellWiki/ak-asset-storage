@@ -1,15 +1,12 @@
 use crate::config::AppSettings;
 use application::{
-    ports::{
-        AkApiConfig as AppAkApiConfig, ConfigProvider, LoggerConfig as AppLoggerConfig,
-        S3Config as AppS3Config, SentryConfig as AppSentryConfig, ServerConfig as AppServerConfig,
-        SmtpConfig as AppSmtpConfig,
-    },
-    DatabaseConfig,
+    AkApiConfig as AppAkApiConfig, ConfigProvider, DatabaseConfig, LoggerConfig as AppLoggerConfig,
+    S3Config as AppS3Config, SentryConfig as AppSentryConfig, ServerConfig as AppServerConfig,
+    SmtpConfig as AppSmtpConfig,
 };
 use async_trait::async_trait;
 
-/// Infrastructure implementation of ConfigProvider
+/// Infrastructure implementation of `ConfigProvider`
 pub struct InfraConfigProvider {
     pub settings: AppSettings,
 }

@@ -5,26 +5,26 @@ use crate::{ak_api_client::AkApiClientError, smtp_client::EmailError, ConfigErro
 /// Infrastructure layer errors - external dependencies errors
 #[derive(Debug, Error)]
 pub enum InfraError {
-    #[error("Database error {}", message)]
+    #[error("Database error:\n {message} {source}")]
     Database {
         message: String,
         #[source]
         source: sqlx::Error,
     },
 
-    #[error("AkApiClient error")]
+    #[error("AkApiClient error:\n{0}")]
     AkApiClient(#[from] AkApiClientError),
 
-    #[error("Database migration error")]
+    #[error("Database migration error:\n{0}")]
     DatabaseMigration(#[from] sqlx::migrate::MigrateError),
 
-    #[error("S3 error")]
+    #[error("S3 error:\n{0}")]
     S3(#[from] object_store::Error),
 
-    #[error("Email error")]
+    #[error("Email error:\n{0}")]
     Email(#[from] EmailError),
 
-    #[error("Configuration error")]
+    #[error("Configuration error:\n{0}")]
     Config(#[from] ConfigError),
 }
 
