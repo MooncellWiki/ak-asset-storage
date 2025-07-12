@@ -1,9 +1,7 @@
 import { DataLoaderPlugin } from "unplugin-vue-router/data-loaders";
 import { createApp } from "vue";
 // https://github.com/un-ts/eslint-plugin-import-x/issues/372
-// eslint-disable-next-line import/no-duplicates
 import { createRouter, createWebHistory } from "vue-router";
-// eslint-disable-next-line import/no-duplicates
 import { routes } from "vue-router/auto-routes";
 import App from "./App.vue";
 import "./styles/main.css";

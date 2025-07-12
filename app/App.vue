@@ -8,7 +8,7 @@
             {{ isDark ? "浅色" : "深色" }}
           </NButton>
         </NLayoutHeader>
-        <NLayoutContent class="mx-auto container">
+        <NLayoutContent class="container mx-auto">
           <RouterView />
         </NLayoutContent>
       </NLayout>
