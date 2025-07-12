@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "SELECT * FROM bundles WHERE version = $1 AND path = $2",
+  "query": "SELECT id, path, version as \"version_id\", file as \"file_id\" FROM bundles WHERE version = $1 AND path = $2",
   "describe": {
     "columns": [
       {
@@ -15,19 +15,27 @@
       },
       {
         "ordinal": 2,
-        "name": "version",
+        "name": "version_id",
         "type_info": "Int4"
       },
       {
         "ordinal": 3,
-        "name": "file",
+        "name": "file_id",
         "type_info": "Int4"
       }
     ],
     "parameters": {
-      "Left": ["Int4", "Text"]
+      "Left": [
+        "Int4",
+        "Text"
+      ]
     },
-    "nullable": [false, false, false, false]
+    "nullable": [
+      false,
+      false,
+      false,
+      false
+    ]
   },
-  "hash": "3d12f9a29ff7c1a28cdfdc332c082b97bf0aa7702e4c9917809bf424173620fd"
+  "hash": "e6763f4914fbb5180503623cc97bc04eb963565c3725fa4387ce0c253590489c"
 }

@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "SELECT * FROM versions where is_ready = false ORDER BY id ASC",
+  "query": "SELECT id, client as \"client_version\", res as \"res_version\", is_ready FROM versions ORDER BY id ASC",
   "describe": {
     "columns": [
       {
@@ -10,29 +10,29 @@
       },
       {
         "ordinal": 1,
-        "name": "res",
+        "name": "client_version",
         "type_info": "Varchar"
       },
       {
         "ordinal": 2,
-        "name": "client",
+        "name": "res_version",
         "type_info": "Varchar"
       },
       {
         "ordinal": 3,
         "name": "is_ready",
         "type_info": "Bool"
-      },
-      {
-        "ordinal": 4,
-        "name": "hot_update_list",
-        "type_info": "Text"
       }
     ],
     "parameters": {
       "Left": []
     },
-    "nullable": [false, false, false, false, false]
+    "nullable": [
+      false,
+      false,
+      false,
+      false
+    ]
   },
-  "hash": "e9b0e48f4e8190eec0f44b9a0749ad0996add006c9223d2f638612ae6def31b7"
+  "hash": "778ed567fac283fbd89dfd2358cff41357c981ecbac14ebb8bab6a3b63d373db"
 }

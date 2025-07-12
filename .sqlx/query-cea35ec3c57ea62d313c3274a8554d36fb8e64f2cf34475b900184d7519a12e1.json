@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "select * from versions where id = $1",
+  "query": "SELECT id, res, client, is_ready, hot_update_list FROM versions WHERE is_ready = false ORDER BY id ASC LIMIT 1",
   "describe": {
     "columns": [
       {
@@ -30,9 +30,15 @@
       }
     ],
     "parameters": {
-      "Left": ["Int4"]
+      "Left": []
     },
-    "nullable": [false, false, false, false, false]
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false
+    ]
   },
-  "hash": "b05304379563cd85dec004018ad184956056cf2ac9f65e5c96bc8d4b5d5ed932"
+  "hash": "cea35ec3c57ea62d313c3274a8554d36fb8e64f2cf34475b900184d7519a12e1"
 }

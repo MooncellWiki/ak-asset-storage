@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "INSERT INTO files (hash, size) VALUES ($1, $2) RETURNING id",
+  "query": "INSERT INTO bundles (path, version, file) VALUES ($1, $2, $3) RETURNING id",
   "describe": {
     "columns": [
       {
@@ -11,7 +11,8 @@
     ],
     "parameters": {
       "Left": [
-        "Bpchar",
+        "Varchar",
+        "Int4",
         "Int4"
       ]
     },
@@ -19,5 +20,5 @@
       false
     ]
   },
-  "hash": "4ec725e6856d3b747521a25812ad5fbc4a9219e4b6769b8c2a7885dd6fc39bde"
+  "hash": "b23634d53849f6acb05da95069ba5ef117c83f7b19aa77b7588fc8206adec62f"
 }
