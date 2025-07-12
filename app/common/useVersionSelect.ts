@@ -5,16 +5,16 @@ import type { SelectGroupOption } from "naive-ui";
 
 export function useVersionSelect() {
   const versionOpts = ref<SelectGroupOption[]>([]);
-  const versions = ref<components["schemas"]["VersionListItem"][]>([]);
+  const versions = ref<components["schemas"]["VersionDto"][]>([]);
   async function load() {
-    const { data } = await client.GET("/api/v1/version");
+    const { data } = await client.GET("/version");
     const result: SelectGroupOption[] = [];
     versions.value = (data ?? []).reverse();
     let prev = "";
     let group: SelectGroupOption | undefined = void 0;
     for (const version of versions.value) {
-      if (prev !== version.client) {
-        prev = version.client;
+      if (prev !== version.clientVersion) {
+        prev = version.clientVersion;
         if (group) {
           result.push(group);
         }
@@ -24,14 +24,14 @@ export function useVersionSelect() {
           key: prev,
           children: [
             {
-              label: version.res + (version.isReady ? "" : " (未完成)"),
+              label: version.resVersion + (version.isReady ? "" : " (未完成)"),
               value: version.id,
             },
           ],
         };
       } else {
         group!.children!.push({
-          label: version.res + (version.isReady ? "" : " (未完成)"),
+          label: version.resVersion + (version.isReady ? "" : " (未完成)"),
           value: version.id,
         });
       }

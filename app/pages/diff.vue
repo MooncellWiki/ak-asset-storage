@@ -80,7 +80,7 @@ watch(
       delete params.diff;
       return;
     }
-    params.diff = `${l?.res || ""}...${r?.res || ""}`;
+    params.diff = `${l?.resVersion || ""}...${r?.resVersion || ""}`;
   },
 );
 
@@ -90,13 +90,13 @@ onBeforeMount(async () => {
     const arr = (params.diff as string).split("...");
     if (arr.length === 2) {
       if (arr[0]) {
-        const v = versions.value.find((v) => v.res === arr[0]);
+        const v = versions.value.find((v) => v.resVersion === arr[0]);
         if (v) {
           left.value = v.id;
         }
       }
       if (arr[1]) {
-        const v = versions.value.find((v) => v.res === arr[1]);
+        const v = versions.value.find((v) => v.resVersion === arr[1]);
         if (v) {
           right.value = v.id;
         }
@@ -121,16 +121,16 @@ function dirOrder(a: string, b: string) {
 const treeData = ref<TreeOption[]>([]);
 const changeOnly = ref(true);
 interface VersionFiles {
-  pathMap: Record<string, components["schemas"]["FileDetail"]>;
-  list: components["schemas"]["FileDetail"][];
+  pathMap: Record<string, components["schemas"]["BundleDetailsDto"]>;
+  list: components["schemas"]["BundleDetailsDto"][];
 }
 const lData = ref<VersionFiles>({ pathMap: {}, list: [] });
 const rData = ref<VersionFiles>({ pathMap: {}, list: [] });
 async function loadDetail(id: number) {
-  const resp = await client.GET("/api/v1/version/{id}/files", {
+  const resp = await client.GET("/version/{id}/files", {
     params: { path: { id } },
   });
-  const pathMap: Record<string, components["schemas"]["FileDetail"]> = {};
+  const pathMap: Record<string, components["schemas"]["BundleDetailsDto"]> = {};
   const list = (resp.data ?? []).sort((a, b) => {
     return dirOrder(a.path, b.path);
   });
@@ -143,7 +143,7 @@ function buildTree() {
   const hasLeft = typeof left.value === "number";
   const hasRight = typeof right.value === "number";
   const top: TreeOption = { children: [] };
-  function updateTree(list: components["schemas"]["FileDetail"][]) {
+  function updateTree(list: components["schemas"]["BundleDetailsDto"][]) {
     for (const item of list) {
       const paths = item.path.split("/");
       let cur = top;
@@ -173,14 +173,14 @@ function buildTree() {
       if (!right) {
         return true;
       }
-      return v.hash !== right.hash;
+      return v.fileHash !== right.fileHash;
     });
     rList = rList.filter((v) => {
       const left = lData!.value.pathMap[v.path];
       if (!left) {
         return true;
       }
-      return v.hash !== left.hash;
+      return v.fileHash !== left.fileHash;
     });
     updateTree(lList);
     updateTree(rList);
@@ -241,7 +241,7 @@ function renderLabel(props: TreeRenderProps): VNodeChild {
   }
 
   if (l && r) {
-    if (l.hash === r.hash) {
+    if (l.fileHash === r.fileHash) {
       return h("div", { onClick: () => onLabelClick(r) }, props.option.label);
     } else {
       return h(
@@ -267,11 +267,11 @@ function renderLabel(props: TreeRenderProps): VNodeChild {
   }
 }
 const detailVisible = ref(false);
-const leftDetail = ref<components["schemas"]["FileDetail"]>();
-const rightDetail = ref<components["schemas"]["FileDetail"]>();
+const leftDetail = ref<components["schemas"]["BundleDetailsDto"]>();
+const rightDetail = ref<components["schemas"]["BundleDetailsDto"]>();
 function onLabelClick(
-  left?: components["schemas"]["FileDetail"],
-  right?: components["schemas"]["FileDetail"],
+  left?: components["schemas"]["BundleDetailsDto"],
+  right?: components["schemas"]["BundleDetailsDto"],
 ) {
   leftDetail.value = left;
   rightDetail.value = right;

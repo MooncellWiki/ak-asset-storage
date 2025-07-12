@@ -10,9 +10,14 @@
       }
     ],
     "parameters": {
-      "Left": ["Bpchar", "Int4"]
+      "Left": [
+        "Bpchar",
+        "Int4"
+      ]
     },
-    "nullable": [false]
+    "nullable": [
+      false
+    ]
   },
   "hash": "4ec725e6856d3b747521a25812ad5fbc4a9219e4b6769b8c2a7885dd6fc39bde"
 }

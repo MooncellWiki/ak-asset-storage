@@ -1,9 +1,9 @@
 <template>
   <div class="w-[600px]">
     <div>path: {{ detail?.path }}</div>
-    <div>sha256: {{ detail?.hash }}</div>
-    <div>size: {{ fmtSize(detail?.size) }}</div>
-    <div>version: {{ detail?.client }} - {{ detail?.res }}</div>
+    <div>sha256: {{ detail?.fileHash }}</div>
+    <div>size: {{ fmtSize(detail?.fileSize) }}</div>
+    <div>version: {{ detail?.versionClient }} - {{ detail?.versionRes }}</div>
     <div class="mt-2">
       <NButton @click="download">下载</NButton>
     </div>
@@ -15,14 +15,14 @@ import { NButton } from "naive-ui";
 import type { components } from "~/common/schema";
 
 const props = defineProps<{
-  detail: components["schemas"]["FileDetail"];
+  detail: components["schemas"]["BundleDetailsDto"];
 }>();
 
 function download() {
-  const path = `/storage/${props.detail.hash.slice(0, 2)}/${props.detail.hash.slice(2, 4)}/${props.detail.hash.slice(4)}`;
+  const path = `/storage/${props.detail.fileHash.slice(0, 2)}/${props.detail.fileHash.slice(2, 4)}/${props.detail.fileHash.slice(4)}`;
   const a = document.createElement("a");
   a.href = path;
-  a.download = `${props.detail.client}_${props.detail.res}_${props.detail.path}.zip`;
+  a.download = `${props.detail.versionClient}_${props.detail.versionRes}_${props.detail.path}.zip`;
   a.click();
 }
 function fmtSize(size?: number) {
