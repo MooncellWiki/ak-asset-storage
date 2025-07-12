@@ -1,5 +1,5 @@
 use crate::error::{InfraError, InfraResult};
-use application::{AppResult, S3Config, StorageService};
+use ak_asset_storage_application::{AppResult, S3Config, StorageService};
 use async_trait::async_trait;
 use bytes::Bytes;
 use object_store::{

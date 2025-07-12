@@ -1,5 +1,5 @@
 use crate::{InfraError, PostgresRepository};
-use application::{AppResult, File, FileRepository};
+use ak_asset_storage_application::{AppResult, File, FileRepository};
 use async_trait::async_trait;
 use sqlx::{query, query_as};
 

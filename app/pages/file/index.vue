@@ -52,16 +52,16 @@ const { versionOpts, load } = useVersionSelect();
 onBeforeMount(() => {
   load();
 });
-const list = ref<components["schemas"]["FileDetail"][]>([]);
+const list = ref<components["schemas"]["BundleDetailsDto"][]>([]);
 async function search() {
   if (model.value.path || model.value.hash || model.value.version) {
-    const { data } = await client.GET("/api/v1/bundle", {
+    const { data } = await client.GET("/bundle", {
       params: { query: model.value },
     });
     list.value = data ?? [];
   }
 }
-const columns: TableColumns<components["schemas"]["FileDetail"]> = [
+const columns: TableColumns<components["schemas"]["BundleDetailsDto"]> = [
   { title: "path", key: "path" },
   { title: "hash", key: "hash", width: 550 },
   { title: "clientVersion", key: "client", width: 140 },
@@ -75,9 +75,9 @@ const columns: TableColumns<components["schemas"]["FileDetail"]> = [
     },
   },
 ];
-const detail = ref<components["schemas"]["FileDetail"]>();
+const detail = ref<components["schemas"]["BundleDetailsDto"]>();
 const detailVisible = ref(false);
-function showDetail(data: components["schemas"]["FileDetail"]) {
+function showDetail(data: components["schemas"]["BundleDetailsDto"]) {
   detail.value = data;
   detailVisible.value = true;
 }

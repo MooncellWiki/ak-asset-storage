@@ -3,7 +3,7 @@ use crate::{
     state::AppState,
     utils::json,
 };
-use application::{BundleDetailsDto, BundleFilterDto, BundleRepository};
+use ak_asset_storage_application::{BundleDetailsDto, BundleFilterDto, BundleRepository};
 use axum::{
     debug_handler,
     extract::{Path, State},

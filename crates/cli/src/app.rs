@@ -1,8 +1,8 @@
 use crate::commands::{seed, worker};
+use ak_asset_storage_application::ConfigProvider;
+use ak_asset_storage_infrastructure::{init_tracing, AppSettings, InfraConfigProvider};
 use anyhow::Result;
-use application::ConfigProvider;
 use clap::Parser;
-use infrastructure::{init_tracing, AppSettings, InfraConfigProvider};
 use std::path::{Path, PathBuf};
 
 #[derive(Parser, Debug)]
@@ -18,6 +18,8 @@ pub enum Commands {
     Worker {
         #[arg(short, long, default_value = "config.toml")]
         config: String,
+        #[arg(long, default_value = "5")]
+        concurrent: usize,
     },
     /// Seed the database with initial data
     Seed {
@@ -25,6 +27,8 @@ pub enum Commands {
         config: String,
         #[arg(long)]
         csv_path: PathBuf,
+        #[arg(long, default_value = "5")]
+        concurrent: usize,
     },
     /// Show version information
     Version,
@@ -42,17 +46,21 @@ pub async fn run() -> Result<()> {
     match cli {
         Commands::Server { config } => {
             let config = init(&config)?;
-            web::start(&config).await?;
+            ak_asset_storage_web::start(&config).await?;
             Ok(())
         }
-        Commands::Worker { config } => {
+        Commands::Worker { config, concurrent } => {
             let config = init(&config)?;
-            worker::execute(&config).await?;
+            worker::execute(&config, concurrent).await?;
             Ok(())
         }
-        Commands::Seed { config, csv_path } => {
+        Commands::Seed {
+            config,
+            csv_path,
+            concurrent,
+        } => {
             let config = init(&config)?;
-            seed::execute(&config, &csv_path).await?;
+            seed::execute(&config, &csv_path, concurrent).await?;
             Ok(())
         }
         Commands::Version => {

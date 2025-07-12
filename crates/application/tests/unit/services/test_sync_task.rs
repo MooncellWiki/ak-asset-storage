@@ -1,6 +1,8 @@
 // SyncTask tests
 use crate::common::*;
-use application::{AssetDownloadService, RemoteVersion, SyncTask, VersionCheckService};
+use ak_asset_storage_application::{
+    AssetDownloadService, RemoteVersion, SyncTask, VersionCheckService,
+};
 use std::time::Duration;
 use tokio::time::sleep;
 
@@ -15,7 +17,8 @@ async fn test_sync_task_creation() {
     let version_check_service =
         VersionCheckService::new(repository.clone(), api_client.clone(), notification.clone());
 
-    let download_service = AssetDownloadService::new(repository, api_client, notification, storage);
+    let download_service =
+        AssetDownloadService::new(repository, api_client, notification, storage, 5);
 
     // Act
     let _sync_task = SyncTask::new(
@@ -51,7 +54,7 @@ async fn test_perform_poll_with_new_version() {
         VersionCheckService::new(repository.clone(), api_client.clone(), notification.clone());
 
     let download_service =
-        AssetDownloadService::new(repository.clone(), api_client, notification, storage);
+        AssetDownloadService::new(repository.clone(), api_client, notification, storage, 5);
 
     let sync_task = SyncTask::new(
         version_check_service,

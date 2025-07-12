@@ -1,5 +1,5 @@
 [package]
-name = "application"
+name = "ak-asset-storage-application"
 
 version.workspace = true
 

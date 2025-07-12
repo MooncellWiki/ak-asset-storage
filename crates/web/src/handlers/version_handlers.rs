@@ -3,7 +3,7 @@ use crate::{
     state::AppState,
     utils::json,
 };
-use application::{
+use ak_asset_storage_application::{
     BundleDetailsDto, BundleRepository, VersionDetailDto, VersionDto, VersionRepository,
 };
 use axum::{

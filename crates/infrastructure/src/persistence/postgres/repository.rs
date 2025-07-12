@@ -1,5 +1,5 @@
 use crate::InfraError;
-use application::{AppResult, Repository};
+use ak_asset_storage_application::{AppResult, Repository};
 use async_trait::async_trait;
 use sqlx::{Pool, Postgres};
 use tracing::info;

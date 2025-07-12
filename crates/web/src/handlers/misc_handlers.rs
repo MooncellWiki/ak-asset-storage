@@ -1,5 +1,5 @@
 use crate::{dto::responses::Health, state::AppState};
-use application::Repository;
+use ak_asset_storage_application::Repository;
 use axum::{
     debug_handler,
     extract::State,

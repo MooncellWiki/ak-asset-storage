@@ -1,13 +1,18 @@
-use anyhow::Result;
-use application::{AssetDownloadService, ConfigProvider, RemoteVersion, VersionCheckService};
-use infrastructure::{
-    HttpAkApiClient, PostgresRepository, S3StorageClient, SmtpNotificationClient,
+use crate::utils::NotificationClient;
+use ak_asset_storage_application::{
+    AssetDownloadService, ConfigProvider, RemoteVersion, VersionCheckService,
 };
+use ak_asset_storage_infrastructure::{HttpAkApiClient, PostgresRepository, S3StorageClient};
+use anyhow::Result;
 use sqlx::postgres::PgPoolOptions;
 use std::{fs, path::PathBuf};
 use tracing::info;
 
-pub async fn execute(config: &impl ConfigProvider, csv_path: &PathBuf) -> Result<()> {
+pub async fn execute(
+    config: &impl ConfigProvider,
+    csv_path: &PathBuf,
+    concurrent: usize,
+) -> Result<()> {
     info!("Starting database seed...");
     let content = fs::read_to_string(csv_path)?;
     let versions = content
@@ -28,15 +33,20 @@ pub async fn execute(config: &impl ConfigProvider, csv_path: &PathBuf) -> Result
         .await?;
     let repository = PostgresRepository { pool };
     let ak_api_client = HttpAkApiClient::new(config.ak_api_config());
-    let notification = SmtpNotificationClient::new(config.smtp_config())?;
     let s3 = S3StorageClient::new(config.s3_config())?;
+    let notification = NotificationClient::new(config.smtp_config())?;
     let version_check_service = VersionCheckService::new(
         repository.clone(),
         ak_api_client.clone(),
         notification.clone(),
     );
-    let download_service =
-        AssetDownloadService::new(repository.clone(), ak_api_client, notification, s3);
+    let download_service = AssetDownloadService::new(
+        repository.clone(),
+        ak_api_client,
+        notification,
+        s3,
+        concurrent,
+    );
     for remote in versions {
         info!(
             "Inserting new version: {}-{}",
@@ -46,8 +56,8 @@ pub async fn execute(config: &impl ConfigProvider, csv_path: &PathBuf) -> Result
     }
     loop {
         match download_service.perform_download().await {
-            Ok(has_more) => {
-                if !has_more {
+            Ok(executed) => {
+                if !executed {
                     info!("All downloads completed successfully.");
                     break;
                 }

@@ -1,5 +1,5 @@
 // External Service Mock implementations
-use application::{
+use ak_asset_storage_application::{
     AkApiClient, AppError, AppResult, NotificationService, RemoteVersion, StorageService,
 };
 use async_trait::async_trait;
@@ -179,11 +179,7 @@ impl NotificationService for MockNotificationService {
         ));
     }
 
-    async fn notify_download_finished(
-        &self,
-        client_version: &str,
-        res_version: &str,
-    ) {
+    async fn notify_download_finished(&self, client_version: &str, res_version: &str) {
         self.download_notifications
             .lock()
             .unwrap()

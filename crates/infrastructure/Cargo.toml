@@ -1,5 +1,5 @@
 [package]
-name = "infrastructure"
+name = "ak-asset-storage-infrastructure"
 
 version.workspace = true
 
@@ -13,7 +13,7 @@ description = "Infrastructure layer for ak-asset-storage"
 workspace = true
 
 [dependencies]
-application = { path = "../application" }
+ak-asset-storage-application = { path = "../application" }
 serde = { workspace = true }
 serde_json = { workspace = true }
 tokio = { workspace = true }

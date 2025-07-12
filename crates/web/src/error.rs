@@ -1,4 +1,4 @@
-use application::AppError;
+use ak_asset_storage_application::AppError;
 use axum::{http::StatusCode, response::IntoResponse, Json};
 use serde::Serialize;
 
@@ -41,13 +41,13 @@ impl IntoResponse for WebError {
     fn into_response(self) -> axum::response::Response {
         tracing::error!(error.msg = %self,error.details = ?self,"controller_error");
         match self {
-            err @ WebError::CustomApiError(..) => {
+            err @ Self::CustomApiError(..) => {
                 (StatusCode::NOT_IMPLEMENTED, Json(ApiErrorDetail::from(err))).into_response()
             }
-            err @ WebError::NotFound => {
+            err @ Self::NotFound => {
                 (StatusCode::NOT_FOUND, Json(ApiErrorDetail::from(err))).into_response()
             }
-            err @ WebError::ServiceUnavailable(..) => (
+            err @ Self::ServiceUnavailable(..) => (
                 StatusCode::SERVICE_UNAVAILABLE,
                 Json(ApiErrorDetail::from(err)),
             )

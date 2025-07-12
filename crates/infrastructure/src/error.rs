@@ -1,4 +1,4 @@
-use application::error::AppError;
+use ak_asset_storage_application::error::AppError;
 use thiserror::Error;
 
 use crate::{ak_api_client::AkApiClientError, smtp_client::EmailError, ConfigError};

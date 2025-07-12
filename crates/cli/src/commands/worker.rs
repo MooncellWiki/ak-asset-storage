@@ -1,21 +1,23 @@
-use anyhow::Result;
-use application::{AssetDownloadService, ConfigProvider, SyncTask, VersionCheckService};
-use infrastructure::{
-    shutdown_signal, HttpAkApiClient, PostgresRepository, S3StorageClient, SimpleScheduler,
-    SmtpNotificationClient,
+use crate::utils::NotificationClient;
+use ak_asset_storage_application::{
+    AssetDownloadService, ConfigProvider, SyncTask, VersionCheckService,
 };
+use ak_asset_storage_infrastructure::{
+    shutdown_signal, HttpAkApiClient, PostgresRepository, S3StorageClient, SimpleScheduler,
+};
+use anyhow::Result;
 use sqlx::postgres::PgPoolOptions;
 use std::time::Duration;
 use tracing::info;
 
-pub async fn execute(config: &impl ConfigProvider) -> Result<()> {
+pub async fn execute(config: &impl ConfigProvider, concurrent: usize) -> Result<()> {
     info!("Starting worker...");
     let pool = PgPoolOptions::new()
         .connect(&config.database_config().uri)
         .await?;
     let repository = PostgresRepository { pool };
     let ak_api_client = HttpAkApiClient::new(config.ak_api_config());
-    let notification = SmtpNotificationClient::new(config.smtp_config())?;
+    let notification = NotificationClient::new(config.smtp_config())?;
     let s3 = S3StorageClient::new(config.s3_config())?;
     let mut scheduler = SimpleScheduler::new(SyncTask::new(
         VersionCheckService::new(
@@ -23,7 +25,13 @@ pub async fn execute(config: &impl ConfigProvider) -> Result<()> {
             ak_api_client.clone(),
             notification.clone(),
         ),
-        AssetDownloadService::new(repository.clone(), ak_api_client, notification, s3),
+        AssetDownloadService::new(
+            repository.clone(),
+            ak_api_client,
+            notification,
+            s3,
+            concurrent,
+        ),
         Duration::from_secs(2 * 60),
     ));
     scheduler.start()?;

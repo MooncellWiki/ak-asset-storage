@@ -1,6 +1,6 @@
 // AssetDownloadService tests
 use crate::common::*;
-use application::AssetDownloadService;
+use ak_asset_storage_application::AssetDownloadService;
 
 #[tokio::test]
 async fn test_perform_download_success() {
@@ -24,6 +24,7 @@ async fn test_perform_download_success() {
         api_client,
         notification.clone(),
         storage.clone(),
+        5,
     );
 
     // Act
@@ -31,7 +32,7 @@ async fn test_perform_download_success() {
 
     // Assert
     assert!(result.is_ok());
-    assert!(!result.unwrap()); // Should return false (work was done)
+    assert!(result.unwrap()); // Should return true (work was done)
 
     // Verify version was marked as ready
     assert!(repository.version.versions.lock().unwrap()[0].is_ready);
@@ -59,14 +60,14 @@ async fn test_perform_download_no_pending_versions() {
     let notification = MockNotificationService::new();
     let storage = MockStorageService::new();
 
-    let service = AssetDownloadService::new(repository, api_client, notification, storage);
+    let service = AssetDownloadService::new(repository, api_client, notification, storage, 5);
 
     // Act
     let result = service.perform_download().await;
 
     // Assert
     assert!(result.is_ok());
-    assert!(result.unwrap()); // Should return true (no work to do)
+    assert!(!result.unwrap()); // Should return false (no work to do)
 }
 
 #[tokio::test]
@@ -86,14 +87,15 @@ async fn test_skip_existing_bundle() {
     repository.bundle.bundles.lock().unwrap().push(bundle1);
     repository.bundle.bundles.lock().unwrap().push(bundle2);
 
-    let service = AssetDownloadService::new(repository.clone(), api_client, notification, storage);
+    let service =
+        AssetDownloadService::new(repository.clone(), api_client, notification, storage, 5);
 
     // Act
     let result = service.perform_download().await;
 
     // Assert should throw error if it try to download existing bundle
     assert!(result.is_ok());
-    assert!(!result.unwrap());
+    assert!(result.unwrap());
 
     // Verify no new bundles were created (should skip existing)
     assert_eq!(repository.bundle.bundles.lock().unwrap().len(), 2); // Still only the original bundle
@@ -128,6 +130,7 @@ async fn test_file_deduplication() {
         api_client,
         notification,
         storage.clone(),
+        5,
     );
 
     // Act

@@ -1,6 +1,5 @@
 // CLI main entry point
-
-use cli::app::run;
+use ak_asset_storage_cli::app::run;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {

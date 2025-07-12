@@ -1,5 +1,5 @@
-use application::ConfigProvider;
-use infrastructure::PostgresRepository;
+use ak_asset_storage_application::ConfigProvider;
+use ak_asset_storage_infrastructure::PostgresRepository;
 
 #[derive(Debug, Clone)]
 pub struct AppState {

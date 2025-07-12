@@ -1,9 +1,9 @@
 // Repository Mock implementations using Vec for storage
-use application::{
+use ak_asset_storage_application::{
     AppResult, Bundle, BundleDetailsDto, BundleFilterDto, File, Version, VersionDetailDto,
     VersionDto,
 };
-use application::{BundleRepository, FileRepository, VersionRepository};
+use ak_asset_storage_application::{BundleRepository, FileRepository, VersionRepository};
 use async_trait::async_trait;
 use std::sync::{Arc, Mutex};
 

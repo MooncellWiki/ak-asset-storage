@@ -1,6 +1,6 @@
 // Integration tests for complete workflow
 use crate::common::*;
-use application::{AssetDownloadService, RemoteVersion, VersionCheckService};
+use ak_asset_storage_application::{AssetDownloadService, RemoteVersion, VersionCheckService};
 
 #[tokio::test]
 async fn test_complete_sync_workflow() {
@@ -31,6 +31,7 @@ async fn test_complete_sync_workflow() {
         api_client,
         notification.clone(),
         storage.clone(),
+        5,
     );
 
     // Act - Step 1: Check for new version
@@ -41,7 +42,7 @@ async fn test_complete_sync_workflow() {
     // Act - Step 2: Download assets
     let download_result = download_service.perform_download().await;
     assert!(download_result.is_ok());
-    assert!(!download_result.unwrap()); // Should return false indicating work was done
+    assert!(download_result.unwrap()); // Should return true
 
     // Assert - Verify complete workflow
     let versions = repository.version.versions.lock().unwrap();
@@ -79,6 +80,7 @@ async fn test_multiple_versions_sync() {
         api_client.clone(),
         notification.clone(),
         storage.clone(),
+        5,
     );
 
     // Add multiple unready versions
@@ -97,22 +99,22 @@ async fn test_multiple_versions_sync() {
     // Act - Download should process oldest version first
     let result1 = download_service.perform_download().await;
     assert!(result1.is_ok());
-    assert!(!result1.unwrap()); // Should return false (more work to do)
+    assert!(result1.unwrap()); // Should return true
 
     // Act - Download next version
     let result2 = download_service.perform_download().await;
     assert!(result2.is_ok());
-    assert!(!result2.unwrap()); // Should return false (still more work to do)
+    assert!(result2.unwrap()); // Should return true
 
     // Act - Download final version
     let result3 = download_service.perform_download().await;
     assert!(result3.is_ok());
-    assert!(!result3.unwrap()); // Should return false (last version processed)
+    assert!(result3.unwrap()); // Should return true
 
     // Now all versions should be ready
     let result4 = download_service.perform_download().await;
     assert!(result4.is_ok());
-    assert!(result4.unwrap()); // Should return true (no more work)
+    assert!(!result4.unwrap()); // Should return false (not work)
 
     // Verify all versions are marked as ready
     assert!(repository
@@ -137,6 +139,7 @@ async fn test_error_recovery() {
         api_client.clone(),
         notification.clone(),
         storage.clone(),
+        5,
     );
 
     // Add a version
@@ -158,7 +161,7 @@ async fn test_error_recovery() {
     // Act - Second attempt should succeed
     let result2 = download_service.perform_download().await;
     assert!(result2.is_ok());
-    assert!(!result2.unwrap());
+    assert!(result2.unwrap());
 
     // Verify version was processed successfully
     assert!(repository.version.versions.lock().unwrap()[0].is_ready);

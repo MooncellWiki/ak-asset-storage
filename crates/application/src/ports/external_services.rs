@@ -15,17 +15,7 @@ pub trait StorageService: Send + Sync + Clone + 'static {
 
 #[async_trait]
 pub trait NotificationService: Send + Sync + Clone + 'static {
-    async fn notify_update(
-        &self,
-        old_client: &str,
-        old_res: &str,
-        new_client: &str,
-        new_res: &str,
-    );
+    async fn notify_update(&self, old_client: &str, old_res: &str, new_client: &str, new_res: &str);
 
-    async fn notify_download_finished(
-        &self,
-        client_version: &str,
-        res_version: &str,
-    );
+    async fn notify_download_finished(&self, client_version: &str, res_version: &str);
 }

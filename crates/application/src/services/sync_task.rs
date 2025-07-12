@@ -7,7 +7,7 @@ use std::{
     sync::{Arc, Mutex},
     time::Duration,
 };
-use tokio::{spawn, task::JoinHandle};
+use tokio::{spawn, task::JoinHandle, time::sleep};
 use tracing::{error, info, instrument};
 
 /// 版本轮询服务 - 组合版本检查和资源下载
@@ -36,14 +36,37 @@ where
         download_service: AssetDownloadService<R, A, N, S>,
         poll_interval: Duration,
     ) -> Self {
+        let download_service = Arc::new(download_service);
         Self {
             version_check_service: Arc::new(version_check_service),
-            download_service: Arc::new(download_service),
+            download_service: download_service.clone(),
             poll_interval,
-            download_task: Arc::new(Mutex::new(None)),
+            download_task: Arc::new(Mutex::new(Some(Self::start_download_task(
+                download_service,
+            )))),
         }
     }
-
+    fn start_download_task(
+        download_service: Arc<AssetDownloadService<R, A, N, S>>,
+    ) -> JoinHandle<()> {
+        spawn(async move {
+            loop {
+                match download_service.perform_download().await {
+                    Ok(has_more) => {
+                        if !has_more {
+                            info!("No more versions to download, exiting loop");
+                            break;
+                        }
+                        info!("Continuing download for more versions");
+                    }
+                    Err(e) => {
+                        error!("Download failed: {:?}", e);
+                        sleep(Duration::from_secs(60)).await; // Wait before retrying
+                    }
+                }
+            }
+        })
+    }
     /// 执行完整的轮询周期：检查版本 -> 下载资源
     #[instrument(name = "services.version_poll", skip_all)]
     pub async fn perform_poll(&self) -> AppResult<()> {
@@ -57,23 +80,7 @@ where
                         info!("Download task is already running");
                     } else {
                         let download_service = self.download_service.clone();
-                        *task = Some(spawn(async move {
-                            loop {
-                                match download_service.perform_download().await {
-                                    Ok(has_more) => {
-                                        if !has_more {
-                                            info!("No more versions to download, exiting loop");
-                                            break;
-                                        }
-                                        info!("Continuing download for more versions");
-                                    }
-                                    Err(e) => {
-                                        error!("Download failed: {:?}", e);
-                                        break;
-                                    }
-                                }
-                            }
-                        }));
+                        *task = Some(Self::start_download_task(download_service));
                     }
                 }
             }
@@ -82,7 +89,6 @@ where
                 return Err(e);
             }
         }
-
         Ok(())
     }
 }

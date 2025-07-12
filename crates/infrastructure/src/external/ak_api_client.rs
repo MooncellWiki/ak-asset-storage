@@ -1,5 +1,5 @@
 use crate::error::InfraError;
-use application::{AkApiClient, AkApiConfig, AppResult, RemoteVersion};
+use ak_asset_storage_application::{AkApiClient, AkApiConfig, AppResult, RemoteVersion};
 use async_trait::async_trait;
 use reqwest::Client;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};

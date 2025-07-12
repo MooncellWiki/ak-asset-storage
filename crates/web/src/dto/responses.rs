@@ -1,4 +1,4 @@
-use application::AppError;
+use ak_asset_storage_application::AppError;
 use axum::{
     http::StatusCode,
     response::{IntoResponse, Response},

@@ -1,5 +1,7 @@
 use crate::{InfraError, PostgresRepository};
-use application::{AppResult, Bundle, BundleDetailsDto, BundleFilterDto, BundleRepository};
+use ak_asset_storage_application::{
+    AppResult, Bundle, BundleDetailsDto, BundleFilterDto, BundleRepository,
+};
 use async_trait::async_trait;
 use sqlx::{query, query_as};
 

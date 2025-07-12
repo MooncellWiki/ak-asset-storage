@@ -1,5 +1,5 @@
 [package]
-name = "web"
+name = "ak-asset-storage-web"
 
 version.workspace = true
 
@@ -13,8 +13,8 @@ description = "Web adapter layer for ak-asset-storage"
 workspace = true
 
 [dependencies]
-application = { path = "../application" }
-infrastructure = { path = "../infrastructure" }
+ak-asset-storage-application = { path = "../application" }
+ak-asset-storage-infrastructure = { path = "../infrastructure" }
 # Web layer should not directly depend on infrastructure
 # Use dependency injection instead
 serde = { workspace = true }

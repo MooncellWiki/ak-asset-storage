@@ -1,6 +1,6 @@
 // VersionCheckService tests
 use crate::common::*;
-use application::{RemoteVersion, VersionCheckService, VersionRepository};
+use ak_asset_storage_application::{RemoteVersion, VersionCheckService, VersionRepository};
 
 #[tokio::test]
 async fn test_perform_check_new_version() {

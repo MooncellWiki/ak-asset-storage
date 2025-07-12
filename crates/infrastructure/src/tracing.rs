@@ -1,4 +1,4 @@
-use application::{LogFormat, LogLevel, LoggerConfig};
+use ak_asset_storage_application::{LogFormat, LogLevel, LoggerConfig};
 use sentry::integrations::tracing::EventFilter;
 use tracing::{level_filters::LevelFilter, Level, Metadata};
 use tracing_subscriber::{
@@ -8,7 +8,14 @@ use tracing_subscriber::{
     EnvFilter, Layer, Registry,
 };
 
-const MODULE_WHITELIST: &[&str] = &["tower_http", "sqlx::query"];
+const MODULE_WHITELIST: &[&str] = &[
+    "tower_http",
+    "sqlx::query",
+    "ak_asset_storage_infrastructure",
+    "ak_asset_storage_application",
+    "ak_asset_storage_cli",
+    "ak_asset_storage_web",
+];
 
 fn init_env_filter(override_filter: Option<&String>, level: &LogLevel) -> EnvFilter {
     EnvFilter::try_from_default_env()
@@ -21,11 +28,6 @@ fn init_env_filter(override_filter: Option<&String>, level: &LogLevel) -> EnvFil
                         MODULE_WHITELIST
                             .iter()
                             .map(|m| format!("{m}={level}"))
-                            .chain(std::iter::once(format!(
-                                "{}={}",
-                                env!("CARGO_CRATE_NAME"),
-                                level
-                            )))
                             .collect::<Vec<_>>()
                             .join(","),
                     )

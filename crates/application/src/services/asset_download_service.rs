@@ -2,6 +2,7 @@ use crate::{
     ABInfo, AkApiClient, AppResult, Bundle, BundleRepository, File, FileRepository,
     NotificationService, StorageService, Version, VersionRepository,
 };
+use anyhow::Context;
 use futures::{stream, StreamExt, TryStreamExt};
 use sha256::digest;
 use tracing::{debug, error, info, instrument};
@@ -17,6 +18,7 @@ where
     ak_client: A,
     notification: N,
     storage: S,
+    concurrent: usize,
 }
 
 impl<R, A, N, S> AssetDownloadService<R, A, N, S>
@@ -26,18 +28,25 @@ where
     N: NotificationService,
     S: StorageService,
 {
-    pub const fn new(repo: R, ak_client: A, notification: N, storage: S) -> Self {
+    pub const fn new(
+        repo: R,
+        ak_client: A,
+        notification: N,
+        storage: S,
+        concurrent: usize,
+    ) -> Self {
         Self {
             repo,
             ak_client,
             notification,
             storage,
+            concurrent,
         }
     }
 
     /// 执行下载任务（事件驱动，由Check UseCase触发）
-    /// 返回true 如果没有没完成的版本
-    #[instrument(name = "usecase.asset_download", skip(self))]
+    /// 返回true 如果执行了
+    #[instrument(name = "service.asset_download", skip(self))]
     pub async fn perform_download(&self) -> AppResult<bool> {
         match self.sync_oldest_version().await {
             Ok(has_more) => Ok(has_more),
@@ -59,7 +68,7 @@ where
     }
 
     /// 同步所有最老的版本
-    /// 返回true 如果没有没完成的版本
+    /// 返回true 如果执行了
     async fn sync_oldest_version(&self) -> AppResult<bool> {
         // 获取未完成的版本
         let version = self.repo.get_oldest_unready_version().await?;
@@ -71,10 +80,10 @@ where
                 version.client.as_str()
             );
             self.sync_version(&version).await?;
-            return Ok(false);
+            return Ok(true);
         }
         info!("no pending version to sync");
-        Ok(true)
+        Ok(false)
     }
 
     async fn sync_specific_version(&self, version_id: i32) -> AppResult<()> {
@@ -99,7 +108,7 @@ where
             .ok_or_else(|| anyhow::anyhow!("Version ID is missing"))?;
         stream::iter(version.hot_update_list.ab_infos())
             .map(Ok)
-            .try_for_each_concurrent(5, |info| {
+            .try_for_each_concurrent(self.concurrent, |info| {
                 self.skip_or_download(info.clone(), version_id, version.res.as_str())
             })
             .await?;
@@ -173,7 +182,7 @@ where
         let file = File {
             id: None,
             hash: sha,
-            size: bytes.len() as i32,
+            size: i32::try_from(bytes.len()).context("Failed to convert file size to i32")?,
         };
 
         let file_id = self.repo.create_file(file).await?;

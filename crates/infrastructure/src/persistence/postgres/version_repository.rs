@@ -1,5 +1,7 @@
 use crate::{InfraError, PostgresRepository};
-use application::{AppResult, Version, VersionDetailDto, VersionDto, VersionRepository};
+use ak_asset_storage_application::{
+    AppResult, Version, VersionDetailDto, VersionDto, VersionRepository,
+};
 use async_trait::async_trait;
 use sqlx::{query, query_as};
 
@@ -90,7 +92,7 @@ impl VersionRepository for PostgresRepository {
 
     async fn get_oldest_unready_version(&self) -> AppResult<Option<Version>> {
         let result = query!(
-            "SELECT id, res, client, is_ready, hot_update_list FROM versions WHERE is_ready = false ORDER BY id DESC LIMIT 1"
+            "SELECT id, res, client, is_ready, hot_update_list FROM versions WHERE is_ready = false ORDER BY id ASC LIMIT 1"
         )
         .fetch_optional(&self.pool)
         .await
@@ -127,7 +129,7 @@ impl VersionRepository for PostgresRepository {
     async fn query_versions(&self) -> AppResult<Vec<VersionDto>> {
         let result = query_as!(
             VersionDto,
-            r#"SELECT id, client as "client_version", res as "res_version", is_ready FROM versions"#
+            r#"SELECT id, client as "client_version", res as "res_version", is_ready FROM versions ORDER BY id ASC"#
         )
         .fetch_all(&self.pool)
         .await

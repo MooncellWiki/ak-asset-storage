@@ -1,5 +1,5 @@
 use crate::InfraError;
-use application::{
+use ak_asset_storage_application::{
     AkApiConfig, AppResult, DatabaseConfig, LoggerConfig, S3Config, SentryConfig, ServerConfig,
     SmtpConfig,
 };
@@ -14,7 +14,7 @@ pub struct AppSettings {
     pub logger: LoggerConfig,
     pub server: ServerConfig,
     pub database: DatabaseConfig,
-    pub mailer: SmtpConfig,
+    pub mailer: Option<SmtpConfig>,
     pub ak: AkApiConfig,
     pub s3: S3Config,
     pub sentry: SentryConfig,

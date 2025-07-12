@@ -14,7 +14,7 @@ pub trait ConfigProvider: Send + Sync {
     /// Get external service configurations
     fn ak_api_config(&self) -> &AkApiConfig;
     fn s3_config(&self) -> &S3Config;
-    fn smtp_config(&self) -> &SmtpConfig;
+    fn smtp_config(&self) -> &Option<SmtpConfig>;
 
     /// Get logging configuration
     fn logger_config(&self) -> &LoggerConfig;

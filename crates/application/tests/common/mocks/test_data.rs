@@ -1,5 +1,5 @@
 // Test data generators and fixtures
-use application::{Bundle, File, HotUpdateList, Version};
+use ak_asset_storage_application::{Bundle, File, HotUpdateList, Version};
 
 /// Test data generators
 pub struct TestData;

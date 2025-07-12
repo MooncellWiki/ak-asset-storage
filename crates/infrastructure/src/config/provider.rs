@@ -1,5 +1,5 @@
 use crate::config::AppSettings;
-use application::{
+use ak_asset_storage_application::{
     AkApiConfig as AppAkApiConfig, ConfigProvider, DatabaseConfig, LoggerConfig as AppLoggerConfig,
     S3Config as AppS3Config, SentryConfig as AppSentryConfig, ServerConfig as AppServerConfig,
     SmtpConfig as AppSmtpConfig,
@@ -29,7 +29,7 @@ impl ConfigProvider for InfraConfigProvider {
         &self.settings.s3
     }
 
-    fn smtp_config(&self) -> &AppSmtpConfig {
+    fn smtp_config(&self) -> &Option<AppSmtpConfig> {
         &self.settings.mailer
     }
 

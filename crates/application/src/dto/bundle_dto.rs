@@ -9,12 +9,12 @@ pub struct BundleDetailsDto {
     pub path: String,
 
     pub file_id: i32,
-    pub file_hash: Option<String>,
-    pub file_size: Option<i32>,
+    pub file_hash: String,
+    pub file_size: i32,
 
     pub version_id: i32,
-    pub version_res: Option<String>,
-    pub version_client: Option<String>,
+    pub version_res: String,
+    pub version_client: String,
     pub version_is_ready: bool,
 }
 
