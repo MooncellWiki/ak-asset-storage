@@ -98,3 +98,5 @@ rand_core = { version = "0.9.3", features = [ "os_rng" ] }
 futures = "0.3.31"
 axum-macros = "0.5.0"
 utoipa-gen = "5.4.0"
+zip = { version = "4.3.0" }
+itertools = { version = "0.14.0" }
