@@ -1,3 +1,4 @@
+use std::path::Path;
 // Test data generators and fixtures
 use ak_asset_storage_application::{Bundle, File, HotUpdateList, Version};
 
@@ -39,14 +40,14 @@ impl TestData {
                     "abSize": 1024,
                     "hash": "abc123",
                     "md5": "def456",
-                    "name": "test/file1.ab",
+                    "name": "arts/furniture_group_hub.ab",
                     "totalSize": 1024
                 },
                 {
                     "abSize": 2048,
                     "hash": "xyz789",
                     "md5": "uvw012",
-                    "name": "test/file2.ab",
+                    "name": "arts/[pack]common.ab",
                     "totalSize": 2048
                 }
             ]
@@ -54,10 +55,24 @@ impl TestData {
         HotUpdateList::new(json).expect("Valid test hot update list")
     }
     pub fn sample_file_data1() -> Vec<u8> {
-        b"sample file1 content for testing".to_vec()
+        let path = Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("tests/common/mocks/data/arts_furniture_group_hub.dat");
+        std::fs::read(&path).unwrap_or_else(|e| {
+            panic!(
+                "Failed to read sample file data 1 from {}: {e}",
+                path.display()
+            );
+        })
     }
     pub fn sample_file_data2() -> Vec<u8> {
-        b"sample file2 content for testing".to_vec()
+        let path = Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("tests/common/mocks/data/arts_[pack]common.dat");
+        std::fs::read(&path).unwrap_or_else(|e| {
+            panic!(
+                "Failed to read sample file data 2 from {}: {e}",
+                path.display()
+            );
+        })
     }
 }
 
@@ -67,14 +82,14 @@ pub const SAMPLE_HOT_UPDATE_LIST: &str = r#"{
             "abSize": 1024,
             "hash": "abc123",
             "md5": "def456",
-            "name": "test/file1.ab",
+            "name": "arts/furniture_group_hub.ab",
             "totalSize": 1024
         },
         {
             "abSize": 2048,
             "hash": "xyz789",
             "md5": "uvw012",
-            "name": "test/file2.ab",
+            "name": "arts/[pack]common.ab",
             "totalSize": 2048
         }
     ]

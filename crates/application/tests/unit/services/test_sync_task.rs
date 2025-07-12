@@ -47,8 +47,14 @@ async fn test_perform_poll_with_new_version() {
 
     api_client.set_remote_version(remote_version);
     api_client.set_hot_update_list(SAMPLE_HOT_UPDATE_LIST.to_string());
-    api_client.set_file_data("test_file1.dat".to_string(), TestData::sample_file_data1());
-    api_client.set_file_data("test_file2.dat".to_string(), TestData::sample_file_data2());
+    api_client.set_file_data(
+        "arts_furniture_group_hub.dat".to_string(),
+        TestData::sample_file_data1(),
+    );
+    api_client.set_file_data(
+        "arts_[pack]common.dat".to_string(),
+        TestData::sample_file_data2(),
+    );
 
     let version_check_service =
         VersionCheckService::new(repository.clone(), api_client.clone(), notification.clone());

@@ -20,8 +20,14 @@ async fn test_complete_sync_workflow() {
     api_client.set_hot_update_list(SAMPLE_HOT_UPDATE_LIST.to_string());
 
     // Setup file data for download
-    api_client.set_file_data("test_file1.dat".to_string(), TestData::sample_file_data1());
-    api_client.set_file_data("test_file2.dat".to_string(), TestData::sample_file_data2());
+    api_client.set_file_data(
+        "arts_furniture_group_hub.dat".to_string(),
+        TestData::sample_file_data1(),
+    );
+    api_client.set_file_data(
+        "arts_[pack]common.dat".to_string(),
+        TestData::sample_file_data2(),
+    );
 
     let version_service =
         VersionCheckService::new(repository.clone(), api_client.clone(), notification.clone());
@@ -93,8 +99,14 @@ async fn test_multiple_versions_sync() {
     repository.version.versions.lock().unwrap().push(version3);
 
     // Setup API responses
-    api_client.set_file_data("test_file1.dat".to_string(), TestData::sample_file_data1());
-    api_client.set_file_data("test_file2.dat".to_string(), TestData::sample_file_data2());
+    api_client.set_file_data(
+        "arts_furniture_group_hub.dat".to_string(),
+        TestData::sample_file_data1(),
+    );
+    api_client.set_file_data(
+        "arts_[pack]common.dat".to_string(),
+        TestData::sample_file_data2(),
+    );
 
     // Act - Download should process oldest version first
     let result1 = download_service.perform_download().await;
@@ -155,8 +167,14 @@ async fn test_error_recovery() {
 
     // Fix the API
     api_client.set_should_fail(false);
-    api_client.set_file_data("test_file1.dat".to_string(), TestData::sample_file_data1());
-    api_client.set_file_data("test_file2.dat".to_string(), TestData::sample_file_data2());
+    api_client.set_file_data(
+        "arts_furniture_group_hub.dat".to_string(),
+        TestData::sample_file_data1(),
+    );
+    api_client.set_file_data(
+        "arts_[pack]common.dat".to_string(),
+        TestData::sample_file_data2(),
+    );
 
     // Act - Second attempt should succeed
     let result2 = download_service.perform_download().await;
