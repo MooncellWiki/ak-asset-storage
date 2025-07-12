@@ -1,0 +1,73 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\nSELECT\n    b.id as \"id!\",\n    b.path as \"path!\",\n    b.file as \"file_id!\",\n    b.version as \"version_id!\",\n    f.hash as \"file_hash\",\n    f.size as \"file_size\",\n    v.client as \"version_client\",\n    v.res as \"version_res\",\n    v.is_ready as \"version_is_ready!\"\nFROM\n    bundles b\nINNER JOIN\n    files f ON b.file = f.id\nINNER JOIN\n    versions v ON b.version = v.id\nWHERE\n    ($1::varchar IS NULL OR b.path = $1)\n    AND ($2::varchar IS NULL OR f.hash = $2)\n    AND ($3::int IS NULL OR b.file = $3)\n    AND ($4::int IS NULL OR b.version = $4)\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id!",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 1,
+        "name": "path!",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 2,
+        "name": "file_id!",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 3,
+        "name": "version_id!",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 4,
+        "name": "file_hash",
+        "type_info": "Bpchar"
+      },
+      {
+        "ordinal": 5,
+        "name": "file_size",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 6,
+        "name": "version_client",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 7,
+        "name": "version_res",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 8,
+        "name": "version_is_ready!",
+        "type_info": "Bool"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Varchar",
+        "Varchar",
+        "Int4",
+        "Int4"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "86272666d5d4e73ff5cdebc4575be742a972938ef850d60ce0ecfc9a9bfce70c"
+}

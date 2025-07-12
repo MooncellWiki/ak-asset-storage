@@ -4,13 +4,14 @@
  */
 
 export interface paths {
-    "/api/v1/_health": {
+    "/_health": {
         parameters: {
             query?: never;
             header?: never;
             path?: never;
             cookie?: never;
         };
+        /** /_health */
         get: operations["health"];
         put?: never;
         post?: never;
@@ -20,13 +21,14 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/_ping": {
+    "/_ping": {
         parameters: {
             query?: never;
             header?: never;
             path?: never;
             cookie?: never;
         };
+        /** /_ping */
         get: operations["ping"];
         put?: never;
         post?: never;
@@ -36,13 +38,14 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/bundle": {
+    "/bundle": {
         parameters: {
             query?: never;
             header?: never;
             path?: never;
             cookie?: never;
         };
+        /** /bundle */
         get: operations["filter"];
         put?: never;
         post?: never;
@@ -52,13 +55,14 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/bundle/{id}": {
+    "/bundle/{id}": {
         parameters: {
             query?: never;
             header?: never;
             path?: never;
             cookie?: never;
         };
+        /** /bundle/{id} */
         get: operations["get_one"];
         put?: never;
         post?: never;
@@ -68,13 +72,14 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/version": {
+    "/version": {
         parameters: {
             query?: never;
             header?: never;
             path?: never;
             cookie?: never;
         };
+        /** /version */
         get: operations["list"];
         put?: never;
         post?: never;
@@ -84,29 +89,14 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/version/latest": {
+    "/version/{id}": {
         parameters: {
             query?: never;
             header?: never;
             path?: never;
             cookie?: never;
         };
-        get: operations["latest"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/version/{id}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
+        /** /version/{id} */
         get: operations["get"];
         put?: never;
         post?: never;
@@ -116,14 +106,15 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/version/{id}/files": {
+    "/version/{id}/files": {
         parameters: {
             query?: never;
             header?: never;
             path?: never;
             cookie?: never;
         };
-        get: operations["list_files"];
+        /** /version/{id}/files */
+        get: operations["get_files"];
         put?: never;
         post?: never;
         delete?: never;
@@ -136,36 +127,38 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
-        FileDetail: {
-            client: string;
+        BundleDetailsDto: {
+            fileHash: string;
             /** Format: int32 */
-            file: number;
-            hash: string;
-            isReady: boolean;
+            fileId: number;
+            /** Format: int32 */
+            fileSize: number;
+            /** Format: int32 */
+            id: number;
             path: string;
-            res: string;
+            versionClient: string;
             /** Format: int32 */
-            size: number;
-            /** Format: int32 */
-            version: number;
+            versionId: number;
+            versionIsReady: boolean;
+            versionRes: string;
         };
         Health: {
             ok: boolean;
         };
-        VersionDetail: {
-            client: string;
+        VersionDetailDto: {
+            clientVersion: string;
             hotUpdateList: string;
             /** Format: int32 */
             id: number;
             isReady: boolean;
-            res: string;
+            resVersion: string;
         };
-        VersionListItem: {
-            client: string;
+        VersionDto: {
+            clientVersion: string;
             /** Format: int32 */
             id: number;
             isReady: boolean;
-            res: string;
+            resVersion: string;
         };
     };
     responses: never;
@@ -233,7 +226,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["FileDetail"][];
+                    "application/json": components["schemas"]["BundleDetailsDto"][];
                 };
             };
         };
@@ -254,7 +247,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["FileDetail"];
+                    "application/json": components["schemas"]["BundleDetailsDto"];
                 };
             };
         };
@@ -273,28 +266,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["VersionListItem"][];
-                };
-            };
-        };
-    };
-    latest: {
-        parameters: {
-            query: {
-                ready: boolean;
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["VersionDetail"];
+                    "application/json": components["schemas"]["VersionDto"][];
                 };
             };
         };
@@ -315,12 +287,12 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["VersionDetail"];
+                    "application/json": components["schemas"]["VersionDetailDto"];
                 };
             };
         };
     };
-    list_files: {
+    get_files: {
         parameters: {
             query?: never;
             header?: never;
@@ -336,7 +308,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["FileDetail"][];
+                    "application/json": components["schemas"]["BundleDetailsDto"][];
                 };
             };
         };

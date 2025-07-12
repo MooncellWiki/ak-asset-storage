@@ -1,0 +1,36 @@
+[package]
+name = "ak-asset-storage-web"
+
+version.workspace = true
+
+edition.workspace = true
+
+license.workspace = true
+
+description = "Web adapter layer for ak-asset-storage"
+
+[lints]
+workspace = true
+
+[dependencies]
+ak-asset-storage-application = { path = "../application" }
+ak-asset-storage-infrastructure = { path = "../infrastructure" }
+# Web layer should not directly depend on infrastructure
+# Use dependency injection instead
+serde = { workspace = true }
+serde_json = { workspace = true }
+tokio = { workspace = true }
+axum = { workspace = true }
+tower = { workspace = true }
+tower-http = { workspace = true }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
+anyhow = { workspace = true }
+utoipa = { workspace = true }
+utoipa-axum = { workspace = true }
+utoipa-scalar = { workspace = true }
+rust-embed = { workspace = true }
+mime_guess = { workspace = true }
+sentry = { workspace = true }
+thiserror = { workspace = true }
+sqlx = { workspace = true }

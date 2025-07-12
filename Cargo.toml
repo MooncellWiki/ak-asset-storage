@@ -1,12 +1,20 @@
-[package]
-name = "ak_asset_storage"
+[workspace]
+members = [
+  "crates/application",
+  "crates/infrastructure",
+  "crates/web",
+  "crates/cli",
+]
+resolver = "2"
+
+[workspace.package]
 edition = "2021"
 license = "MIT"
 version = "0.9.0"
 description = "arknights asset storage"
 homepage = "https://asset-storage.prts.wiki"
 
-[lints.clippy]
+[workspace.lints.clippy]
 all = { level = "warn", priority = -1 }
 pedantic = { level = "warn", priority = -1 }
 nursery = { level = "warn", priority = -1 }
@@ -14,12 +22,14 @@ missing_errors_doc = { level = "allow", priority = 1 }
 missing_panics_doc = { level = "allow", priority = 1 }
 module_name_repetitions = { level = "allow", priority = 1 }
 
-[dependencies]
+[workspace.dependencies]
 serde = { version = "1.0.219", features = [ "derive" ] }
 serde_json = "1.0.140"
 tokio = { version = "1.45.1", features = [
   "signal",
-  "rt-multi-thread"
+  "rt-multi-thread",
+  "macros",
+  "time",
 ] }
 async-trait = "0.1.88"
 tracing = "0.1.41"
@@ -38,7 +48,6 @@ tracing-subscriber = { version = "0.3.19", features = [
   "json"
 ] }
 reqwest = { version = "0.12.19", features = [ "json" ] }
-zip = "4.0.0"
 anyhow = "1.0.98"
 tower-http = { version = "0.6.6", features = [
   "timeout",
@@ -58,23 +67,24 @@ utoipa = { version = "5.4.0", features = [
 ] }
 utoipa-axum = { version = "0.2.0", features = [ "debug" ] }
 utoipa-scalar = { version = "0.3.0", features = [ "axum" ] }
-itertools = "0.14.0"
 mime_guess = { version = "2.0.5" }
 derive_more = { version = "2.0.1", features = [
   "deref",
   "deref_mut",
-  "display"
+  "display",
 ] }
 sqlx = { version = "0.8.6", features = [
   "runtime-tokio",
   "postgres",
-  "tls-rustls"
+  "tls-rustls",
+  "chrono",
+  "uuid",
 ] }
 sentry = { version = "0.38.1", features = [
   "tracing",
   "tower",
   "tower-axum-matched-path",
-  "tower-http"
+  "tower-http",
 ] }
 tower = "0.5.2"
 time = { version = "0.3.41", features = [
@@ -86,16 +96,5 @@ ring = "0.17.14"
 rand_chacha = "0.9.0"
 rand_core = { version = "0.9.3", features = [ "os_rng" ] }
 futures = "0.3.31"
-
-[package.metadata.release]
-publish = false
-tag-prefix = ""
-shared-version = true
-pre-release-commit-message = "chore: Release {{version}}"
-# Don't talk to crates.io https://github.com/crate-ci/cargo-release/pull/735
-registry = ""
-pre-release-hook = [
-  "just",
-  "pre-release",
-  "{{version}}"
-]
+axum-macros = "0.5.0"
+utoipa-gen = "5.4.0"

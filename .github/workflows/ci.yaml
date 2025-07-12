@@ -60,3 +60,21 @@ jobs:
       - name: Run eslint
         shell: bash
         run: pnpm run lint
+
+  test:
+    name: Run Tests
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout the code
+        uses: actions/checkout@v4
+      - uses: actions-rust-lang/setup-rust-toolchain@v1
+        with:
+          components: clippy
+      - name: Setup Node
+        uses: ./.github/actions/node
+      - name: Build frontend
+        shell: bash
+        run: pnpm run build
+      - name: Run cargo test
+        shell: bash
+        run: cargo test --all-features -- --nocapture

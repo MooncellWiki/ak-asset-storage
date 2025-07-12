@@ -66,12 +66,15 @@ auth.user = "user@example.com"
 auth.password = "password"
 ```
 
-| Field           | Description                  |
-| --------------- | ---------------------------- |
-| `host`          | SMTP server host             |
-| `port`          | SMTP server port             |
-| `auth.user`     | SMTP authentication username |
-| `auth.password` | SMTP authentication password |
+| Field           | Description                     |
+| --------------- | ------------------------------- |
+| `host`          | SMTP server host                |
+| `port`          | SMTP server port                |
+| `from_email`    | Email address to send from      |
+| `to_email`      | Email address to send to        |
+| `frontend_url`  | URL of the frontend application |
+| `auth.user`     | SMTP authentication username    |
+| `auth.password` | SMTP authentication password    |
 
 ## AK Configuration
 

@@ -1,0 +1,38 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT id, client as \"client_version\", res as \"res_version\", is_ready FROM versions ORDER BY id ASC",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 1,
+        "name": "client_version",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 2,
+        "name": "res_version",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 3,
+        "name": "is_ready",
+        "type_info": "Bool"
+      }
+    ],
+    "parameters": {
+      "Left": []
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "778ed567fac283fbd89dfd2358cff41357c981ecbac14ebb8bab6a3b63d373db"
+}
