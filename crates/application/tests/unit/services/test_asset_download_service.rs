@@ -16,8 +16,14 @@ async fn test_perform_download_success() {
 
     // Setup API responses
     api_client.set_hot_update_list(SAMPLE_HOT_UPDATE_LIST.to_string());
-    api_client.set_file_data("test_file1.dat".to_string(), TestData::sample_file_data1());
-    api_client.set_file_data("test_file2.dat".to_string(), TestData::sample_file_data2());
+    api_client.set_file_data(
+        "arts_furniture_group_hub.dat".to_string(),
+        TestData::sample_file_data1(),
+    );
+    api_client.set_file_data(
+        "arts_[pack]common.dat".to_string(),
+        TestData::sample_file_data2(),
+    );
 
     let service = AssetDownloadService::new(
         repository.clone(),
@@ -82,8 +88,8 @@ async fn test_skip_existing_bundle() {
     let version = TestData::create_version(Some(1), "1.0.0", "client-1.0.0", false);
     repository.version.versions.lock().unwrap().push(version);
 
-    let bundle1 = TestData::create_bundle(Some(1), "test/file1.ab", 1, 1);
-    let bundle2 = TestData::create_bundle(Some(2), "test/file2.ab", 1, 1);
+    let bundle1 = TestData::create_bundle(Some(1), "arts/[pack]common.ab", 1, 1);
+    let bundle2 = TestData::create_bundle(Some(2), "arts/furniture_group_hub.ab", 1, 1);
     repository.bundle.bundles.lock().unwrap().push(bundle1);
     repository.bundle.bundles.lock().unwrap().push(bundle2);
 
@@ -112,7 +118,7 @@ async fn test_file_deduplication() {
     // Add existing file with specific hash
     let existing_file = TestData::create_file(
         Some(1),
-        "b94d27b9934d3e08a52e52d7da7dabfac484efe37a5380ee9088f7ace2efcde9",
+        "db28dd91fd6680c37a6fa6b705d0488e589699c48e535ee422919a3e4175a0c6",
         1024,
     );
     repository.file.files.lock().unwrap().push(existing_file);
@@ -122,8 +128,14 @@ async fn test_file_deduplication() {
     repository.version.versions.lock().unwrap().push(version);
 
     // Setup API to return file data that produces the same hash
-    api_client.set_file_data("test_file1.dat".to_string(), b"hello world".to_vec());
-    api_client.set_file_data("test_file2.dat".to_string(), b"hello world".to_vec());
+    api_client.set_file_data(
+        "arts_furniture_group_hub.dat".to_string(),
+        TestData::sample_file_data1(),
+    );
+    api_client.set_file_data(
+        "arts_[pack]common.dat".to_string(),
+        TestData::sample_file_data1(),
+    );
 
     let service = AssetDownloadService::new(
         repository.clone(),
