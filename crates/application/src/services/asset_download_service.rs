@@ -1,11 +1,15 @@
+use std::io::{Cursor, Read};
+
 use crate::{
     ABInfo, AkApiClient, AppResult, Bundle, BundleRepository, File, FileRepository,
     NotificationService, StorageService, Version, VersionRepository,
 };
 use anyhow::Context;
 use futures::{stream, StreamExt, TryStreamExt};
+use itertools::Itertools;
 use sha256::digest;
 use tracing::{debug, error, info, instrument};
+use zip::ZipArchive;
 
 pub struct AssetDownloadService<R, A, N, S>
 where
@@ -161,14 +165,33 @@ where
         Ok(())
     }
 
+    /// 会有zip里面的文件内容一样但是创建时间不一样导致最后zip出来的东西不一样 我们拆开算实际内容的hash
+    fn calc_sha256(bytes: &[u8]) -> AppResult<String> {
+        let mut zip =
+            ZipArchive::new(Cursor::new(bytes)).context("Failed to create zip archive")?;
+        let mut buffer = Vec::new();
+        let name_list = zip
+            .file_names()
+            .sorted()
+            .map(std::string::ToString::to_string)
+            .collect_vec();
+        for name in name_list {
+            let mut file = zip.by_name(&name).context("Failed to read zip file")?;
+            file.read_to_end(&mut buffer)
+                .context("Failed to push zip file content to buffer")?;
+        }
+        Ok(digest(&buffer))
+    }
+
     async fn sync_file(&self, res_version: &str, path: &str) -> AppResult<i32> {
         // 下载文件
         let bytes = self.ak_client.download_file(res_version, path).await?;
 
-        let sha = digest(&bytes);
+        let sha = Self::calc_sha256(&bytes)?;
 
         // 检查文件是否已存在
         if let Some(file) = self.repo.get_file_by_hash(&sha).await? {
+            debug!("file {} already exists, skip", path);
             return Ok(file
                 .id
                 .ok_or_else(|| anyhow::anyhow!("File ID is missing"))?);

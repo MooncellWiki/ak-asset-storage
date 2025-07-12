@@ -25,6 +25,8 @@ thiserror = { workspace = true }
 serde_variant = { workspace = true }
 axum = { workspace = true }
 utoipa = { workspace = true }
+zip = { workspace = true }
+itertools = { workspace = true }
 
 [dev-dependencies]
 tokio = { workspace = true, features = [ "test-util" ] }
