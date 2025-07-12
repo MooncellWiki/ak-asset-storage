@@ -14,6 +14,9 @@ host = "http://localhost"
 [mailer.smtp]
 host = "smtp.example.com"
 port = 465
+from_email = "sender@example.com"
+to_email = "receiver@example.com"
+frontend_url = "http://localhost:25150/"
 
 auth.user = "user@example.com"  # Uncomment and add SMTP user
 auth.password = "password"  # Uncomment and add SMTP password

@@ -48,7 +48,6 @@ tracing-subscriber = { version = "0.3.19", features = [
   "json"
 ] }
 reqwest = { version = "0.12.19", features = [ "json" ] }
-zip = "4.0.0"
 anyhow = "1.0.98"
 tower-http = { version = "0.6.6", features = [
   "timeout",
@@ -68,7 +67,6 @@ utoipa = { version = "5.4.0", features = [
 ] }
 utoipa-axum = { version = "0.2.0", features = [ "debug" ] }
 utoipa-scalar = { version = "0.3.0", features = [ "axum" ] }
-itertools = "0.14.0"
 mime_guess = { version = "2.0.5" }
 derive_more = { version = "2.0.1", features = [
   "deref",
@@ -98,6 +96,5 @@ ring = "0.17.14"
 rand_chacha = "0.9.0"
 rand_core = { version = "0.9.3", features = [ "os_rng" ] }
 futures = "0.3.31"
-entrait = "0.7.1"
 axum-macros = "0.5.0"
 utoipa-gen = "5.4.0"
