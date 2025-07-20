@@ -12,6 +12,7 @@ The configuration is divided into several main sections:
 - Mailer
 - AK (Arknights)
 - S3 Storage
+- Torappu (Optional)
 
 ## Logger Configuration
 
@@ -111,6 +112,19 @@ with_virtual_hosted_style_request = false
 | `access_key_id`                     | S3 access key ID                     |
 | `secret_access_key`                 | S3 secret access key                 |
 | `with_virtual_hosted_style_request` | Enable virtual hosted style requests |
+
+## Torappu Configuration (Optional)
+
+Optional configuration for Torappu service integration.
+
+```toml
+[torappu]
+token = "your-torappu-token-here"
+```
+
+| Field   | Description                  | Required |
+| ------- | ---------------------------- | -------- |
+| `token` | Torappu authentication token | No       |
 
 ## Example Configuration
 

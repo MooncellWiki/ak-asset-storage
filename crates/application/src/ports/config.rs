@@ -21,6 +21,9 @@ pub trait ConfigProvider: Send + Sync {
 
     /// Get sentry configuration if enabled
     fn sentry_config(&self) -> &SentryConfig;
+
+    /// Get torappu configuration
+    fn torappu_config(&self) -> &TorappuConfig;
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
@@ -151,4 +154,10 @@ pub struct LoggerConfig {
 pub struct SentryConfig {
     pub dsn: String,
     pub traces_sample_rate: f32,
+}
+
+/// Torappu configuration for application use
+#[derive(Debug, Clone, Deserialize, Serialize)]
+pub struct TorappuConfig {
+    pub token: String,
 }

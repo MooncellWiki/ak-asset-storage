@@ -14,6 +14,18 @@ pub enum WebError {
     /// 503 Service Unavailable
     #[error("Service Unavailable:\n{0}")]
     ServiceUnavailable(anyhow::Error),
+
+    /// 401 Unauthorized
+    #[error("Unauthorized: {0}")]
+    Unauthorized(String),
+
+    /// 400 Bad Request
+    #[error("Bad Request: {0}")]
+    BadRequest(String),
+
+    /// 500 Internal Server Error
+    #[error("Internal Server Error")]
+    InternalServerError,
 }
 
 #[derive(Debug, Serialize)]
@@ -49,6 +61,17 @@ impl IntoResponse for WebError {
             }
             err @ Self::ServiceUnavailable(..) => (
                 StatusCode::SERVICE_UNAVAILABLE,
+                Json(ApiErrorDetail::from(err)),
+            )
+                .into_response(),
+            err @ Self::Unauthorized(..) => {
+                (StatusCode::UNAUTHORIZED, Json(ApiErrorDetail::from(err))).into_response()
+            }
+            err @ Self::BadRequest(..) => {
+                (StatusCode::BAD_REQUEST, Json(ApiErrorDetail::from(err))).into_response()
+            }
+            err @ Self::InternalServerError => (
+                StatusCode::INTERNAL_SERVER_ERROR,
                 Json(ApiErrorDetail::from(err)),
             )
                 .into_response(),

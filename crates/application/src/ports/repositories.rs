@@ -50,3 +50,9 @@ pub trait BundleRepository: Send + Sync + Clone + 'static {
         version_id: i32,
     ) -> AppResult<Vec<BundleDetailsDto>>;
 }
+
+#[async_trait]
+pub trait ItemDemandRepository: Send + Sync + Clone + 'static {
+    async fn query_usage_by_item_name(&self, item_name: &str) -> AppResult<Option<String>>;
+    async fn replace_all_demands(&self, demands: Vec<(String, String)>) -> AppResult<()>;
+}

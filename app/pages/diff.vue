@@ -127,7 +127,7 @@ interface VersionFiles {
 const lData = ref<VersionFiles>({ pathMap: {}, list: [] });
 const rData = ref<VersionFiles>({ pathMap: {}, list: [] });
 async function loadDetail(id: number) {
-  const resp = await client.GET("/version/{id}/files", {
+  const resp = await client.GET("/api/v1/version/{id}/files", {
     params: { path: { id } },
   });
   const pathMap: Record<string, components["schemas"]["BundleDetailsDto"]> = {};

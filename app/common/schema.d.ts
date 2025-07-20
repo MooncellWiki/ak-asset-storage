@@ -4,7 +4,7 @@
  */
 
 export interface paths {
-    "/_health": {
+    "/api/v1/_health": {
         parameters: {
             query?: never;
             header?: never;
@@ -21,7 +21,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/_ping": {
+    "/api/v1/_ping": {
         parameters: {
             query?: never;
             header?: never;
@@ -38,7 +38,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/bundle": {
+    "/api/v1/bundle": {
         parameters: {
             query?: never;
             header?: never;
@@ -55,7 +55,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/bundle/{id}": {
+    "/api/v1/bundle/{id}": {
         parameters: {
             query?: never;
             header?: never;
@@ -72,7 +72,41 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/version": {
+    "/api/v1/item/demand": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** POST /item/demand */
+        post: operations["update_item_demands"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/item/{item_name}/demand": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** /item/:item_name/demand */
+        get: operations["get_item_demand"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/version": {
         parameters: {
             query?: never;
             header?: never;
@@ -89,7 +123,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/version/{id}": {
+    "/api/v1/version/{id}": {
         parameters: {
             query?: never;
             header?: never;
@@ -106,7 +140,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/version/{id}/files": {
+    "/api/v1/version/{id}/files": {
         parameters: {
             query?: never;
             header?: never;
@@ -249,6 +283,73 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["BundleDetailsDto"];
                 };
+            };
+        };
+    };
+    update_item_demands: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    [key: string]: unknown;
+                };
+            };
+        };
+        responses: {
+            /** @description Item demands updated successfully */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Unauthorized - invalid authentication token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Internal server error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    get_item_demand: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                item_name: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Item demand found */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": string;
+                };
+            };
+            /** @description Item demand not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
         };
     };
