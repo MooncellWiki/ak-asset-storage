@@ -1,7 +1,7 @@
 use crate::InfraError;
 use ak_asset_storage_application::{
     AkApiConfig, AppResult, DatabaseConfig, LoggerConfig, S3Config, SentryConfig, ServerConfig,
-    SmtpConfig,
+    SmtpConfig, TorappuConfig,
 };
 use serde::{Deserialize, Serialize};
 use std::{fs, path::Path};
@@ -18,6 +18,7 @@ pub struct AppSettings {
     pub ak: AkApiConfig,
     pub s3: S3Config,
     pub sentry: SentryConfig,
+    pub torappu: TorappuConfig,
 }
 
 impl AppSettings {

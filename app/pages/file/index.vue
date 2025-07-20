@@ -55,7 +55,7 @@ onBeforeMount(() => {
 const list = ref<components["schemas"]["BundleDetailsDto"][]>([]);
 async function search() {
   if (model.value.path || model.value.hash || model.value.version) {
-    const { data } = await client.GET("/bundle", {
+    const { data } = await client.GET("/api/v1/bundle", {
       params: { query: model.value },
     });
     list.value = data ?? [];

@@ -7,7 +7,7 @@ export function useVersionSelect() {
   const versionOpts = ref<SelectGroupOption[]>([]);
   const versions = ref<components["schemas"]["VersionDto"][]>([]);
   async function load() {
-    const { data } = await client.GET("/version");
+    const { data } = await client.GET("/api/v1/version");
     const result: SelectGroupOption[] = [];
     versions.value = (data ?? []).reverse();
     let prev = "";
