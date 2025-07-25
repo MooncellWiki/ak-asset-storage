@@ -54,6 +54,8 @@ tower-http = { version = "0.6.6", features = [
   "trace",
   "cors",
   "compression-full",
+  "fs",
+  "set-header"
 ] }
 thiserror = "2.0.12"
 toml = "0.8.22"
@@ -100,3 +102,4 @@ axum-macros = "0.5.0"
 utoipa-gen = "5.4.0"
 zip = { version = "4.3.0" }
 itertools = { version = "0.14.0" }
+walkdir = "2.5.0"

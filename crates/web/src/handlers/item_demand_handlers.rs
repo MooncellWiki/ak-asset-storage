@@ -81,11 +81,7 @@ pub async fn update_item_demands(
     let demands = demands.map_err(|e| WebError::BadRequest(format!("Invalid JSON value: {e}")))?;
 
     // Replace all demands in transaction
-    state
-        .repository
-        .replace_all_demands(demands)
-        .await
-        .map_err(|_| WebError::InternalServerError)?;
+    state.repository.replace_all_demands(demands).await?;
 
     Ok(StatusCode::OK)
 }

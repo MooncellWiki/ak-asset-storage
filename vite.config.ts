@@ -17,6 +17,7 @@ export default defineConfig({
     proxy: {
       "/api": "http://localhost:25150",
       "/storage": "http://localhost:29000/arknights-assets/",
+      "/torappu": "http://localhost:25150",
     },
     port: 25173,
   },
