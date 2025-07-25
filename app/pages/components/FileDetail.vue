@@ -11,7 +11,6 @@
 </template>
 
 <script lang="ts" setup>
-import { NButton } from "naive-ui";
 import type { components } from "~/common/schema";
 
 const props = defineProps<{

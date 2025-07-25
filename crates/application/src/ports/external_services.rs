@@ -1,4 +1,4 @@
-use crate::{AppResult, RemoteVersion};
+use crate::{AppResult, AssetDirInfo, AssetEntry, RemoteVersion};
 use async_trait::async_trait;
 
 #[async_trait]
@@ -18,4 +18,10 @@ pub trait NotificationService: Send + Sync + Clone + 'static {
     async fn notify_update(&self, old_client: &str, old_res: &str, new_client: &str, new_res: &str);
 
     async fn notify_download_finished(&self, client_version: &str, res_version: &str);
+}
+
+#[async_trait]
+pub trait TorappuAssetService: Send + Sync + Clone + 'static {
+    async fn list_asset(&self, path: &str) -> AppResult<AssetDirInfo>;
+    async fn search_assets_by_path(&self, path: &str) -> AppResult<Vec<AssetEntry>>;
 }

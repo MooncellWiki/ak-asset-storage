@@ -22,10 +22,6 @@ pub enum WebError {
     /// 400 Bad Request
     #[error("Bad Request: {0}")]
     BadRequest(String),
-
-    /// 500 Internal Server Error
-    #[error("Internal Server Error")]
-    InternalServerError,
 }
 
 #[derive(Debug, Serialize)]
@@ -53,9 +49,11 @@ impl IntoResponse for WebError {
     fn into_response(self) -> axum::response::Response {
         tracing::error!(error.msg = %self,error.details = ?self,"controller_error");
         match self {
-            err @ Self::CustomApiError(..) => {
-                (StatusCode::NOT_IMPLEMENTED, Json(ApiErrorDetail::from(err))).into_response()
-            }
+            err @ Self::CustomApiError(..) => (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(ApiErrorDetail::from(err)),
+            )
+                .into_response(),
             err @ Self::NotFound => {
                 (StatusCode::NOT_FOUND, Json(ApiErrorDetail::from(err))).into_response()
             }
@@ -70,11 +68,6 @@ impl IntoResponse for WebError {
             err @ Self::BadRequest(..) => {
                 (StatusCode::BAD_REQUEST, Json(ApiErrorDetail::from(err))).into_response()
             }
-            err @ Self::InternalServerError => (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(ApiErrorDetail::from(err)),
-            )
-                .into_response(),
         }
     }
 }

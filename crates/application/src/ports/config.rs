@@ -160,4 +160,5 @@ pub struct SentryConfig {
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct TorappuConfig {
     pub token: String,
+    pub asset_base_path: String,
 }

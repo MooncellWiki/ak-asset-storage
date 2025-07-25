@@ -1,17 +1,19 @@
 <template>
   <NConfigProvider :theme="theme">
     <NModalProvider>
-      <NLayout position="absolute">
-        <NLayoutHeader class="mb-2 flex p-3" bordered>
-          <NMenu :options="opts" mode="horizontal"></NMenu>
-          <NButton class="m-auto mr-0" secondary @click="toggleDark()">
-            {{ isDark ? "浅色" : "深色" }}
-          </NButton>
-        </NLayoutHeader>
-        <NLayoutContent class="container mx-auto">
-          <RouterView />
-        </NLayoutContent>
-      </NLayout>
+      <NMessageProvider>
+        <NLayout position="absolute">
+          <NLayoutHeader class="mb-2 flex p-3" bordered>
+            <NMenu :options="opts" mode="horizontal"></NMenu>
+            <NButton class="m-auto mr-0" secondary @click="toggleDark()">
+              {{ isDark ? "浅色" : "深色" }}
+            </NButton>
+          </NLayoutHeader>
+          <NLayoutContent class="container mx-auto">
+            <RouterView />
+          </NLayoutContent>
+        </NLayout>
+      </NMessageProvider>
     </NModalProvider>
   </NConfigProvider>
 </template>
@@ -52,6 +54,19 @@ const opts = [
         () => "diff",
       ),
     key: "diff",
+  },
+  {
+    label: () =>
+      h(
+        RouterLink,
+        {
+          to: {
+            path: "/asset",
+          },
+        },
+        () => "asset",
+      ),
+    key: "asset",
   },
 ];
 </script>

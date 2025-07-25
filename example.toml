@@ -39,3 +39,4 @@ with_virtual_hosted_style_request = false
 # Optional Torappu configuration
 [torappu]
 token = "your-torappu-token-here"
+assetBasePath = "/assets"
