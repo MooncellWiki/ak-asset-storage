@@ -190,78 +190,19 @@ impl NotificationService for MockNotificationService {
 
 // Mock Docker Service
 #[derive(Clone, Debug)]
-pub struct MockDockerService {
-    pub launched_containers: Arc<Mutex<Vec<(String, String)>>>,
-    pub stopped_containers: Arc<Mutex<Vec<String>>>,
-    pub removed_containers: Arc<Mutex<Vec<String>>>,
-    pub should_fail: Arc<Mutex<bool>>,
-}
-
-impl MockDockerService {
-    pub fn new() -> Self {
-        Self {
-            launched_containers: Arc::new(Mutex::new(Vec::new())),
-            stopped_containers: Arc::new(Mutex::new(Vec::new())),
-            removed_containers: Arc::new(Mutex::new(Vec::new())),
-            should_fail: Arc::new(Mutex::new(false)),
-        }
-    }
-
-    pub fn get_launched_containers(&self) -> Vec<(String, String)> {
-        self.launched_containers.lock().unwrap().clone()
-    }
-
-    pub fn get_stopped_containers(&self) -> Vec<String> {
-        self.stopped_containers.lock().unwrap().clone()
-    }
-
-    pub fn get_removed_containers(&self) -> Vec<String> {
-        self.removed_containers.lock().unwrap().clone()
-    }
-
-    pub fn set_should_fail(&self, should_fail: bool) {
-        *self.should_fail.lock().unwrap() = should_fail;
-    }
-}
+pub struct MockDockerService {}
 
 #[async_trait]
 impl DockerService for MockDockerService {
-    async fn launch_container(&self, client_version: &str, res_version: &str) -> AppResult<String> {
-        if *self.should_fail.lock().unwrap() {
-            return Err(AppError::ExternalService(anyhow::anyhow!(
-                "Mock Docker launch failure"
-            )));
-        }
-
-        let container_name = format!("ak-asset-{}-{}", client_version, res_version);
-        self.launched_containers
-            .lock()
-            .unwrap()
-            .push((client_version.to_string(), res_version.to_string()));
-        Ok(container_name)
-    }
-
-    async fn stop_container(&self, container_name: &str) -> AppResult<()> {
-        self.stopped_containers
-            .lock()
-            .unwrap()
-            .push(container_name.to_string());
-        Ok(())
-    }
-
-    async fn remove_container(&self, container_name: &str) -> AppResult<()> {
-        self.removed_containers
-            .lock()
-            .unwrap()
-            .push(container_name.to_string());
-        Ok(())
-    }
-
-    async fn container_exists(&self, container_name: &str) -> AppResult<bool> {
-        let containers = self.launched_containers.lock().unwrap();
-        Ok(containers.iter().any(|(_, _)| {
-            let expected_name = format!("ak-asset-{}-{}", "1.0.0", "1.0.0");
-            container_name == expected_name
-        }))
+    async fn launch_container(
+        &self,
+        client_version: &str,
+        res_version: &str,
+        prev_client_version: &str,
+        prev_res_version: &str,
+    ) -> AppResult<String> {
+        Ok(format!(
+            "ak-asset-{client_version}-{res_version}-{prev_client_version}-{prev_res_version}"
+        ))
     }
 }

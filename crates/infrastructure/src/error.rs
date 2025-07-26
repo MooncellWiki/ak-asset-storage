@@ -1,7 +1,10 @@
 use ak_asset_storage_application::error::AppError;
 use thiserror::Error;
 
-use crate::{ak_api_client::AkApiClientError, smtp_client::EmailError, ConfigError};
+use crate::{
+    ak_api_client::AkApiClientError, docker_client::DockerClientError, smtp_client::EmailError,
+    ConfigError,
+};
 /// Infrastructure layer errors - external dependencies errors
 #[derive(Debug, Error)]
 pub enum InfraError {
@@ -28,7 +31,7 @@ pub enum InfraError {
     Config(#[from] ConfigError),
 
     #[error("Docker error:\n{0}")]
-    Docker(String),
+    Docker(#[from] DockerClientError),
 }
 
 /// Convert Infrastructure errors to Application errors

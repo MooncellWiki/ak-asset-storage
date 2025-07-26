@@ -70,11 +70,11 @@ where
             return Ok(false);
         }
         let prev = self.version_repo.get_latest_version().await?;
-        if let Some(prev) = prev {
+        if let Some(ref prev) = prev {
             self.notification
                 .notify_update(
-                    prev.client.as_str(),
-                    prev.res.as_str(),
+                    &prev.client,
+                    &prev.res,
                     &remote.client_version,
                     &remote.res_version,
                 )
@@ -109,17 +109,18 @@ where
 
         // 如果启用了Docker容器功能，启动新容器
         if let Some(docker_service) = &self.docker_service {
-            info!("Attempting to launch Docker container for new version");
-            match docker_service
-                .launch_container(client_version, res_version)
-                .await
-            {
-                Ok(container_name) => {
-                    info!("Docker container launched successfully: {}", container_name);
-                }
-                Err(e) => {
-                    error!("Failed to launch Docker container: {}", e);
-                    // 不将容器启动失败视为整个检查失败
+            if let Some(ref prev) = prev {
+                info!("Attempting to launch Docker container for new version");
+                match docker_service
+                    .launch_container(client_version, res_version, &prev.client, &prev.res)
+                    .await
+                {
+                    Ok(container_name) => {
+                        info!("Docker container launched successfully: {container_name}");
+                    }
+                    Err(e) => {
+                        error!("Failed to launch Docker container: {e}");
+                    }
                 }
             }
         }

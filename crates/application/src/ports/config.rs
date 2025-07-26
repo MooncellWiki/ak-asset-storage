@@ -169,6 +169,6 @@ pub struct DockerConfig {
     pub image_url: String,
     pub container_name: String,
     pub env_vars: Option<Vec<String>>,
-    pub volume_mapping: Option<String>,
+    pub volume_mapping: Option<Vec<String>>,
     pub docker_host: String,
 }

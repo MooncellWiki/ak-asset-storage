@@ -28,8 +28,11 @@ pub trait TorappuAssetService: Send + Sync + Clone + 'static {
 
 #[async_trait]
 pub trait DockerService: Send + Sync + Clone + 'static {
-    async fn launch_container(&self, client_version: &str, res_version: &str) -> AppResult<String>;
-    async fn stop_container(&self, container_name: &str) -> AppResult<()>;
-    async fn remove_container(&self, container_name: &str) -> AppResult<()>;
-    async fn container_exists(&self, container_name: &str) -> AppResult<bool>;
+    async fn launch_container(
+        &self,
+        client_version: &str,
+        res_version: &str,
+        prev_client_version: &str,
+        prev_res_version: &str,
+    ) -> AppResult<String>;
 }
