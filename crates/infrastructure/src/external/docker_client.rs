@@ -2,7 +2,7 @@ use crate::InfraError;
 use ak_asset_storage_application::{AppResult, DockerConfig};
 use async_trait::async_trait;
 use bollard::{
-    models::{ContainerCreateBody, HostConfig, PortBinding, RestartPolicy, RestartPolicyNameEnum},
+    models::{ContainerCreateBody, HostConfig},
     query_parameters::{
         CreateContainerOptions, CreateImageOptions, InspectContainerOptions,
         RemoveContainerOptions, StartContainerOptions, StopContainerOptions,
@@ -10,7 +10,6 @@ use bollard::{
     Docker,
 };
 use futures::stream::StreamExt;
-use std::collections::HashMap;
 use tracing::{error, info, warn};
 
 // DockerService trait is defined in ak_asset_storage_application
@@ -23,13 +22,8 @@ pub struct BollardDockerService {
 
 impl BollardDockerService {
     pub fn new(config: DockerConfig) -> AppResult<Self> {
-        let docker = if let Some(_host) = &config.docker_host {
-            Docker::connect_with_http_defaults()
-                .map_err(|e| InfraError::Docker(format!("Failed to connect to Docker: {}", e)))?
-        } else {
-            Docker::connect_with_local_defaults()
-                .map_err(|e| InfraError::Docker(format!("Failed to connect to Docker: {}", e)))?
-        };
+        let docker = Docker::connect_with_unix(&config.docker_host, 120, &bollard::API_DEFAULT_VERSION)
+            .map_err(|e| InfraError::Docker(format!("Failed to connect to Docker: {}", e)))?;
 
         Ok(Self { docker, config })
     }
@@ -60,22 +54,8 @@ impl BollardDockerService {
 #[async_trait]
 impl ak_asset_storage_application::DockerService for BollardDockerService {
     async fn launch_container(&self, client_version: &str, res_version: &str) -> AppResult<String> {
-        if !self.config.enabled {
-            return Err(InfraError::Docker("Docker service is disabled".to_string()).into());
-        }
-
-        let image_url = self
-            .config
-            .image_url
-            .as_ref()
-            .ok_or_else(|| InfraError::Docker("Docker image URL not configured".to_string()))?;
-
-        let container_name = self
-            .config
-            .container_name
-            .as_ref()
-            .unwrap_or(&format!("ak-asset-{}-{}", client_version, res_version))
-            .to_string();
+        let image_url = &self.config.image_url;
+        let container_name = &self.config.container_name;
 
         // 检查容器是否已存在
         if self.container_exists(&container_name).await? {
@@ -119,43 +99,11 @@ impl ak_asset_storage_application::DockerService for BollardDockerService {
             Vec::new()
         };
 
-        // 设置端口映射和卷映射
+        // 设置卷映射
         let mut host_config = HostConfig::default();
-
-        // 处理端口映射
-        if let Some(port_mapping) = &self.config.port_mapping {
-            let mut port_bindings = HashMap::new();
-            for binding in port_mapping.split(',') {
-                let parts: Vec<&str> = binding.split(':').collect();
-                if parts.len() == 2 {
-                    let host_port = parts[0];
-                    let container_port = parts[1];
-                    let binding = PortBinding {
-                        host_ip: None,
-                        host_port: Some(host_port.to_string()),
-                    };
-                    port_bindings.insert(format!("{}/tcp", container_port), Some(vec![binding]));
-                }
-            }
-            host_config.port_bindings = Some(port_bindings);
-        }
 
         if let Some(volume_mapping) = &self.config.volume_mapping {
             host_config.binds = Some(self.parse_volume_mapping(volume_mapping));
-        }
-
-        // 处理重启策略
-        if let Some(restart_policy) = &self.config.restart_policy {
-            let name = match restart_policy.as_str() {
-                "always" => RestartPolicyNameEnum::ALWAYS,
-                "unless-stopped" => RestartPolicyNameEnum::UNLESS_STOPPED,
-                "on-failure" => RestartPolicyNameEnum::ON_FAILURE,
-                _ => RestartPolicyNameEnum::NO,
-            };
-            host_config.restart_policy = Some(RestartPolicy {
-                name: Some(name),
-                maximum_retry_count: None,
-            });
         }
 
         let container_config = ContainerCreateBody {
@@ -191,7 +139,7 @@ impl ak_asset_storage_application::DockerService for BollardDockerService {
 
         info!("Container started successfully: {}", container_name);
 
-        Ok(container_name)
+        Ok(container_name.to_string())
     }
 
     async fn stop_container(&self, container_name: &str) -> AppResult<()> {

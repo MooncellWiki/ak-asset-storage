@@ -92,3 +92,7 @@ sqlx migrate add <name> # Create new migration
 - File-based routing with unplugin-vue-router
 - UnoCSS for styling
 - OpenAPI-generated API client
+
+## Development Guidelines
+
+- always run cargo check if .rs has been changed

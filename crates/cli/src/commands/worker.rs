@@ -21,15 +21,10 @@ pub async fn execute(config: &impl ConfigProvider, concurrent: usize) -> Result<
     let notification = NotificationClient::new(config.smtp_config())?;
     let s3 = S3StorageClient::new(config.s3_config())?;
 
-    // 创建Docker服务（如果配置启用）
+    // 创建Docker服务（如果配置存在）
     let docker_service = if let Some(docker_config) = &config.torappu_config().docker {
-        if docker_config.enabled {
-            info!("Docker service enabled, creating Docker client");
-            Some(BollardDockerService::new(docker_config.clone())?)
-        } else {
-            info!("Docker service disabled");
-            None
-        }
+        info!("Docker configuration found, creating Docker client");
+        Some(BollardDockerService::new(docker_config.clone())?)
     } else {
         info!("Docker configuration not found, skipping Docker service");
         None
