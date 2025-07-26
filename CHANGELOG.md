@@ -2,13 +2,25 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.10.2] - 2025-07-26
+
+[eae20c7](eae20c770a2ace57830a279c849c2cab6872c53f)...[02e1616](02e1616e3bae04b6bd4b8c1815209f1271862dbc)
+
+### 🐛 Bug Fixes
+
+- Dockerfile ([02e1616](https://github.com/MooncellWiki/ak-asset-storage/commit/02e1616e3bae04b6bd4b8c1815209f1271862dbc))
+
 ## [0.10.1] - 2025-07-26
 
-[1fbf19b](1fbf19b918469f337f42ed7a777096bd150ae9c0)...[9903e02](9903e02490c93886bde2c4b781b4f6a77384f692)
+[1fbf19b](1fbf19b918469f337f42ed7a777096bd150ae9c0)...[eae20c7](eae20c770a2ace57830a279c849c2cab6872c53f)
 
 ### 🐛 Bug Fixes
 
 - Dockerfile ([9903e02](https://github.com/MooncellWiki/ak-asset-storage/commit/9903e02490c93886bde2c4b781b4f6a77384f692))
+
+### ⚙️ Miscellaneous Tasks
+
+- Release 0.10.1 ([eae20c7](https://github.com/MooncellWiki/ak-asset-storage/commit/eae20c770a2ace57830a279c849c2cab6872c53f))
 
 ## [0.10.0] - 2025-07-26
 
