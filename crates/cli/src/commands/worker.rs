@@ -3,7 +3,8 @@ use ak_asset_storage_application::{
     AssetDownloadService, ConfigProvider, SyncTask, VersionCheckService,
 };
 use ak_asset_storage_infrastructure::{
-    shutdown_signal, HttpAkApiClient, PostgresRepository, S3StorageClient, SimpleScheduler,
+    shutdown_signal, BollardDockerService, HttpAkApiClient, PostgresRepository, S3StorageClient,
+    SimpleScheduler,
 };
 use anyhow::Result;
 use sqlx::postgres::PgPoolOptions;
@@ -19,11 +20,27 @@ pub async fn execute(config: &impl ConfigProvider, concurrent: usize) -> Result<
     let ak_api_client = HttpAkApiClient::new(config.ak_api_config());
     let notification = NotificationClient::new(config.smtp_config())?;
     let s3 = S3StorageClient::new(config.s3_config())?;
+
+    // 创建Docker服务（如果配置启用）
+    let docker_service = if let Some(docker_config) = &config.torappu_config().docker {
+        if docker_config.enabled {
+            info!("Docker service enabled, creating Docker client");
+            Some(BollardDockerService::new(docker_config.clone())?)
+        } else {
+            info!("Docker service disabled");
+            None
+        }
+    } else {
+        info!("Docker configuration not found, skipping Docker service");
+        None
+    };
+
     let mut scheduler = SimpleScheduler::new(SyncTask::new(
         VersionCheckService::new(
             repository.clone(),
             ak_api_client.clone(),
             notification.clone(),
+            docker_service.clone(),
         ),
         AssetDownloadService::new(
             repository.clone(),

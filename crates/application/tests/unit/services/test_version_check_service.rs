@@ -17,7 +17,12 @@ async fn test_perform_check_new_version() {
     api_client.set_remote_version(remote_version);
     api_client.set_hot_update_list(SAMPLE_HOT_UPDATE_LIST.to_string());
 
-    let service = VersionCheckService::new(version_repo.clone(), api_client, notification.clone());
+    let service = VersionCheckService::new(
+        version_repo.clone(),
+        api_client,
+        notification.clone(),
+        None::<MockDockerService>,
+    );
 
     // Act
     let result = service.perform_check().await;
@@ -65,7 +70,12 @@ async fn test_perform_check_no_update() {
 
     api_client.set_remote_version(remote_version);
 
-    let service = VersionCheckService::new(version_repo.clone(), api_client, notification.clone());
+    let service = VersionCheckService::new(
+        version_repo.clone(),
+        api_client,
+        notification.clone(),
+        None::<MockDockerService>,
+    );
 
     // Act
     let result = service.perform_check().await;
@@ -91,7 +101,12 @@ async fn test_check_and_save_first_version() {
 
     api_client.set_hot_update_list(SAMPLE_HOT_UPDATE_LIST.to_string());
 
-    let service = VersionCheckService::new(version_repo.clone(), api_client, notification.clone());
+    let service = VersionCheckService::new(
+        version_repo.clone(),
+        api_client,
+        notification.clone(),
+        None::<MockDockerService>,
+    );
 
     let remote_version = RemoteVersion {
         client_version: "1.0.0".to_string(),
@@ -139,7 +154,12 @@ async fn test_check_and_save_with_previous_version() {
 
     api_client.set_hot_update_list(SAMPLE_HOT_UPDATE_LIST.to_string());
 
-    let service = VersionCheckService::new(version_repo.clone(), api_client, notification.clone());
+    let service = VersionCheckService::new(
+        version_repo.clone(),
+        api_client,
+        notification.clone(),
+        None::<MockDockerService>,
+    );
 
     let remote_version = RemoteVersion {
         client_version: "1.1.0".to_string(),
@@ -176,7 +196,12 @@ async fn test_api_failure_handling() {
 
     api_client.set_should_fail(true);
 
-    let service = VersionCheckService::new(version_repo, api_client, notification);
+    let service = VersionCheckService::new(
+        version_repo,
+        api_client,
+        notification,
+        None::<MockDockerService>,
+    );
 
     // Act
     let result = service.perform_check().await;
@@ -200,7 +225,12 @@ async fn test_hot_update_list_parsing() {
     api_client.set_remote_version(remote_version);
     api_client.set_hot_update_list(LARGE_HOT_UPDATE_LIST.to_string());
 
-    let service = VersionCheckService::new(version_repo.clone(), api_client, notification);
+    let service = VersionCheckService::new(
+        version_repo.clone(),
+        api_client,
+        notification,
+        None::<MockDockerService>,
+    );
 
     // Act
     let result = service.perform_check().await;

@@ -31,3 +31,4 @@ toml = { workspace = true }
 futures = { workspace = true }
 bytes = { workspace = true }
 walkdir = { workspace = true }
+bollard = { workspace = true }

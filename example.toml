@@ -40,3 +40,18 @@ with_virtual_hosted_style_request = false
 [torappu]
 token = "your-torappu-token-here"
 assetBasePath = "/assets"
+
+# Optional Docker configuration for launching containers on new version detection
+[torappu.docker]
+enabled = false
+image_url = "your-docker-image:latest"
+container_name = "ak-asset-container"
+env_vars = [
+    "CLIENT_VERSION=${CLIENT_VERSION}",
+    "RES_VERSION=${RES_VERSION}",
+    "DATABASE_URL=postgres://ak:ak@localhost:25432/ak_asset_storage_next"
+]
+port_mapping = "8080:80"
+volume_mapping = "./data:/app/data"
+restart_policy = "unless-stopped"
+# docker_host = "tcp://localhost:2376"  # Uncomment to use remote Docker daemon

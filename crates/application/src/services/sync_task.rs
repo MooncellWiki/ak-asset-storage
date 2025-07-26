@@ -1,5 +1,5 @@
 use crate::{
-    AkApiClient, AppResult, AssetDownloadService, BundleRepository, FileRepository,
+    AkApiClient, AppResult, AssetDownloadService, BundleRepository, DockerService, FileRepository,
     NotificationService, ScheduledTask, StorageService, VersionCheckService, VersionRepository,
 };
 use async_trait::async_trait;
@@ -11,28 +11,30 @@ use tokio::{spawn, task::JoinHandle, time::sleep};
 use tracing::{error, info, instrument};
 
 /// 版本轮询服务 - 组合版本检查和资源下载
-pub struct SyncTask<R, A, N, S>
+pub struct SyncTask<R, A, N, S, D>
 where
     R: VersionRepository + FileRepository + BundleRepository,
     A: AkApiClient,
     N: NotificationService,
     S: StorageService,
+    D: DockerService,
 {
-    version_check_service: Arc<VersionCheckService<R, A, N>>,
+    version_check_service: Arc<VersionCheckService<R, A, N, D>>,
     download_service: Arc<AssetDownloadService<R, A, N, S>>,
     poll_interval: Duration,
     download_task: Arc<Mutex<Option<JoinHandle<()>>>>,
 }
 
-impl<R, A, N, S> SyncTask<R, A, N, S>
+impl<R, A, N, S, D> SyncTask<R, A, N, S, D>
 where
     R: VersionRepository + FileRepository + BundleRepository,
     A: AkApiClient,
     N: NotificationService,
     S: StorageService,
+    D: DockerService,
 {
     pub fn new(
-        version_check_service: VersionCheckService<R, A, N>,
+        version_check_service: VersionCheckService<R, A, N, D>,
         download_service: AssetDownloadService<R, A, N, S>,
         poll_interval: Duration,
     ) -> Self {
@@ -94,12 +96,13 @@ where
 }
 
 #[async_trait]
-impl<R, A, N, S> ScheduledTask for SyncTask<R, A, N, S>
+impl<R, A, N, S, D> ScheduledTask for SyncTask<R, A, N, S, D>
 where
     R: VersionRepository + FileRepository + BundleRepository,
     A: AkApiClient,
     N: NotificationService,
     S: StorageService,
+    D: DockerService,
 {
     async fn run(&self) -> AppResult<()> {
         match self.perform_poll().await {

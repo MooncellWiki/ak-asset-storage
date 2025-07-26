@@ -26,6 +26,9 @@ pub enum InfraError {
 
     #[error("Configuration error:\n{0}")]
     Config(#[from] ConfigError),
+
+    #[error("Docker error:\n{0}")]
+    Docker(String),
 }
 
 /// Convert Infrastructure errors to Application errors

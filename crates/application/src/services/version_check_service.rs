@@ -1,31 +1,40 @@
 use crate::{
-    repositories::VersionRepository, AkApiClient, AppResult, HotUpdateList, NotificationService,
-    RemoteVersion, Version,
+    repositories::VersionRepository, AkApiClient, AppResult, DockerService, HotUpdateList,
+    NotificationService, RemoteVersion, Version,
 };
 use tracing::{error, info, instrument};
 
-pub struct VersionCheckService<V, A, N>
+pub struct VersionCheckService<V, A, N, D>
 where
     V: VersionRepository,
     A: AkApiClient,
     N: NotificationService,
+    D: DockerService,
 {
     version_repo: V,
     ak_client: A,
     notification: N,
+    docker_service: Option<D>,
 }
 
-impl<V, A, N> VersionCheckService<V, A, N>
+impl<V, A, N, D> VersionCheckService<V, A, N, D>
 where
     V: VersionRepository,
     A: AkApiClient,
     N: NotificationService,
+    D: DockerService,
 {
-    pub const fn new(version_repo: V, ak_client: A, notification: N) -> Self {
+    pub const fn new(
+        version_repo: V,
+        ak_client: A,
+        notification: N,
+        docker_service: Option<D>,
+    ) -> Self {
         Self {
             version_repo,
             ak_client,
             notification,
+            docker_service,
         }
     }
 
@@ -86,17 +95,34 @@ where
         let RemoteVersion {
             res_version,
             client_version,
-        } = remote;
+        } = &remote;
         let version = Version {
             id: None,
-            res: res_version,
-            client: client_version,
+            res: res_version.clone(),
+            client: client_version.clone(),
             hot_update_list: HotUpdateList::new(&hot_update_list)?,
             is_ready: false,
         };
 
         self.version_repo.create_version(version).await?;
         info!("new version created and ready for download");
+
+        // 如果启用了Docker容器功能，启动新容器
+        if let Some(docker_service) = &self.docker_service {
+            info!("Attempting to launch Docker container for new version");
+            match docker_service
+                .launch_container(client_version, res_version)
+                .await
+            {
+                Ok(container_name) => {
+                    info!("Docker container launched successfully: {}", container_name);
+                }
+                Err(e) => {
+                    error!("Failed to launch Docker container: {}", e);
+                    // 不将容器启动失败视为整个检查失败
+                }
+            }
+        }
 
         Ok(true)
     }
