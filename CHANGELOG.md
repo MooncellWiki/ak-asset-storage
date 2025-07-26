@@ -2,13 +2,25 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.10.4] - 2025-07-26
+
+[0ab0644](0ab0644a904d7da06b5073fce417a66f80cf9d4b)...[4b4791f](4b4791fef1d931297908d11da468aa5080e29592)
+
+### 🐛 Bug Fixes
+
+- Front end asset dir ([4b4791f](https://github.com/MooncellWiki/ak-asset-storage/commit/4b4791fef1d931297908d11da468aa5080e29592))
+
 ## [0.10.3] - 2025-07-26
 
-[19b818c](19b818ce8c55a4c553207317e9987efd4b9eb8fd)...[c88d9fb](c88d9fb146d55c7de3958551522c8c911438f225)
+[19b818c](19b818ce8c55a4c553207317e9987efd4b9eb8fd)...[0ab0644](0ab0644a904d7da06b5073fce417a66f80cf9d4b)
 
 ### 🐛 Bug Fixes
 
 - Align path with torappu backend ([c88d9fb](https://github.com/MooncellWiki/ak-asset-storage/commit/c88d9fb146d55c7de3958551522c8c911438f225))
+
+### ⚙️ Miscellaneous Tasks
+
+- Release 0.10.3 ([0ab0644](https://github.com/MooncellWiki/ak-asset-storage/commit/0ab0644a904d7da06b5073fce417a66f80cf9d4b))
 
 ## [0.10.2] - 2025-07-26
 
