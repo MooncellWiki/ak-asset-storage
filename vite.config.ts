@@ -8,6 +8,9 @@ import VueRouter from "unplugin-vue-router/vite";
 import { defineConfig } from "vite";
 
 export default defineConfig({
+  build: {
+    assetsDir: "fe",
+  },
   resolve: {
     alias: {
       "~/": `${path.resolve(__dirname, "app")}/`,
