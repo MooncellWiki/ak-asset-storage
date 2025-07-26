@@ -2,15 +2,11 @@ use crate::InfraError;
 use ak_asset_storage_application::{AppResult, DockerConfig};
 use async_trait::async_trait;
 use bollard::{
-    container::{
-        Config as ContainerConfig, CreateContainerOptions, InspectContainerOptions,
+    models::{ContainerCreateBody, HostConfig, PortBinding, RestartPolicy, RestartPolicyNameEnum},
+    query_parameters::{
+        CreateContainerOptions, CreateImageOptions, InspectContainerOptions,
         RemoveContainerOptions, StartContainerOptions, StopContainerOptions,
     },
-    image::CreateImageOptions,
-    models::HostConfig,
-    models::PortBinding,
-    service::RestartPolicy,
-    service::RestartPolicyNameEnum,
     Docker,
 };
 use futures::stream::StreamExt;
@@ -95,7 +91,7 @@ impl ak_asset_storage_application::DockerService for BollardDockerService {
 
         // 拉取镜像
         let options = CreateImageOptions {
-            from_image: image_url.clone(),
+            from_image: Some(image_url.clone()),
             ..Default::default()
         };
 
@@ -162,7 +158,7 @@ impl ak_asset_storage_application::DockerService for BollardDockerService {
             });
         }
 
-        let container_config = ContainerConfig {
+        let container_config = ContainerCreateBody {
             image: Some(image_url.clone()),
             env: if env_vars.is_empty() {
                 None
@@ -175,11 +171,11 @@ impl ak_asset_storage_application::DockerService for BollardDockerService {
 
         // 创建容器
         let options = CreateContainerOptions {
-            name: container_name.clone(),
-            platform: None,
+            name: Some(container_name.clone()),
+            platform: String::new(),
         };
 
-        let container = self
+        let _container = self
             .docker
             .create_container(Some(options), container_config)
             .await
@@ -189,7 +185,7 @@ impl ak_asset_storage_application::DockerService for BollardDockerService {
 
         // 启动容器
         self.docker
-            .start_container(&container_name, None::<StartContainerOptions<String>>)
+            .start_container(&container_name, None::<StartContainerOptions>)
             .await
             .map_err(|e| InfraError::Docker(format!("Failed to start container: {}", e)))?;
 
