@@ -1,11 +1,9 @@
 <template>
-  <div class="h-screen">
+  <div class="h-full">
+    <NButton class="mb-2" @click="openSearch">
+      <CarbonSearch />
+    </NButton>
     <div class="max-h-full w-full flex overflow-y-auto">
-      <div class="m-2">
-        <NButton @click="openSearch">
-          <CarbonSearch />
-        </NButton>
-      </div>
       <div class="w-1/2 flex-grow">
         <div class="max-h-full overflow-y-scroll">
           <NDataTable
@@ -69,7 +67,6 @@ import Preview from "./components/Preview.vue";
 import type { DataTableColumns } from "naive-ui";
 import type { RowData } from "naive-ui/es/data-table/src/interface";
 
-const BASE_PATH = "./asset/";
 const DATE_FORMAT_STRING = "yyyy-MM-dd HH:mm:ss";
 interface Entry {
   create_at: string;
@@ -84,7 +81,7 @@ interface Entry {
   children?: Entry[];
 }
 function makeDisplayable(
-  arr: components["schemas"]["Entry"][],
+  arr: components["schemas"]["AssetEntry"][],
   withLeaf = true,
 ): Entry[] {
   return arr
@@ -103,14 +100,17 @@ function makeDisplayable(
     });
 }
 function realPath(e: Entry): string {
-  return `/torappu/${e.path}`;
+  if (e.path.startsWith("raw")) {
+    return `/${e.path.replace("raw", "assets")}`;
+  }
+  return `/${e.path}`;
 }
 function open(p: string) {
   window.open(p);
 }
 const data = ref<Entry[]>([]);
 async function list(path = ""): Promise<Entry[]> {
-  const { data } = await client.GET("/api/v1/asset/{path}", {
+  const { data } = await client.GET("/api/v1/files/{path}", {
     params: {
       path: {
         path,
@@ -124,7 +124,7 @@ const columns: DataTableColumns<Entry> = [
   { key: "name", title: "文件名" },
   { key: "create_at", title: "创建时间" },
   { key: "modified_at", title: "修改时间" },
-  { key: "hsize", title: "大小" },
+  { key: "hSize", title: "大小" },
 ];
 onMounted(async () => {
   data.value = await list();
@@ -155,10 +155,10 @@ function searchRowProps(row: Entry) {
   return {
     onClick: async () => {
       const msgHandler = message.loading("", { duration: 0 });
-      const arr = row.path.replace(BASE_PATH, "").split("/");
+      const arr = row.path.split("/");
       const set = new Set<string>();
       for (let i = 1; i < arr.length; i++) {
-        set.add(BASE_PATH + arr.slice(0, i).join("/"));
+        set.add(arr.slice(0, i).join("/"));
       }
       const keys = [...set];
       let curList = data.value;
@@ -193,7 +193,7 @@ const search = useDebounceFn(async () => {
     searchData.value = [];
     return;
   }
-  const { data } = await client.GET("/api/v1/asset", {
+  const { data } = await client.GET("/api/v1/files", {
     params: {
       query: { path: searchText.value },
     },
@@ -204,7 +204,7 @@ const searchColumns: DataTableColumns<Entry> = [
   { key: "name", title: "文件名" },
   { key: "create_at", title: "创建时间" },
   { key: "modified_at", title: "修改时间" },
-  { key: "hsize", title: "大小" },
+  { key: "hSize", title: "大小" },
   { key: "path", title: "路径" },
 ];
 </script>
