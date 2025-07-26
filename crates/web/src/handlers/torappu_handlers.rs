@@ -8,12 +8,12 @@ use axum::{
     response::Response,
 };
 
-/// /asset
+/// /files
 #[debug_handler]
 #[utoipa::path(
     get,
-    path = "/asset",
-    tag = "asset",
+    path = "/files",
+    tag = "files",
     params(
         ("path" = String, Query, description = "Search path pattern")
     ),
@@ -31,11 +31,11 @@ pub async fn search_assets_by_path(
     Ok(json(result))
 }
 
-/// /asset/{path}
+/// /files/{path}
 #[utoipa::path(
     get,
-    path = "/asset/{path}",
-    tag = "asset",
+    path = "/files/{path}",
+    tag = "files",
     params(
         ("path" = String, Path, description = "Directory path to list")
     ),

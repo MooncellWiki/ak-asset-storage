@@ -31,7 +31,7 @@ pub fn build_router(state: AppState) -> Router {
         .routes(routes!(misc_handlers::health))
         // Torappu assets endpoints
         .routes(routes!(torappu_handlers::list_asset))
-        .route("/asset/", get(torappu_handlers::list_root_asset))
+        .route("/files/", get(torappu_handlers::list_root_asset))
         .routes(routes!(torappu_handlers::search_assets_by_path))
         // Version endpoints
         .routes(routes!(version_handlers::list_version))
@@ -56,12 +56,9 @@ pub fn build_router(state: AppState) -> Router {
         .nest("/api/v1", api_routes)
         .merge(Scalar::with_url("/api/v1/scalar", openapi.clone()))
         .route("/api/v1/openapi.json", get(|| async move { Json(openapi) }))
+        .nest_service("/assets", serve_dir_with_charset(asset_path.join("raw")))
         .nest_service(
-            "/torappu/raw",
-            serve_dir_with_charset(asset_path.join("raw")),
-        )
-        .nest_service(
-            "/torappu/gamedata",
+            "/gamedata",
             serve_dir_with_charset(asset_path.join("gamedata")),
         )
         .fallback(misc_handlers::static_handler)
