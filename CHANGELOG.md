@@ -2,9 +2,37 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.10.0] - 2025-07-26
+
+[3096564](3096564c99af915fd4d8a520f7fb502f52a95767)...[5133864](51338644495bf1813502463bb7542328d00c8344)
+
+### 🚀 Features
+
+- Item_demand ([7e7dc7a](https://github.com/MooncellWiki/ak-asset-storage/commit/7e7dc7a77ab33ef7b3ee7cea280344a842950d46))
+- Torappu assets ([54a2aa1](https://github.com/MooncellWiki/ak-asset-storage/commit/54a2aa127aa55b1712e81dadde09b3ea3a5fb572))
+
+### 🐛 Bug Fixes
+
+- Hash ([76273cb](https://github.com/MooncellWiki/ak-asset-storage/commit/76273cb07ee653b9f0c1436a559b071d364b0f63))
+- Tests ([5aeb5a1](https://github.com/MooncellWiki/ak-asset-storage/commit/5aeb5a1be6f27486044ce03284dfec3e6ea897ef))
+- Sqlx ([ffba0f2](https://github.com/MooncellWiki/ak-asset-storage/commit/ffba0f239c14a6888df7ab23460482194c76008b))
+- Cargo release ([5133864](https://github.com/MooncellWiki/ak-asset-storage/commit/51338644495bf1813502463bb7542328d00c8344))
+
+### 📚 Documentation
+
+- Update sql ([9abbb6b](https://github.com/MooncellWiki/ak-asset-storage/commit/9abbb6b6e5f3541e1474a9850889713d02700cf8))
+
+### ⚙️ Miscellaneous Tasks
+
+- Update dependencies ([22a9f7c](https://github.com/MooncellWiki/ak-asset-storage/commit/22a9f7c7c231f433cb14b933a10ce6522592f898))
+
+### Refactor
+
+- Move to multi crates (#116) ([f09d505](https://github.com/MooncellWiki/ak-asset-storage/commit/f09d5050f72ac626fb7d0307f66aa4d61bcec4d8))
+
 ## [0.9.0] - 2025-06-05
 
-[a3cf2da](a3cf2da0f1c86377f68d6fd43a85e9a4ffdf0276)...[0f20f9c](0f20f9cfc39b70d791c1fc60e0291608deecc0f3)
+[a3cf2da](a3cf2da0f1c86377f68d6fd43a85e9a4ffdf0276)...[3096564](3096564c99af915fd4d8a520f7fb502f52a95767)
 
 ### 🚀 Features
 
@@ -18,6 +46,7 @@ All notable changes to this project will be documented in this file.
 - Update dependencies ([ec6a01c](https://github.com/MooncellWiki/ak-asset-storage/commit/ec6a01cf4daea6f0c59d819131be43086893f2da))
 - Update node ([9337431](https://github.com/MooncellWiki/ak-asset-storage/commit/93374318a141335c2a28e37bcd944a48f824469b))
 - Disable eslint ([0f20f9c](https://github.com/MooncellWiki/ak-asset-storage/commit/0f20f9cfc39b70d791c1fc60e0291608deecc0f3))
+- Release 0.9.0 ([3096564](https://github.com/MooncellWiki/ak-asset-storage/commit/3096564c99af915fd4d8a520f7fb502f52a95767))
 
 ## [0.8.1] - 2024-12-29
 
