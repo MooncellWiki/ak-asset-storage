@@ -16,4 +16,4 @@ RUN cargo build --all --release
 FROM debian:bookworm
 RUN apt-get update && apt-get -y install ca-certificates
 WORKDIR /app
-COPY --from=build-stage /app/target/release/ak_asset_storage_cli /app
+COPY --from=build-stage /app/target/release/ak-asset-storage /app
