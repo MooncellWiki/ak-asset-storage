@@ -17,12 +17,12 @@ use tracing::{info, warn};
 // DockerService trait is defined in ak_asset_storage_application
 
 #[derive(Clone)]
-pub struct BollardDockerService {
+pub struct BollardDockerClient {
     docker: Docker,
     config: DockerConfig,
 }
 
-impl BollardDockerService {
+impl BollardDockerClient {
     pub fn new(config: DockerConfig) -> AppResult<Self> {
         let docker =
             Docker::connect_with_unix(&config.docker_host, 120, bollard::API_DEFAULT_VERSION)
@@ -33,7 +33,7 @@ impl BollardDockerService {
 }
 
 #[async_trait]
-impl ak_asset_storage_application::DockerService for BollardDockerService {
+impl ak_asset_storage_application::DockerService for BollardDockerClient {
     async fn launch_container(
         &self,
         client_version: &str,

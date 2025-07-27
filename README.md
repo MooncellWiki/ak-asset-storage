@@ -9,9 +9,10 @@ The configuration is divided into several main sections:
 - Logger
 - Server
 - Database
-- Mailer
+- Mailer (SMTP)
 - AK (Arknights)
 - S3 Storage
+- Sentry (Optional)
 - Torappu (Optional)
 
 ## Logger Configuration
@@ -50,9 +51,11 @@ Database connection and pool settings.
 uri = "postgres://user:password@localhost:5432/dbname"
 ```
 
-| Field | Description             |
-| ----- | ----------------------- |
-| `uri` | Database connection URI |
+| Field                        | Description                   | Default |
+| ---------------------------- | ----------------------------- | ------- |
+| `uri`                        | Database connection URI       | -       |
+| `max_connections`            | Maximum database connections  | `None`  |
+| `connection_timeout_seconds` | Connection timeout in seconds | `None`  |
 
 ## Mailer Configuration
 
@@ -113,6 +116,21 @@ with_virtual_hosted_style_request = false
 | `secret_access_key`                 | S3 secret access key                 |
 | `with_virtual_hosted_style_request` | Enable virtual hosted style requests |
 
+## Sentry Configuration (Optional)
+
+Optional configuration for Sentry error tracking and monitoring.
+
+```toml
+[sentry]
+dsn = "https://your-sentry-dsn@sentry.io/project-id"
+traces_sample_rate = 1.0
+```
+
+| Field                | Description                                    | Required |
+| -------------------- | ---------------------------------------------- | -------- |
+| `dsn`                | Sentry DSN for error reporting                 | No       |
+| `traces_sample_rate` | Sampling rate for performance traces (0.0-1.0) | No       |
+
 ## Torappu Configuration (Optional)
 
 Optional configuration for Torappu service integration.
@@ -120,11 +138,37 @@ Optional configuration for Torappu service integration.
 ```toml
 [torappu]
 token = "your-torappu-token-here"
+asset_base_path = "/assets"
+
+[torappu.docker]
+image_url = "your-docker-image:latest"
+container_name = "ak-asset-container"
+env_vars = [ "TZ=Asia/Shanghai" ]
+volume_mapping = "./data:/app/data"
+docker_host = "/var/run/docker.sock"
+
+[torappu.github]
+owner = "your-username"
+repo = "your-repo"
+workflow_id = "workflow-file.yml"
+ref = "main"
+token = "github-token"
 ```
 
-| Field   | Description                  | Required |
-| ------- | ---------------------------- | -------- |
-| `token` | Torappu authentication token | No       |
+| Field                   | Description                  | Required |
+| ----------------------- | ---------------------------- | -------- |
+| `token`                 | Torappu authentication token | No       |
+| `asset_base_path`       | Base path for assets         | No       |
+| `docker.image_url`      | Docker image to deploy       | No       |
+| `docker.container_name` | Container name               | No       |
+| `docker.env_vars`       | Environment variables        | No       |
+| `docker.volume_mapping` | Volume mappings              | No       |
+| `docker.docker_host`    | Docker daemon host           | No       |
+| `github.owner`          | GitHub repository owner      | No       |
+| `github.repo`           | GitHub repository name       | No       |
+| `github.workflow_id`    | GitHub Actions workflow ID   | No       |
+| `github.ref`            | Git branch or tag            | No       |
+| `github.token`          | GitHub personal access token | No       |
 
 ## Example Configuration
 

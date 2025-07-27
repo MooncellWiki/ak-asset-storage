@@ -104,6 +104,7 @@ zip = { version = "4.3.0" }
 itertools = { version = "0.14.0" }
 walkdir = "2.5.0"
 bollard = "0.19.1"
+octocrab = "0.44.1"
 
 [workspace.metadata.release]
 publish = false

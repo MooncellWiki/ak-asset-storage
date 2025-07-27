@@ -36,3 +36,8 @@ pub trait DockerService: Send + Sync + Clone + 'static {
         prev_res_version: &str,
     ) -> AppResult<String>;
 }
+
+#[async_trait]
+pub trait GithubService: Send + Sync + Clone + 'static {
+    async fn dispatch_workflow(&self) -> AppResult<()>;
+}

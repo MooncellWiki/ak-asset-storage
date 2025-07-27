@@ -34,6 +34,7 @@ async fn test_complete_sync_workflow() {
         api_client.clone(),
         notification.clone(),
         None::<MockDockerService>,
+        None::<MockGithubService>,
     );
 
     let download_service = AssetDownloadService::new(

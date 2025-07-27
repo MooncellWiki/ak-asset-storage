@@ -19,6 +19,7 @@ async fn test_sync_task_creation() {
         api_client.clone(),
         notification.clone(),
         None::<MockDockerService>,
+        None::<MockGithubService>,
     );
 
     let download_service =
@@ -65,6 +66,7 @@ async fn test_perform_poll_with_new_version() {
         api_client.clone(),
         notification.clone(),
         None::<MockDockerService>,
+        None::<MockGithubService>,
     );
 
     let download_service =

@@ -1,0 +1,23 @@
+FROM alpine:latest
+
+WORKDIR /app
+
+# Create a simple script that prints all arguments, env vars, and volumes
+RUN echo '#!/bin/sh' > /app/entrypoint.sh && \
+    echo 'echo "=== Docker Test Container ==="' >> /app/entrypoint.sh && \
+    echo 'echo' >> /app/entrypoint.sh && \
+    echo 'echo "Received arguments:"' >> /app/entrypoint.sh && \
+    echo 'for arg in "$@"; do' >> /app/entrypoint.sh && \
+    echo '  echo "  - $arg"' >> /app/entrypoint.sh && \
+    echo 'done' >> /app/entrypoint.sh && \
+    echo 'echo' >> /app/entrypoint.sh && \
+    echo 'echo "Environment variables:"' >> /app/entrypoint.sh && \
+    echo 'env | sort' >> /app/entrypoint.sh && \
+    echo 'echo' >> /app/entrypoint.sh && \
+    echo 'echo "Mounted volumes:"' >> /app/entrypoint.sh && \
+    echo 'mount | grep -v "^proc\|^sys\|^dev\|^tmpfs\|^overlay" | awk "{print \$3\" -> \"\$1}" | sort' >> /app/entrypoint.sh && \
+    echo 'echo' >> /app/entrypoint.sh && \
+    echo 'echo "=== End of container info ==="' >> /app/entrypoint.sh && \
+    chmod +x /app/entrypoint.sh
+
+ENTRYPOINT ["/app/entrypoint.sh"]

@@ -22,6 +22,7 @@ async fn test_perform_check_new_version() {
         api_client,
         notification.clone(),
         None::<MockDockerService>,
+        None::<MockGithubService>,
     );
 
     // Act
@@ -75,6 +76,7 @@ async fn test_perform_check_no_update() {
         api_client,
         notification.clone(),
         None::<MockDockerService>,
+        None::<MockGithubService>,
     );
 
     // Act
@@ -106,6 +108,7 @@ async fn test_check_and_save_first_version() {
         api_client,
         notification.clone(),
         None::<MockDockerService>,
+        None::<MockGithubService>,
     );
 
     let remote_version = RemoteVersion {
@@ -159,6 +162,7 @@ async fn test_check_and_save_with_previous_version() {
         api_client,
         notification.clone(),
         None::<MockDockerService>,
+        None::<MockGithubService>,
     );
 
     let remote_version = RemoteVersion {
@@ -201,6 +205,7 @@ async fn test_api_failure_handling() {
         api_client,
         notification,
         None::<MockDockerService>,
+        None::<MockGithubService>,
     );
 
     // Act
@@ -230,6 +235,7 @@ async fn test_hot_update_list_parsing() {
         api_client,
         notification,
         None::<MockDockerService>,
+        None::<MockGithubService>,
     );
 
     // Act

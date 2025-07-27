@@ -3,8 +3,8 @@ use ak_asset_storage_application::{
     AssetDownloadService, ConfigProvider, SyncTask, VersionCheckService,
 };
 use ak_asset_storage_infrastructure::{
-    shutdown_signal, BollardDockerService, HttpAkApiClient, PostgresRepository, S3StorageClient,
-    SimpleScheduler,
+    shutdown_signal, BollardDockerClient, GithubClient, HttpAkApiClient, PostgresRepository,
+    S3StorageClient, SimpleScheduler,
 };
 use anyhow::Result;
 use sqlx::postgres::PgPoolOptions;
@@ -24,9 +24,18 @@ pub async fn execute(config: &impl ConfigProvider, concurrent: usize) -> Result<
     // 创建Docker服务（如果配置存在）
     let docker_service = if let Some(docker_config) = &config.torappu_config().docker {
         info!("Docker configuration found, creating Docker client");
-        Some(BollardDockerService::new(docker_config.clone())?)
+        Some(BollardDockerClient::new(docker_config.clone())?)
     } else {
         info!("Docker configuration not found, skipping Docker service");
+        None
+    };
+
+    // 创建GitHub服务（如果配置存在）
+    let github_service = if let Some(github_config) = &config.torappu_config().github {
+        info!("GitHub configuration found, creating GitHub client");
+        Some(GithubClient::new(github_config.clone())?)
+    } else {
+        info!("GitHub configuration not found, skipping GitHub service");
         None
     };
 
@@ -36,6 +45,7 @@ pub async fn execute(config: &impl ConfigProvider, concurrent: usize) -> Result<
             ak_api_client.clone(),
             notification.clone(),
             docker_service.clone(),
+            github_service.clone(),
         ),
         AssetDownloadService::new(
             repository.clone(),

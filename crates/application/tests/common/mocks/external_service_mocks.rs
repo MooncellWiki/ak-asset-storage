@@ -206,3 +206,14 @@ impl DockerService for MockDockerService {
         ))
     }
 }
+
+// Mock GitHub Service
+#[derive(Clone, Debug)]
+pub struct MockGithubService {}
+
+#[async_trait]
+impl ak_asset_storage_application::GithubService for MockGithubService {
+    async fn dispatch_workflow(&self) -> AppResult<()> {
+        Ok(())
+    }
+}

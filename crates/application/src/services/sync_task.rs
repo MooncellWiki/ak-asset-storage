@@ -1,6 +1,7 @@
 use crate::{
     AkApiClient, AppResult, AssetDownloadService, BundleRepository, DockerService, FileRepository,
-    NotificationService, ScheduledTask, StorageService, VersionCheckService, VersionRepository,
+    GithubService, NotificationService, ScheduledTask, StorageService, VersionCheckService,
+    VersionRepository,
 };
 use async_trait::async_trait;
 use std::{
@@ -11,30 +12,32 @@ use tokio::{spawn, task::JoinHandle, time::sleep};
 use tracing::{error, info, instrument};
 
 /// 版本轮询服务 - 组合版本检查和资源下载
-pub struct SyncTask<R, A, N, S, D>
+pub struct SyncTask<R, A, N, S, D, G>
 where
     R: VersionRepository + FileRepository + BundleRepository,
     A: AkApiClient,
     N: NotificationService,
     S: StorageService,
     D: DockerService,
+    G: GithubService,
 {
-    version_check_service: Arc<VersionCheckService<R, A, N, D>>,
+    version_check_service: Arc<VersionCheckService<R, A, N, D, G>>,
     download_service: Arc<AssetDownloadService<R, A, N, S>>,
     poll_interval: Duration,
     download_task: Arc<Mutex<Option<JoinHandle<()>>>>,
 }
 
-impl<R, A, N, S, D> SyncTask<R, A, N, S, D>
+impl<R, A, N, S, D, G> SyncTask<R, A, N, S, D, G>
 where
     R: VersionRepository + FileRepository + BundleRepository,
     A: AkApiClient,
     N: NotificationService,
     S: StorageService,
     D: DockerService,
+    G: GithubService,
 {
     pub fn new(
-        version_check_service: VersionCheckService<R, A, N, D>,
+        version_check_service: VersionCheckService<R, A, N, D, G>,
         download_service: AssetDownloadService<R, A, N, S>,
         poll_interval: Duration,
     ) -> Self {
@@ -96,13 +99,14 @@ where
 }
 
 #[async_trait]
-impl<R, A, N, S, D> ScheduledTask for SyncTask<R, A, N, S, D>
+impl<R, A, N, S, D, G> ScheduledTask for SyncTask<R, A, N, S, D, G>
 where
     R: VersionRepository + FileRepository + BundleRepository,
     A: AkApiClient,
     N: NotificationService,
     S: StorageService,
     D: DockerService,
+    G: GithubService,
 {
     async fn run(&self) -> AppResult<()> {
         match self.perform_poll().await {
