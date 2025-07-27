@@ -71,6 +71,8 @@ sqlx migrate add <name> # Create new migration
 - **Arknights API**: Asset downloads from official servers
 - **SMTP**: Email notifications (optional)
 - **Torappu**: Enhanced features via token-based API
+- **Docker**: Trigger downstream tasks
+- **GitHub API**: Trigger downstream tasks
 
 ## Testing Strategy
 
