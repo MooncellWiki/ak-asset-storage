@@ -161,4 +161,24 @@ pub struct SentryConfig {
 pub struct TorappuConfig {
     pub token: String,
     pub asset_base_path: String,
+    pub docker: Option<DockerConfig>,
+    pub github: Option<GithubConfig>,
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize)]
+pub struct DockerConfig {
+    pub image_url: String,
+    pub container_name: String,
+    pub env_vars: Option<Vec<String>>,
+    pub volume_mapping: Option<Vec<String>>,
+    pub docker_host: String,
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize)]
+pub struct GithubConfig {
+    pub owner: String,
+    pub repo: String,
+    pub workflow_id: String,
+    pub r#ref: String,
+    pub token: String,
 }

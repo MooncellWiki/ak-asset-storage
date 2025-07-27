@@ -4,161 +4,97 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-**Arknights Asset Storage** - A Rust-based service for storing and managing Arknights game assets with a Vue.js frontend. Uses clean architecture with separate crates for different layers.
+**Arknights Asset Storage** - A Rust-based service for storing and managing Arknights game assets with a Vue.js frontend. Uses clean architecture with separate crates for different layers and PostgreSQL + S3 storage.
 
 ## Architecture
 
-The project follows clean architecture with these layers:
+Clean architecture with 4 distinct layers:
 
-- **Application Layer** (`crates/application/`): Core business logic, entities, and use cases
-- **Infrastructure Layer** (`crates/infrastructure/`): External services (database, S3, email, HTTP clients)
-- **Web Layer** (`crates/web/`): HTTP API endpoints and web interface
-- **CLI Layer** (`crates/cli/`): Command-line interface for background tasks
+- **CLI** (`crates/cli/`): Binary entry points for server/worker/seed commands
+- **Web** (`crates/web/`): Axum HTTP API + static file serving for Vue frontend
+- **Application** (`crates/application/`): Core business logic, entities, use cases
+- **Infrastructure** (`crates/infrastructure/`): External services (PostgreSQL, S3, SMTP, HTTP clients)
 
-### Clean Architecture Layers
-
-**Entities** (`crates/application/src/entities/`):
-
-- `Bundle`: Collection of game assets with metadata
-- `File`: Individual asset files with version tracking
-- `Version`: Game version information and asset mapping
-
-**Use Cases** (`crates/application/src/services/`):
-
-- `AssetDownloadService`: Downloads and validates game assets
-- `VersionCheckService`: Monitors for new game versions
-- `SyncTask`: Orchestrates asset synchronization workflows
-
-**Ports** (`crates/application/src/ports/`):
-
-- Repository interfaces for data persistence
-- External service abstractions for S3, email, HTTP clients
-- Configuration provider interface
-
-**Adapters** (`crates/infrastructure/src/`):
-
-- PostgreSQL repositories (`persistence/postgres/`)
-- S3-compatible storage client (`external/s3_storage_client.rs`)
-- Arknights API client (`external/ak_api_client.rs`)
-- SMTP email client (`external/smtp_client.rs`)
-
-## Development Commands
-
-### Setup
+## Quick Start
 
 ```bash
-# Install dependencies
-just init
-pnpm install
-
-# Start infrastructure services
+# Setup dependencies and infrastructure
+just init && pnpm install
 docker-compose up -d
-
-# Run database migrations
 sqlx migrate run
+
+# Start development
+pnpm dev          # Frontend (Vue + Vite)
+cargo run --bin ak-asset-storage server  # Backend API
 ```
+
+## Key Commands
 
 ### Backend (Rust)
 
 ```bash
-# Build all crates
-cargo build --workspace
-
-# Run tests
-cargo test --workspace
-
-# Run specific test
-cargo test -p ak-asset-storage-application --test test_complete_workflow
-
-# Run web server
-cargo run --bin ak-asset-storage server
-
-# Run background worker
-cargo run --bin ak-asset-storage worker
-
-# Seed database with CSV data
-cargo run --bin ak-asset-storage seed --csv-path data.csv
-
-# Check specific crate
-cargo check -p ak-asset-storage-web
+cargo build --workspace          # Build all crates
+cargo test --workspace          # Run all tests
+cargo run --bin ak-asset-storage server  # Start web server
+cargo run --bin ak-asset-storage worker  # Background sync worker
+cargo run --bin ak-asset-storage seed --csv-path data.csv  # Seed DB
 ```
 
 ### Frontend (Vue.js)
 
 ```bash
-# Install dependencies
-pnpm install
-
-# Development server
-pnpm dev
-
-# Build for production
-pnpm build
-
-# Type checking
-pnpm typecheck
-
-# Linting
-pnpm lint
-pnpm lint:fix
-
-# Generate API types from OpenAPI schema
-pnpm api
-
-# Preview production build
-pnpm preview
+pnpm dev        # Vite dev server with hot reload
+pnpm build      # Production build
+pnpm typecheck  # TypeScript checking
+pnpm lint       # ESLint
+pnpm api        # Regenerate API types from OpenAPI
 ```
 
-## Configuration
+### Database
 
-Create `config.toml` based on `example.toml`:
+```bash
+sqlx migrate run        # Run migrations
+sqlx migrate add <name> # Create new migration
+```
 
-- **Database**: PostgreSQL connection URI
-- **S3 Storage**: MinIO/S3 compatible storage settings
-- **Arknights**: Asset and configuration URLs for game data
-- **SMTP**: Email configuration for notifications
-- **Server**: Web server binding and port settings
-- **Torappu**: Torappu integration token for enhanced features
+## Core Domain Model
 
-### Core Entities
+- **Bundle**: Collection of game assets (maps to game versions)
+- **File**: Individual asset files with hash/version tracking
+- **Version**: Game version metadata and asset relationships
+- **ItemDemand**: New feature for tracking asset usage
 
-- **Bundle**: Collection of game assets
-- **Version**: Game version information
-- **File**: Individual asset files with metadata
+## External Integrations
 
-### Services
+- **PostgreSQL**: Primary storage via SQLx
+- **MinIO/S3**: Asset storage (configured via docker-compose)
+- **Arknights API**: Asset downloads from official servers
+- **SMTP**: Email notifications (optional)
+- **Torappu**: Enhanced features via token-based API
+- **Docker**: Trigger downstream tasks
+- **GitHub API**: Trigger downstream tasks
 
-- **AssetDownloadService**: Downloads assets from Arknights servers
-- **VersionCheckService**: Monitors for new game versions
-- **SyncTask**: Background synchronization of assets
+## Testing Strategy
 
-### External Integrations
+- **Unit tests**: In `crates/application/tests/unit/`
+- **Integration tests**: In `crates/application/tests/integration/`
+- **E2E tests**: Workflow tests with mocked external services
 
-- **PostgreSQL**: Primary database via SQLx
-- **MinIO/S3**: Asset storage backend
-- **Arknights API**: Official game asset endpoints
-- **SMTP**: Email notifications for sync completion
+## Development Environment
 
-## Testing
+**Infrastructure via docker-compose:**
 
-- **Integration tests**: In application crate under `tests/integration/`
+- PostgreSQL on port 25432
+- MinIO (S3) on ports 29000/29001
+- Configured via `.env` file
 
-## Database
+**Frontend stack:**
 
-- **Migrations**: In `migrations/` directory
-- **Schema**: See `docs/sql/v\d.md`
-- **Connection**: Managed through SQLx with PostgreSQL
+- Vue 3 + TypeScript + Naive UI
+- File-based routing with unplugin-vue-router
+- UnoCSS for styling
+- OpenAPI-generated API client
 
-## Frontend Structure
+## Development Guidelines
 
-- **Framework**: Vue 3 with TypeScript
-- **UI Library**: Naive UI
-- **Styling**: UnoCSS
-- **Router**: Vue Router with file-based routing
-- **API Client**: OpenAPI-generated TypeScript client
-
-## Deployment
-
-- **Docker**: Multi-stage Dockerfile for optimized builds
-- **Environment**: Uses `.env` file for sensitive configuration
-- **Health checks**: Built-in health endpoints for monitoring
+- always run cargo check if .rs has been changed

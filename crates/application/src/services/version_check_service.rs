@@ -1,31 +1,45 @@
 use crate::{
-    repositories::VersionRepository, AkApiClient, AppResult, HotUpdateList, NotificationService,
-    RemoteVersion, Version,
+    repositories::VersionRepository, AkApiClient, AppResult, DockerService, GithubService,
+    HotUpdateList, NotificationService, RemoteVersion, Version,
 };
 use tracing::{error, info, instrument};
 
-pub struct VersionCheckService<V, A, N>
+pub struct VersionCheckService<V, A, N, D, G>
 where
     V: VersionRepository,
     A: AkApiClient,
     N: NotificationService,
+    D: DockerService,
+    G: GithubService,
 {
     version_repo: V,
     ak_client: A,
     notification: N,
+    docker_service: Option<D>,
+    github_service: Option<G>,
 }
 
-impl<V, A, N> VersionCheckService<V, A, N>
+impl<V, A, N, D, G> VersionCheckService<V, A, N, D, G>
 where
     V: VersionRepository,
     A: AkApiClient,
     N: NotificationService,
+    D: DockerService,
+    G: GithubService,
 {
-    pub const fn new(version_repo: V, ak_client: A, notification: N) -> Self {
+    pub const fn new(
+        version_repo: V,
+        ak_client: A,
+        notification: N,
+        docker_service: Option<D>,
+        github_service: Option<G>,
+    ) -> Self {
         Self {
             version_repo,
             ak_client,
             notification,
+            docker_service,
+            github_service,
         }
     }
 
@@ -61,11 +75,11 @@ where
             return Ok(false);
         }
         let prev = self.version_repo.get_latest_version().await?;
-        if let Some(prev) = prev {
+        if let Some(ref prev) = prev {
             self.notification
                 .notify_update(
-                    prev.client.as_str(),
-                    prev.res.as_str(),
+                    &prev.client,
+                    &prev.res,
                     &remote.client_version,
                     &remote.res_version,
                 )
@@ -86,17 +100,48 @@ where
         let RemoteVersion {
             res_version,
             client_version,
-        } = remote;
+        } = &remote;
         let version = Version {
             id: None,
-            res: res_version,
-            client: client_version,
+            res: res_version.clone(),
+            client: client_version.clone(),
             hot_update_list: HotUpdateList::new(&hot_update_list)?,
             is_ready: false,
         };
 
         self.version_repo.create_version(version).await?;
         info!("new version created and ready for download");
+
+        // 如果启用了GitHub Actions工作流，触发工作流
+        if let Some(github_service) = &self.github_service {
+            info!("Attempting to dispatch GitHub workflow for new version");
+            match github_service.dispatch_workflow().await {
+                Ok(..) => {
+                    info!("GitHub workflow dispatched successfully");
+                }
+                Err(e) => {
+                    error!("Failed to dispatch GitHub workflow: {e}");
+                }
+            }
+        }
+
+        // 如果启用了Docker容器功能，启动新容器
+        if let Some(docker_service) = &self.docker_service {
+            if let Some(ref prev) = prev {
+                info!("Attempting to launch Docker container for new version");
+                match docker_service
+                    .launch_container(client_version, res_version, &prev.client, &prev.res)
+                    .await
+                {
+                    Ok(container_name) => {
+                        info!("Docker container launched successfully: {container_name}");
+                    }
+                    Err(e) => {
+                        error!("Failed to launch Docker container: {e}");
+                    }
+                }
+            }
+        }
 
         Ok(true)
     }

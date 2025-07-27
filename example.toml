@@ -36,7 +36,28 @@ access_key_id = "access_key_id"
 secret_access_key = "secret_access_key"
 with_virtual_hosted_style_request = false
 
+# Optional Sentry configuration for error tracking
+[sentry]
+dsn = "https://your-sentry-dsn@sentry.io/project-id"
+traces_sample_rate = 1.0
+
 # Optional Torappu configuration
 [torappu]
 token = "your-torappu-token-here"
-assetBasePath = "/assets"
+asset_base_path = "/assets"
+
+# Optional Docker configuration for launching containers on new version detection
+[torappu.docker]
+image_url = "your-docker-image:latest"
+container_name = "ak-asset-container"
+env_vars = [ "TZ=Asia/Shanghai" ]
+volume_mapping = "./data:/app/data"
+docker_host = "/var/run/docker.sock"
+
+# Optional GitHub Actions configuration for triggering workflows
+[torappu.github]
+owner = "your-username"
+repo = "your-repo"
+workflow_id = "workflow-file.yml"
+ref = "main"
+token = "github-token"

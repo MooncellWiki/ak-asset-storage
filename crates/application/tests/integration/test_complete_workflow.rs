@@ -29,8 +29,13 @@ async fn test_complete_sync_workflow() {
         TestData::sample_file_data2(),
     );
 
-    let version_service =
-        VersionCheckService::new(repository.clone(), api_client.clone(), notification.clone());
+    let version_service = VersionCheckService::new(
+        repository.clone(),
+        api_client.clone(),
+        notification.clone(),
+        None::<MockDockerService>,
+        None::<MockGithubService>,
+    );
 
     let download_service = AssetDownloadService::new(
         repository.clone(),

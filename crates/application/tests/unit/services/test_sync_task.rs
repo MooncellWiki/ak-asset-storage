@@ -14,8 +14,13 @@ async fn test_sync_task_creation() {
     let notification = MockNotificationService::new();
     let storage = MockStorageService::new();
 
-    let version_check_service =
-        VersionCheckService::new(repository.clone(), api_client.clone(), notification.clone());
+    let version_check_service = VersionCheckService::new(
+        repository.clone(),
+        api_client.clone(),
+        notification.clone(),
+        None::<MockDockerService>,
+        None::<MockGithubService>,
+    );
 
     let download_service =
         AssetDownloadService::new(repository, api_client, notification, storage, 5);
@@ -56,8 +61,13 @@ async fn test_perform_poll_with_new_version() {
         TestData::sample_file_data2(),
     );
 
-    let version_check_service =
-        VersionCheckService::new(repository.clone(), api_client.clone(), notification.clone());
+    let version_check_service = VersionCheckService::new(
+        repository.clone(),
+        api_client.clone(),
+        notification.clone(),
+        None::<MockDockerService>,
+        None::<MockGithubService>,
+    );
 
     let download_service =
         AssetDownloadService::new(repository.clone(), api_client, notification, storage, 5);

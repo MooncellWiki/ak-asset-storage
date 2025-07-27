@@ -2,7 +2,9 @@ use crate::utils::NotificationClient;
 use ak_asset_storage_application::{
     AssetDownloadService, ConfigProvider, RemoteVersion, VersionCheckService,
 };
-use ak_asset_storage_infrastructure::{HttpAkApiClient, PostgresRepository, S3StorageClient};
+use ak_asset_storage_infrastructure::{
+    BollardDockerClient, GithubClient, HttpAkApiClient, PostgresRepository, S3StorageClient,
+};
 use anyhow::Result;
 use sqlx::postgres::PgPoolOptions;
 use std::{fs, path::PathBuf};
@@ -39,6 +41,8 @@ pub async fn execute(
         repository.clone(),
         ak_api_client.clone(),
         notification.clone(),
+        None::<BollardDockerClient>, // No Docker service for seed command
+        None::<GithubClient>,        // No GitHub service for seed command
     );
     let download_service = AssetDownloadService::new(
         repository.clone(),

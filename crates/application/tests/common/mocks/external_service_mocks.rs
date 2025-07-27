@@ -1,6 +1,7 @@
 // External Service Mock implementations
 use ak_asset_storage_application::{
-    AkApiClient, AppError, AppResult, NotificationService, RemoteVersion, StorageService,
+    AkApiClient, AppError, AppResult, DockerService, NotificationService, RemoteVersion,
+    StorageService,
 };
 use async_trait::async_trait;
 use std::sync::{Arc, Mutex};
@@ -184,5 +185,35 @@ impl NotificationService for MockNotificationService {
             .lock()
             .unwrap()
             .push((client_version.to_string(), res_version.to_string()));
+    }
+}
+
+// Mock Docker Service
+#[derive(Clone, Debug)]
+pub struct MockDockerService {}
+
+#[async_trait]
+impl DockerService for MockDockerService {
+    async fn launch_container(
+        &self,
+        client_version: &str,
+        res_version: &str,
+        prev_client_version: &str,
+        prev_res_version: &str,
+    ) -> AppResult<String> {
+        Ok(format!(
+            "ak-asset-{client_version}-{res_version}-{prev_client_version}-{prev_res_version}"
+        ))
+    }
+}
+
+// Mock GitHub Service
+#[derive(Clone, Debug)]
+pub struct MockGithubService {}
+
+#[async_trait]
+impl ak_asset_storage_application::GithubService for MockGithubService {
+    async fn dispatch_workflow(&self) -> AppResult<()> {
+        Ok(())
     }
 }

@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "bollardDocs": {
+      "type": "sse",
+      "url": "https://gitmcp.io/fussybeaver/bollard"
+    }
+  }
+}

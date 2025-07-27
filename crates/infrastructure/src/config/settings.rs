@@ -25,7 +25,7 @@ impl AppSettings {
     pub fn new(config: &Path) -> AppResult<Self> {
         info!(selected_path =? config, "loading environment from");
         let content = fs::read_to_string(config).into_app_result()?;
-        toml::from_str(&content).into_app_result()
+        toml::from_str::<Self>(&content).into_app_result()
     }
 }
 
