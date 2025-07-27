@@ -2,292 +2,304 @@
 
 All notable changes to this project will be documented in this file.
 
+## [unreleased]
+
+[87fd30b](87fd30bab1c3917876b29bf59f1e5b6c3f1d3d25)...[a670787](a67078774956af206ef37e09958e7be68ae67d68)
+
+### 🚀 Features
+
+- Trigger Torappu and Ptilopsis Bot (#117) ([a670787](https://github.com/MooncellWiki/ak-asset-storage/commit/a67078774956af206ef37e09958e7be68ae67d68))
+
 ## [0.10.4] - 2025-07-26
 
-[0ab0644](0ab0644a904d7da06b5073fce417a66f80cf9d4b)...[4b4791f](4b4791fef1d931297908d11da468aa5080e29592)
+[9db419d](9db419dddd549965fd19375c6f117377b0f9b6a0)...[87fd30b](87fd30bab1c3917876b29bf59f1e5b6c3f1d3d25)
 
 ### 🐛 Bug Fixes
 
-- Front end asset dir ([4b4791f](https://github.com/MooncellWiki/ak-asset-storage/commit/4b4791fef1d931297908d11da468aa5080e29592))
+- Front end asset dir ([a51ce33](https://github.com/MooncellWiki/ak-asset-storage/commit/a51ce33abde09ff21a951c83ceec8c81b44b44ed))
+
+### ⚙️ Miscellaneous Tasks
+
+- Release 0.10.4 ([87fd30b](https://github.com/MooncellWiki/ak-asset-storage/commit/87fd30bab1c3917876b29bf59f1e5b6c3f1d3d25))
 
 ## [0.10.3] - 2025-07-26
 
-[19b818c](19b818ce8c55a4c553207317e9987efd4b9eb8fd)...[0ab0644](0ab0644a904d7da06b5073fce417a66f80cf9d4b)
+[25608e6](25608e65a0ade260c5a15c12f3fd0ddc5e6e6438)...[9db419d](9db419dddd549965fd19375c6f117377b0f9b6a0)
 
 ### 🐛 Bug Fixes
 
-- Align path with torappu backend ([c88d9fb](https://github.com/MooncellWiki/ak-asset-storage/commit/c88d9fb146d55c7de3958551522c8c911438f225))
+- Align path with torappu backend ([3c4976f](https://github.com/MooncellWiki/ak-asset-storage/commit/3c4976faf1a2895611646afc1b56dbfd7189caba))
 
 ### ⚙️ Miscellaneous Tasks
 
-- Release 0.10.3 ([0ab0644](https://github.com/MooncellWiki/ak-asset-storage/commit/0ab0644a904d7da06b5073fce417a66f80cf9d4b))
+- Release 0.10.3 ([9db419d](https://github.com/MooncellWiki/ak-asset-storage/commit/9db419dddd549965fd19375c6f117377b0f9b6a0))
 
 ## [0.10.2] - 2025-07-26
 
-[eae20c7](eae20c770a2ace57830a279c849c2cab6872c53f)...[19b818c](19b818ce8c55a4c553207317e9987efd4b9eb8fd)
+[674fb0f](674fb0f7b1ef1d2dcf0cc877cb0338553ac9d469)...[25608e6](25608e65a0ade260c5a15c12f3fd0ddc5e6e6438)
 
 ### 🐛 Bug Fixes
 
-- Dockerfile ([02e1616](https://github.com/MooncellWiki/ak-asset-storage/commit/02e1616e3bae04b6bd4b8c1815209f1271862dbc))
+- Dockerfile ([ddb23bd](https://github.com/MooncellWiki/ak-asset-storage/commit/ddb23bdc6aa6de3a7d9cb6bc1fa85edf3282a915))
 
 ### ⚙️ Miscellaneous Tasks
 
-- Release 0.10.2 ([19b818c](https://github.com/MooncellWiki/ak-asset-storage/commit/19b818ce8c55a4c553207317e9987efd4b9eb8fd))
+- Release 0.10.2 ([25608e6](https://github.com/MooncellWiki/ak-asset-storage/commit/25608e65a0ade260c5a15c12f3fd0ddc5e6e6438))
 
 ## [0.10.1] - 2025-07-26
 
-[1fbf19b](1fbf19b918469f337f42ed7a777096bd150ae9c0)...[eae20c7](eae20c770a2ace57830a279c849c2cab6872c53f)
+[f5ab6f7](f5ab6f701879d15f17060a01008dc880ef6e7e98)...[674fb0f](674fb0f7b1ef1d2dcf0cc877cb0338553ac9d469)
 
 ### 🐛 Bug Fixes
 
-- Dockerfile ([9903e02](https://github.com/MooncellWiki/ak-asset-storage/commit/9903e02490c93886bde2c4b781b4f6a77384f692))
+- Dockerfile ([32e7166](https://github.com/MooncellWiki/ak-asset-storage/commit/32e7166f2aa8713fedb522e88d9724fde7bf4460))
 
 ### ⚙️ Miscellaneous Tasks
 
-- Release 0.10.1 ([eae20c7](https://github.com/MooncellWiki/ak-asset-storage/commit/eae20c770a2ace57830a279c849c2cab6872c53f))
+- Release 0.10.1 ([674fb0f](https://github.com/MooncellWiki/ak-asset-storage/commit/674fb0f7b1ef1d2dcf0cc877cb0338553ac9d469))
 
 ## [0.10.0] - 2025-07-26
 
-[3096564](3096564c99af915fd4d8a520f7fb502f52a95767)...[1fbf19b](1fbf19b918469f337f42ed7a777096bd150ae9c0)
+[dfbada0](dfbada0ab66b5f9b22247585541bf7eeaafe655c)...[f5ab6f7](f5ab6f701879d15f17060a01008dc880ef6e7e98)
 
 ### 🚀 Features
 
-- Item_demand ([7e7dc7a](https://github.com/MooncellWiki/ak-asset-storage/commit/7e7dc7a77ab33ef7b3ee7cea280344a842950d46))
-- Torappu assets ([54a2aa1](https://github.com/MooncellWiki/ak-asset-storage/commit/54a2aa127aa55b1712e81dadde09b3ea3a5fb572))
+- Item_demand ([b9be383](https://github.com/MooncellWiki/ak-asset-storage/commit/b9be383104912e57b77bf6244b2e3b4318965057))
+- Torappu assets ([f9264d6](https://github.com/MooncellWiki/ak-asset-storage/commit/f9264d6dfc2574beec58f6e961f4e0a4c9aaec50))
 
 ### 🐛 Bug Fixes
 
-- Hash ([76273cb](https://github.com/MooncellWiki/ak-asset-storage/commit/76273cb07ee653b9f0c1436a559b071d364b0f63))
-- Tests ([5aeb5a1](https://github.com/MooncellWiki/ak-asset-storage/commit/5aeb5a1be6f27486044ce03284dfec3e6ea897ef))
-- Sqlx ([ffba0f2](https://github.com/MooncellWiki/ak-asset-storage/commit/ffba0f239c14a6888df7ab23460482194c76008b))
-- Cargo release ([5133864](https://github.com/MooncellWiki/ak-asset-storage/commit/51338644495bf1813502463bb7542328d00c8344))
+- Hash ([0bcc5dd](https://github.com/MooncellWiki/ak-asset-storage/commit/0bcc5dd1b515dbaa7b38f0ef30ca08fffddbad90))
+- Tests ([7ca8938](https://github.com/MooncellWiki/ak-asset-storage/commit/7ca89388dc936f37061b696a5051b83dadefc8a6))
+- Sqlx ([87e5063](https://github.com/MooncellWiki/ak-asset-storage/commit/87e5063e5ea3cc47c4e8ba8877514f97b8d2255d))
+- Cargo release ([22b9e69](https://github.com/MooncellWiki/ak-asset-storage/commit/22b9e6938f83ae79f42ac20af6b8ab5a9433e78b))
 
 ### 📚 Documentation
 
-- Update sql ([9abbb6b](https://github.com/MooncellWiki/ak-asset-storage/commit/9abbb6b6e5f3541e1474a9850889713d02700cf8))
+- Update sql ([87cc180](https://github.com/MooncellWiki/ak-asset-storage/commit/87cc180cba44d19f9fbca0bbda7f9b81aa0efcfb))
 
 ### ⚙️ Miscellaneous Tasks
 
-- Update dependencies ([22a9f7c](https://github.com/MooncellWiki/ak-asset-storage/commit/22a9f7c7c231f433cb14b933a10ce6522592f898))
-- Release 0.10.0 ([1fbf19b](https://github.com/MooncellWiki/ak-asset-storage/commit/1fbf19b918469f337f42ed7a777096bd150ae9c0))
+- Update dependencies ([316588b](https://github.com/MooncellWiki/ak-asset-storage/commit/316588b28aadc11c132e30ca9ad7c262bfed7d49))
+- Release 0.10.0 ([f5ab6f7](https://github.com/MooncellWiki/ak-asset-storage/commit/f5ab6f701879d15f17060a01008dc880ef6e7e98))
 
 ### Refactor
 
-- Move to multi crates (#116) ([f09d505](https://github.com/MooncellWiki/ak-asset-storage/commit/f09d5050f72ac626fb7d0307f66aa4d61bcec4d8))
+- Move to multi crates (#116) ([cdae1e3](https://github.com/MooncellWiki/ak-asset-storage/commit/cdae1e30c8ce14d1b34a22d44fa78c89b293a0c0))
 
 ## [0.9.0] - 2025-06-05
 
-[a3cf2da](a3cf2da0f1c86377f68d6fd43a85e9a4ffdf0276)...[3096564](3096564c99af915fd4d8a520f7fb502f52a95767)
+[ecf87e9](ecf87e9dcb37216a18036fb0388438464dcd6f42)...[dfbada0](dfbada0ab66b5f9b22247585541bf7eeaafe655c)
 
 ### 🚀 Features
 
-- Concurrent download ([0177171](https://github.com/MooncellWiki/ak-asset-storage/commit/017717148b4a676fff18f1aad699cd694bb3c660))
+- Concurrent download ([c63b73c](https://github.com/MooncellWiki/ak-asset-storage/commit/c63b73c17343143142a6b62153a349d9f9a8c000))
 
 ### ⚙️ Miscellaneous Tasks
 
-- Update ([94c6888](https://github.com/MooncellWiki/ak-asset-storage/commit/94c6888de5999e441171c9e0b866bb6a2d3abb33))
-- Update dependencies ([b425a9d](https://github.com/MooncellWiki/ak-asset-storage/commit/b425a9d65c1fe9779063bbe61f5bfcd873f210cd))
-- Update dependencies ([eb6dfc8](https://github.com/MooncellWiki/ak-asset-storage/commit/eb6dfc8bfa40db18163c8398eddfd2da4c3b974a))
-- Update dependencies ([ec6a01c](https://github.com/MooncellWiki/ak-asset-storage/commit/ec6a01cf4daea6f0c59d819131be43086893f2da))
-- Update node ([9337431](https://github.com/MooncellWiki/ak-asset-storage/commit/93374318a141335c2a28e37bcd944a48f824469b))
-- Disable eslint ([0f20f9c](https://github.com/MooncellWiki/ak-asset-storage/commit/0f20f9cfc39b70d791c1fc60e0291608deecc0f3))
-- Release 0.9.0 ([3096564](https://github.com/MooncellWiki/ak-asset-storage/commit/3096564c99af915fd4d8a520f7fb502f52a95767))
+- Update ([a8bda4e](https://github.com/MooncellWiki/ak-asset-storage/commit/a8bda4e6aa86250a297f52191b8c9ba93d567b91))
+- Update dependencies ([c8a2558](https://github.com/MooncellWiki/ak-asset-storage/commit/c8a2558481545f5c6c336e514d1acb3cac12f403))
+- Update dependencies ([fbb79c8](https://github.com/MooncellWiki/ak-asset-storage/commit/fbb79c8327c89134f9d33eafcd52d265cdb19dc2))
+- Update dependencies ([e0a1ea3](https://github.com/MooncellWiki/ak-asset-storage/commit/e0a1ea3870795c75710030f8d33845cdb84db85d))
+- Update node ([366aaf4](https://github.com/MooncellWiki/ak-asset-storage/commit/366aaf4cdf61f45edc45ba556a7c59fc9f4fc721))
+- Disable eslint ([5e76f49](https://github.com/MooncellWiki/ak-asset-storage/commit/5e76f490c316d43bd0d7f94fbf48d368deb84b8d))
+- Release 0.9.0 ([dfbada0](https://github.com/MooncellWiki/ak-asset-storage/commit/dfbada0ab66b5f9b22247585541bf7eeaafe655c))
 
 ## [0.8.1] - 2024-12-29
 
-[61c430a](61c430aa3a6116642f07e7d962b73f19edd8fa02)...[a3cf2da](a3cf2da0f1c86377f68d6fd43a85e9a4ffdf0276)
+[a4fc94f](a4fc94f850488becf53db5acfdc1e82bac27aee5)...[ecf87e9](ecf87e9dcb37216a18036fb0388438464dcd6f42)
 
 ### ⚙️ Miscellaneous Tasks
 
-- Disable debug sentry ([8bd54c8](https://github.com/MooncellWiki/ak-asset-storage/commit/8bd54c8f3878aea3ca31f5ca4aa25055d6258911))
-- Release 0.8.1 ([a3cf2da](https://github.com/MooncellWiki/ak-asset-storage/commit/a3cf2da0f1c86377f68d6fd43a85e9a4ffdf0276))
+- Disable debug sentry ([bcd81cd](https://github.com/MooncellWiki/ak-asset-storage/commit/bcd81cd4039bd7751686d26e0b0d2c706638ec6a))
+- Release 0.8.1 ([ecf87e9](https://github.com/MooncellWiki/ak-asset-storage/commit/ecf87e9dcb37216a18036fb0388438464dcd6f42))
 
 ## [0.8.0] - 2024-12-29
 
-[844a861](844a861d77d6d938e4da79af4b5dbfc09ba86ed1)...[61c430a](61c430aa3a6116642f07e7d962b73f19edd8fa02)
+[79324f6](79324f6747b7354abbb91cb17795147a65973845)...[a4fc94f](a4fc94f850488becf53db5acfdc1e82bac27aee5)
 
 ### 🚀 Features
 
-- Add sentry for backend ([1c34d35](https://github.com/MooncellWiki/ak-asset-storage/commit/1c34d35aeb86e10441d053ad033e676ed2177ac6))
+- Add sentry for backend ([2ff948a](https://github.com/MooncellWiki/ak-asset-storage/commit/2ff948a37d9a5024ce7c176c7c82bee67b56d4f2))
 
 ### 🐛 Bug Fixes
 
-- Embed path ([7ce48f0](https://github.com/MooncellWiki/ak-asset-storage/commit/7ce48f094b419a50d34149a1089a446c88a9334f))
+- Embed path ([8399e17](https://github.com/MooncellWiki/ak-asset-storage/commit/8399e170ed4af850e66281bbaebffcb1ee7743a2))
 
 ### 🚜 Refactor
 
-- 拉平目录结构，从sea-orm换成sqlx ([df09245](https://github.com/MooncellWiki/ak-asset-storage/commit/df09245c1ab9bb4307bc5800311920a24f8bfcf4))
+- 拉平目录结构，从sea-orm换成sqlx ([1bcf9d9](https://github.com/MooncellWiki/ak-asset-storage/commit/1bcf9d9e94b04d67c3a941690d72b8e3e50fc232))
 
 ### ⚙️ Miscellaneous Tasks
 
-- Fix ([7c3c978](https://github.com/MooncellWiki/ak-asset-storage/commit/7c3c978cc7a95a67b4f0d0d83357a50e84e52e2e))
-- Update deps ([0683640](https://github.com/MooncellWiki/ak-asset-storage/commit/0683640ce664d0886fac852a2add6c564abaa7f4))
-- Fix ([741aa60](https://github.com/MooncellWiki/ak-asset-storage/commit/741aa60ef25bda5eb51a4833652ce2cdcef0460e))
-- Add desc ([e72d063](https://github.com/MooncellWiki/ak-asset-storage/commit/e72d06362fcd089b2e753faeb6d8e9d89ae0e08f))
-- Release 0.8.0 ([61c430a](https://github.com/MooncellWiki/ak-asset-storage/commit/61c430aa3a6116642f07e7d962b73f19edd8fa02))
+- Fix ([cd016c1](https://github.com/MooncellWiki/ak-asset-storage/commit/cd016c190f051b40a240529f9bc72cd3f227b22d))
+- Update deps ([c8b23c2](https://github.com/MooncellWiki/ak-asset-storage/commit/c8b23c2ffb25ee40c349b697b5136a46ff863b65))
+- Fix ([d2af6e3](https://github.com/MooncellWiki/ak-asset-storage/commit/d2af6e3e87a6e4f9c31cbd5466be12b861840f6b))
+- Add desc ([7740ad0](https://github.com/MooncellWiki/ak-asset-storage/commit/7740ad07f35c3b73f1f5d6109c39df02f9a16879))
+- Release 0.8.0 ([a4fc94f](https://github.com/MooncellWiki/ak-asset-storage/commit/a4fc94f850488becf53db5acfdc1e82bac27aee5))
 
 ## [0.7.1] - 2024-12-07
 
-[8c82239](8c82239735d4d1783c85b3102da56f4c9585d135)...[844a861](844a861d77d6d938e4da79af4b5dbfc09ba86ed1)
+[88702fe](88702fef70939ace78bd2aafeb3101311824b4f8)...[79324f6](79324f6747b7354abbb91cb17795147a65973845)
 
 ### 🐛 Bug Fixes
 
-- 点到父节点上时不显示弹窗 ([69112af](https://github.com/MooncellWiki/ak-asset-storage/commit/69112af898ee06b5236a8eb44987d78178a23cf2))
+- 点到父节点上时不显示弹窗 ([9ffb3c5](https://github.com/MooncellWiki/ak-asset-storage/commit/9ffb3c5e3b2bfd00aa96f0a1c17156101f2862ae))
 
 ### ⚙️ Miscellaneous Tasks
 
-- Release 0.7.1 ([844a861](https://github.com/MooncellWiki/ak-asset-storage/commit/844a861d77d6d938e4da79af4b5dbfc09ba86ed1))
+- Release 0.7.1 ([79324f6](https://github.com/MooncellWiki/ak-asset-storage/commit/79324f6747b7354abbb91cb17795147a65973845))
 
 ## [0.7.0] - 2024-12-07
 
-[241f48b](241f48b09e2c22830c370a47b4a8bfe2d231e9bf)...[8c82239](8c82239735d4d1783c85b3102da56f4c9585d135)
+[0b1a038](0b1a038f74e7d037bac300875ec1cbe6c25a4d40)...[88702fe](88702fef70939ace78bd2aafeb3101311824b4f8)
 
 ### 🚀 Features
 
-- 支持搜索 ([6ca3365](https://github.com/MooncellWiki/ak-asset-storage/commit/6ca33658224cce598b38160b4c7cbe5ccd7519f2))
-- Better download file name ([d9757ea](https://github.com/MooncellWiki/ak-asset-storage/commit/d9757eaf4399c94e0d07fa79e29c151ae5c098cc))
+- 支持搜索 ([592cba7](https://github.com/MooncellWiki/ak-asset-storage/commit/592cba747d96789c7ac1260fd6d80053dba8bb1d))
+- Better download file name ([4186210](https://github.com/MooncellWiki/ak-asset-storage/commit/4186210282f6c1e2f28e3580a5124cd5e5bdd29d))
 
 ### ⚙️ Miscellaneous Tasks
 
-- Release 0.7.0 ([8c82239](https://github.com/MooncellWiki/ak-asset-storage/commit/8c82239735d4d1783c85b3102da56f4c9585d135))
+- Release 0.7.0 ([88702fe](https://github.com/MooncellWiki/ak-asset-storage/commit/88702fef70939ace78bd2aafeb3101311824b4f8))
 
 ## [0.6.0] - 2024-12-07
 
-[5c285df](5c285df8e21a3d76eed8e08813e908b1f38ac244)...[241f48b](241f48b09e2c22830c370a47b4a8bfe2d231e9bf)
+[e816993](e816993999b50e6fb21904c0e1846bd8f67850c4)...[0b1a038](0b1a038f74e7d037bac300875ec1cbe6c25a4d40)
 
 ### 🚀 Features
 
-- 支持版本没选全的情况 ([23030b8](https://github.com/MooncellWiki/ak-asset-storage/commit/23030b81486d161df6780cb85bda45aa1993b84a))
+- 支持版本没选全的情况 ([5dedd31](https://github.com/MooncellWiki/ak-asset-storage/commit/5dedd31ce03268cd598ba93adab409f1ec3ae053))
 
 ### ⚙️ Miscellaneous Tasks
 
-- Release 0.6.0 ([241f48b](https://github.com/MooncellWiki/ak-asset-storage/commit/241f48b09e2c22830c370a47b4a8bfe2d231e9bf))
+- Release 0.6.0 ([0b1a038](https://github.com/MooncellWiki/ak-asset-storage/commit/0b1a038f74e7d037bac300875ec1cbe6c25a4d40))
 
 ## [0.5.2] - 2024-12-07
 
-[793075a](793075a29eb98d0c61ebc225aed81800ab2799c7)...[5c285df](5c285df8e21a3d76eed8e08813e908b1f38ac244)
+[0d32eb5](0d32eb583b6974448079f5e624071b067bc3e16a)...[e816993](e816993999b50e6fb21904c0e1846bd8f67850c4)
 
 ### 🐛 Bug Fixes
 
-- Content type ([3938d36](https://github.com/MooncellWiki/ak-asset-storage/commit/3938d36300a84f6f03f3ae0553912dd4c682015b))
+- Content type ([09300c1](https://github.com/MooncellWiki/ak-asset-storage/commit/09300c18282dee7090e949ba4bdb64a590188533))
 
 ### ⚙️ Miscellaneous Tasks
 
-- Release 0.5.2 ([5c285df](https://github.com/MooncellWiki/ak-asset-storage/commit/5c285df8e21a3d76eed8e08813e908b1f38ac244))
+- Release 0.5.2 ([e816993](https://github.com/MooncellWiki/ak-asset-storage/commit/e816993999b50e6fb21904c0e1846bd8f67850c4))
 
 ## [0.5.1] - 2024-12-07
 
-[11d072a](11d072a7445176695e990159ba2cb325a80361a4)...[793075a](793075a29eb98d0c61ebc225aed81800ab2799c7)
+[1a3d11f](1a3d11f7e01209757084f96fbb3d15c8beee5bdd)...[0d32eb5](0d32eb583b6974448079f5e624071b067bc3e16a)
 
 ### 🐛 Bug Fixes
 
-- Version list接口不响应hot update list ([63c2fcd](https://github.com/MooncellWiki/ak-asset-storage/commit/63c2fcd0a446553f09bd3e71caac74bd6393d222))
+- Version list接口不响应hot update list ([dd9f08f](https://github.com/MooncellWiki/ak-asset-storage/commit/dd9f08ff5a1989f45eff266dcd8bd9bd881863dc))
 
 ### ⚙️ Miscellaneous Tasks
 
-- Release 0.5.1 ([793075a](https://github.com/MooncellWiki/ak-asset-storage/commit/793075a29eb98d0c61ebc225aed81800ab2799c7))
+- Release 0.5.1 ([0d32eb5](https://github.com/MooncellWiki/ak-asset-storage/commit/0d32eb583b6974448079f5e624071b067bc3e16a))
 
 ## [0.5.0] - 2024-12-07
 
-[65438c0](65438c063cc6e7c6d6cd1244f0128a9e1bcc68fa)...[11d072a](11d072a7445176695e990159ba2cb325a80361a4)
+[364ef9c](364ef9c890a2a8536b25429921ad113d7cdcc39e)...[1a3d11f](1a3d11f7e01209757084f96fbb3d15c8beee5bdd)
 
 ### 🚀 Features
 
-- Support start server without start worker ([9472b80](https://github.com/MooncellWiki/ak-asset-storage/commit/9472b80c33dedcd8da8131a924d8cfe9521290db))
-- Version list接口不响应hot update list ([6792b9c](https://github.com/MooncellWiki/ak-asset-storage/commit/6792b9ce568b0a72d67feb92f2f8e83595f4ede3))
+- Support start server without start worker ([a9c2942](https://github.com/MooncellWiki/ak-asset-storage/commit/a9c294258f0a75e7c33965ee0a0ae97844e69d64))
+- Version list接口不响应hot update list ([0730653](https://github.com/MooncellWiki/ak-asset-storage/commit/0730653f8cb41d0dc1f1115bb5052e22ac66d342))
 
 ### 🐛 Bug Fixes
 
-- Fallback to index.html when asset not found ([a56654b](https://github.com/MooncellWiki/ak-asset-storage/commit/a56654ba7bb8335c1680b715e4deaed4cd766cb4))
-- Email url ([244e875](https://github.com/MooncellWiki/ak-asset-storage/commit/244e875b34dacd54184ea5ed16a27521c1b52722))
-- Update field ([73a478c](https://github.com/MooncellWiki/ak-asset-storage/commit/73a478cf50ec31b9ef27606de4d1a242aee7a403))
+- Fallback to index.html when asset not found ([5aabd20](https://github.com/MooncellWiki/ak-asset-storage/commit/5aabd20468d6c1063c600132eed04a274beeb871))
+- Email url ([4214598](https://github.com/MooncellWiki/ak-asset-storage/commit/4214598955c67ff62985b96164180da94e377467))
+- Update field ([b54e9bb](https://github.com/MooncellWiki/ak-asset-storage/commit/b54e9bbcdeba21feef1658ab7fb7f56247e4de41))
 
 ### 🚜 Refactor
 
-- Move position ([be335ac](https://github.com/MooncellWiki/ak-asset-storage/commit/be335ac03d5e335e7afff8a5caa279f5357dc2fe))
+- Move position ([15bca67](https://github.com/MooncellWiki/ak-asset-storage/commit/15bca67683dc1b776824ca50745d5f19729280c1))
 
 ### ⚙️ Miscellaneous Tasks
 
-- Update dependencies ([95d0377](https://github.com/MooncellWiki/ak-asset-storage/commit/95d0377c394a945395b4c61830f72975753543ce))
-- Update dependencies ([74995fb](https://github.com/MooncellWiki/ak-asset-storage/commit/74995fb3b8fdff6f7b7bcfc56017b820af2df849))
-- Update pnpm to v9.15.0 (#27) ([1865ff1](https://github.com/MooncellWiki/ak-asset-storage/commit/1865ff18b7d7c6744cbe01d42516b68d134b35e1)), Co-authored-by:renovate[bot] <29139614+renovate[bot]@users.noreply.github.com>
-- Update tokio-tracing monorepo (#26) ([c26a31b](https://github.com/MooncellWiki/ak-asset-storage/commit/c26a31b4b2eb76aedbef0e79453b29f41672f45c)), Co-authored-by:renovate[bot] <29139614+renovate[bot]@users.noreply.github.com>
-- Lock file maintenance (#28) ([b57581c](https://github.com/MooncellWiki/ak-asset-storage/commit/b57581c59b740e9905a85f9468bde612affa8b54)), Co-authored-by:renovate[bot] <29139614+renovate[bot]@users.noreply.github.com>
-- Release 0.5.0 ([11d072a](https://github.com/MooncellWiki/ak-asset-storage/commit/11d072a7445176695e990159ba2cb325a80361a4))
+- Update dependencies ([47fe5b7](https://github.com/MooncellWiki/ak-asset-storage/commit/47fe5b76e82e0f03e0116a25a6f499d08b5d70a1))
+- Update dependencies ([6c099e5](https://github.com/MooncellWiki/ak-asset-storage/commit/6c099e58bfe0d9b54d3929a61812548b99c1f54e))
+- Update pnpm to v9.15.0 (#27) ([453dee3](https://github.com/MooncellWiki/ak-asset-storage/commit/453dee3b42712559f45b0bc5ae2e1909aa6d7507)), Co-authored-by:renovate[bot] <29139614+renovate[bot]@users.noreply.github.com>
+- Update tokio-tracing monorepo (#26) ([10a9c16](https://github.com/MooncellWiki/ak-asset-storage/commit/10a9c16cdcf3eb5296fc2dcfa7fb32487156b0ed)), Co-authored-by:renovate[bot] <29139614+renovate[bot]@users.noreply.github.com>
+- Lock file maintenance (#28) ([6b9de3a](https://github.com/MooncellWiki/ak-asset-storage/commit/6b9de3a406179f71a99b47bf791afcd6e445a9e0)), Co-authored-by:renovate[bot] <29139614+renovate[bot]@users.noreply.github.com>
+- Release 0.5.0 ([1a3d11f](https://github.com/MooncellWiki/ak-asset-storage/commit/1a3d11f7e01209757084f96fbb3d15c8beee5bdd))
 
 ## [0.4.0] - 2024-11-25
 
-[972e9dc](972e9dcc72bd77adc30693b32d15fa7f05583d68)...[65438c0](65438c063cc6e7c6d6cd1244f0128a9e1bcc68fa)
+[b979426](b979426e7d60c308fb149f385243f1bb0e99b6e9)...[364ef9c](364ef9c890a2a8536b25429921ad113d7cdcc39e)
 
 ### 🐛 Bug Fixes
 
-- Check resp code when download ([b7af8cd](https://github.com/MooncellWiki/ak-asset-storage/commit/b7af8cd0ef9fdfa3bdf9d3511507ca65d684cbe6))
+- Check resp code when download ([b57433c](https://github.com/MooncellWiki/ak-asset-storage/commit/b57433c0991891c692a33b24e6d6898ed2198c58))
 
 ### ⚙️ Miscellaneous Tasks
 
-- Update dependencies ([a3e10d8](https://github.com/MooncellWiki/ak-asset-storage/commit/a3e10d8c9293307195ed92b69cbe1993e68f9ce5))
-- Release 0.4.0 ([65438c0](https://github.com/MooncellWiki/ak-asset-storage/commit/65438c063cc6e7c6d6cd1244f0128a9e1bcc68fa))
+- Update dependencies ([48be2fc](https://github.com/MooncellWiki/ak-asset-storage/commit/48be2fcfbd38164746a16634e87df8cfe5123009))
+- Release 0.4.0 ([364ef9c](https://github.com/MooncellWiki/ak-asset-storage/commit/364ef9c890a2a8536b25429921ad113d7cdcc39e))
 
 ## [0.3.0] - 2024-11-21
 
-[ba4ddaa](ba4ddaac8494a5769e810e3fffef23441f54bf63)...[972e9dc](972e9dcc72bd77adc30693b32d15fa7f05583d68)
+[8af205a](8af205a81d1c7a03ab32f85d10330832e83aaa27)...[b979426](b979426e7d60c308fb149f385243f1bb0e99b6e9)
 
 ### 🐛 Bug Fixes
 
-- 优化seed逻辑 ([7dbd6e9](https://github.com/MooncellWiki/ak-asset-storage/commit/7dbd6e901a29098fed215abc0f33eee8fa4b4e71))
+- 优化seed逻辑 ([9e15d3c](https://github.com/MooncellWiki/ak-asset-storage/commit/9e15d3c74e9b33182cacfda41587d68d4d571a7d))
 
 ### ⚙️ Miscellaneous Tasks
 
-- Release 0.3.0 ([972e9dc](https://github.com/MooncellWiki/ak-asset-storage/commit/972e9dcc72bd77adc30693b32d15fa7f05583d68))
+- Release 0.3.0 ([b979426](https://github.com/MooncellWiki/ak-asset-storage/commit/b979426e7d60c308fb149f385243f1bb0e99b6e9))
 
 ## [0.2.0] - 2024-11-18
 
-[b66077e](b66077ef302e733603f736e85bf87805cb12259f)...[ba4ddaa](ba4ddaac8494a5769e810e3fffef23441f54bf63)
+[2c595c2](2c595c2a8fd0dd9e77a97ec196e04bf7c2ec9b3a)...[8af205a](8af205a81d1c7a03ab32f85d10330832e83aaa27)
 
 ### ⚙️ Miscellaneous Tasks
 
-- Run eslint in ci ([cdb1ae3](https://github.com/MooncellWiki/ak-asset-storage/commit/cdb1ae306d6662b2d7fafce0f94d84792f043d09))
-- Release docker image ([1bc93f3](https://github.com/MooncellWiki/ak-asset-storage/commit/1bc93f31af71837af58bf227bad44db14bd37ac4))
-- Fix eslint ([6c714d3](https://github.com/MooncellWiki/ak-asset-storage/commit/6c714d323a65369208846a3570c2e6c359639a3c))
-- Update changelog template ([327382c](https://github.com/MooncellWiki/ak-asset-storage/commit/327382c55ab2a49e09fdfada22519bbb3394b25e))
-- Release 0.2.0 ([ba4ddaa](https://github.com/MooncellWiki/ak-asset-storage/commit/ba4ddaac8494a5769e810e3fffef23441f54bf63))
+- Run eslint in ci ([228d265](https://github.com/MooncellWiki/ak-asset-storage/commit/228d265dbcb876bcca401e098705ddfeeb88853a))
+- Release docker image ([c5a6d4c](https://github.com/MooncellWiki/ak-asset-storage/commit/c5a6d4c54ef1595c4ccab98713ffb7066a013178))
+- Fix eslint ([9042642](https://github.com/MooncellWiki/ak-asset-storage/commit/9042642909b310140fb175771c6475c6d45c62a3))
+- Update changelog template ([799d1a0](https://github.com/MooncellWiki/ak-asset-storage/commit/799d1a0a2ff5638d0e4659c48d14d7b8dc148758))
+- Release 0.2.0 ([8af205a](https://github.com/MooncellWiki/ak-asset-storage/commit/8af205a81d1c7a03ab32f85d10330832e83aaa27))
 
 ## [0.1.0] - 2024-11-17
 
 ### 🚀 Features
 
-- Seed ([cd75b52](https://github.com/MooncellWiki/ak-asset-storage/commit/cd75b5213e0f1f1ded41b021d4dda9e95dac7333))
-- Openapi and scalar ([fb79f54](https://github.com/MooncellWiki/ak-asset-storage/commit/fb79f540cf4bd59130d966e69e0906078d78bd54))
-- Support minio ([68ed057](https://github.com/MooncellWiki/ak-asset-storage/commit/68ed0573ff67c97b2eef635aa2b1d9b553afa721)), feat:always download data from remote
-- Serve frontend ([5e236c5](https://github.com/MooncellWiki/ak-asset-storage/commit/5e236c5968e2e12684659eecf01fbddcf59cd756))
-- 显示版本状态 ([8009bc3](https://github.com/MooncellWiki/ak-asset-storage/commit/8009bc3f9a40c5ade37fb71af6d1d80a355ba73b))
+- Seed ([2169669](https://github.com/MooncellWiki/ak-asset-storage/commit/2169669146b9ee4174568aa53738f6bf8f861c1b))
+- Openapi and scalar ([02f4417](https://github.com/MooncellWiki/ak-asset-storage/commit/02f4417a5f61fdfcb5b04e45c6a8475633fef480))
+- Support minio ([2ad67cc](https://github.com/MooncellWiki/ak-asset-storage/commit/2ad67cc60b70942eeb9b28587a51ed626908c086)), feat:always download data from remote
+- Serve frontend ([f66a881](https://github.com/MooncellWiki/ak-asset-storage/commit/f66a88125702ef185ef0eb1f6575013884194893))
+- 显示版本状态 ([8ce2488](https://github.com/MooncellWiki/ak-asset-storage/commit/8ce24889ae12a0ed3f7207b56e31873eeb007de8))
 
 ### 🐛 Bug Fixes
 
-- Ci ([199197c](https://github.com/MooncellWiki/ak-asset-storage/commit/199197cb24c25072d9e009c108f74853ccff072a))
-- Format ([f4d1845](https://github.com/MooncellWiki/ak-asset-storage/commit/f4d1845b818b90d03b291f992f520ef2be4c1478))
-- Features and lint ([ed62bd7](https://github.com/MooncellWiki/ak-asset-storage/commit/ed62bd7a67ecdee072757d28782db00e746739df))
-- Update title ([3839e00](https://github.com/MooncellWiki/ak-asset-storage/commit/3839e00ec94deb915287d105053be05c64de6476))
+- Ci ([ef378a1](https://github.com/MooncellWiki/ak-asset-storage/commit/ef378a132c8fff86943212a302f958ed7ed4289c))
+- Format ([a6d57b5](https://github.com/MooncellWiki/ak-asset-storage/commit/a6d57b529f1ad0efd15a9bd562be27b00c319e30))
+- Features and lint ([58e71bf](https://github.com/MooncellWiki/ak-asset-storage/commit/58e71bf5e50da35208a433822fd1b782c90d13a6))
+- Update title ([d54d4db](https://github.com/MooncellWiki/ak-asset-storage/commit/d54d4db33a2fcc58e2d17f0ab346265d97eeaf52))
 
 ### 🚜 Refactor
 
-- Clippy ([342fdf7](https://github.com/MooncellWiki/ak-asset-storage/commit/342fdf729d38ac699852a19252739c6744a0798b))
-- Split download and check task ([c495d84](https://github.com/MooncellWiki/ak-asset-storage/commit/c495d84434573d70a9716697de843368babe4d8b))
-- Remove loco ([472c1bc](https://github.com/MooncellWiki/ak-asset-storage/commit/472c1bc799f5b0d2f363a90afb0ab8ba59ac33b1))
-- Redesign database layout ([13ab35e](https://github.com/MooncellWiki/ak-asset-storage/commit/13ab35e09167df14972bf4d2b918c0f690789a0f))
-- Monorepo ([f75d8b7](https://github.com/MooncellWiki/ak-asset-storage/commit/f75d8b79597cc9173a21ba11b6889dd461479aff))
+- Clippy ([270fdb6](https://github.com/MooncellWiki/ak-asset-storage/commit/270fdb6318889626f5d729a49b44c6e3ee513da9))
+- Split download and check task ([d404f97](https://github.com/MooncellWiki/ak-asset-storage/commit/d404f975ee26ad3096c775131b04273f400a85db))
+- Remove loco ([b474219](https://github.com/MooncellWiki/ak-asset-storage/commit/b4742195b3b77137810034dd587d348faeb04ea2))
+- Redesign database layout ([e074a82](https://github.com/MooncellWiki/ak-asset-storage/commit/e074a821af1cbb2b51d479c7fb125795b753f9f7))
+- Monorepo ([80e7ca7](https://github.com/MooncellWiki/ak-asset-storage/commit/80e7ca75554efe2deea963ea8c6b8ff67a2db751))
 
 ### 📚 Documentation
 
-- Update readme ([ada2fce](https://github.com/MooncellWiki/ak-asset-storage/commit/ada2fce31c9482130afb235271e2a8bf6af60d06)), chore:format
+- Update readme ([db0a5c9](https://github.com/MooncellWiki/ak-asset-storage/commit/db0a5c92c7ae588c3f364887cbf4c26b2f145823)), chore:format
 
 ### ⚙️ Miscellaneous Tasks
 
-- Update git hook ([2bfc82d](https://github.com/MooncellWiki/ak-asset-storage/commit/2bfc82d89a5dd7fdfdf8091db8a354150365e09d))
-- Update gitignore ([5fb4927](https://github.com/MooncellWiki/ak-asset-storage/commit/5fb49275b4b3b1f5179a5bd7ea096ee598ba6dbd))
-- Release tools ([33aaa2b](https://github.com/MooncellWiki/ak-asset-storage/commit/33aaa2b1aea36f5eaa04960c69511bf11589c976))
-- Fix ci ([1111e4c](https://github.com/MooncellWiki/ak-asset-storage/commit/1111e4c1765c10914929533b13711c156cb4a11f))
-- Setup git-cliff and cargo release ([01a7a40](https://github.com/MooncellWiki/ak-asset-storage/commit/01a7a4025d637096d807aa0bacb89a32cdf14cdd))
-- Release 0.1.0 ([b66077e](https://github.com/MooncellWiki/ak-asset-storage/commit/b66077ef302e733603f736e85bf87805cb12259f))
+- Update git hook ([129f669](https://github.com/MooncellWiki/ak-asset-storage/commit/129f66998cce863ec01c7c40d607647e46cf8996))
+- Update gitignore ([734d649](https://github.com/MooncellWiki/ak-asset-storage/commit/734d649873ce183498e775fdf634ebc892b42c0d))
+- Release tools ([50dc5c2](https://github.com/MooncellWiki/ak-asset-storage/commit/50dc5c2c6011dfc6c90200d620d520c060f06b32))
+- Fix ci ([ede4baf](https://github.com/MooncellWiki/ak-asset-storage/commit/ede4baf6839964a5e50583b84b37cafa6024a8af))
+- Setup git-cliff and cargo release ([095113a](https://github.com/MooncellWiki/ak-asset-storage/commit/095113a95980a53c13720afe8d295f8ddd5ef7f7))
+- Release 0.1.0 ([2c595c2](https://github.com/MooncellWiki/ak-asset-storage/commit/2c595c2a8fd0dd9e77a97ec196e04bf7c2ec9b3a))
 
 <!-- generated by git-cliff -->
