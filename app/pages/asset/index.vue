@@ -101,9 +101,9 @@ function makeDisplayable(
 }
 function realPath(e: Entry): string {
   if (e.path.startsWith("raw")) {
-    return `/${e.path.replace("raw", "assets")}`;
+    return `${location.origin}/${e.path.replace("raw", "assets")}`;
   }
-  return `/${e.path}`;
+  return `${location.origin}/${e.path}`;
 }
 function open(p: string) {
   window.open(p);
