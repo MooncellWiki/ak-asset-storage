@@ -63,9 +63,9 @@ async function search() {
 }
 const columns: TableColumns<components["schemas"]["BundleDetailsDto"]> = [
   { title: "path", key: "path" },
-  { title: "hash", key: "hash", width: 550 },
-  { title: "clientVersion", key: "client", width: 140 },
-  { title: "resVersion", key: "res", width: 250 },
+  { title: "hash", key: "fileHash", width: 550 },
+  { title: "clientVersion", key: "versionClient", width: 140 },
+  { title: "resVersion", key: "versionRes", width: 250 },
   {
     key: "action",
     title: "操作",
