@@ -104,7 +104,7 @@ INNER JOIN
 INNER JOIN
     versions v ON b.version = v.id
 WHERE
-    ($1::varchar IS NULL OR b.path = $1)
+    ($1::varchar IS NULL OR b.path LIKE CONCAT('%', $1, '%'))
     AND ($2::varchar IS NULL OR f.hash = $2)
     AND ($3::int IS NULL OR b.file = $3)
     AND ($4::int IS NULL OR b.version = $4)
