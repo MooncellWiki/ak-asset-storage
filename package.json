@@ -31,7 +31,7 @@
     "@vitejs/plugin-vue": "^6.0.0",
     "@vitejs/plugin-vue-jsx": "^5.0.1",
     "@xwbx/eslint-config": "^0.7.0",
-    "eslint": "^9.31.0",
+    "eslint": "^9.32.0",
     "husky": "^9.1.7",
     "lint-staged": "^16.1.2",
     "openapi-typescript": "^7.8.0",
