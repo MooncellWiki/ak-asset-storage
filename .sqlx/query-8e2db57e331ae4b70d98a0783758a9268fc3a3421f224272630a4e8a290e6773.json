@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\nSELECT\n    b.id as \"id!\",\n    b.path as \"path!\",\n    b.file as \"file_id!\",\n    b.version as \"version_id!\",\n    f.hash as \"file_hash\",\n    f.size as \"file_size\",\n    v.client as \"version_client\",\n    v.res as \"version_res\",\n    v.is_ready as \"version_is_ready!\"\nFROM\n    bundles b\nINNER JOIN\n    files f ON b.file = f.id\nINNER JOIN\n    versions v ON b.version = v.id\nWHERE\n    ($1::varchar IS NULL OR b.path = $1)\n    AND ($2::varchar IS NULL OR f.hash = $2)\n    AND ($3::int IS NULL OR b.file = $3)\n    AND ($4::int IS NULL OR b.version = $4)\n            ",
+  "query": "\nSELECT\n    b.id as \"id!\",\n    b.path as \"path!\",\n    b.file as \"file_id!\",\n    b.version as \"version_id!\",\n    f.hash as \"file_hash\",\n    f.size as \"file_size\",\n    v.client as \"version_client\",\n    v.res as \"version_res\",\n    v.is_ready as \"version_is_ready!\"\nFROM\n    bundles b\nINNER JOIN\n    files f ON b.file = f.id\nINNER JOIN\n    versions v ON b.version = v.id\nWHERE\n    ($1::varchar IS NULL OR b.path LIKE CONCAT('%', $1, '%'))\n    AND ($2::varchar IS NULL OR f.hash = $2)\n    AND ($3::int IS NULL OR b.file = $3)\n    AND ($4::int IS NULL OR b.version = $4)\n            ",
   "describe": {
     "columns": [
       {
@@ -69,5 +69,5 @@
       false
     ]
   },
-  "hash": "86272666d5d4e73ff5cdebc4575be742a972938ef850d60ce0ecfc9a9bfce70c"
+  "hash": "8e2db57e331ae4b70d98a0783758a9268fc3a3421f224272630a4e8a290e6773"
 }
