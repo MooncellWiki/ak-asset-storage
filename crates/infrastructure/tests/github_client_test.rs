@@ -3,7 +3,7 @@ use ak_asset_storage_infrastructure::external::github_client::GithubClient;
 use std::env;
 
 #[tokio::test]
-#[ignore]
+#[ignore = "has side effect"]
 async fn test_github_client_dispatch_workflow() {
     // Skip test if GitHub token is not available
     let token = env::var("GITHUB_TOKEN").unwrap();

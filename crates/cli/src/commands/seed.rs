@@ -10,6 +10,7 @@ use sqlx::postgres::PgPoolOptions;
 use std::{fs, path::PathBuf};
 use tracing::info;
 
+#[allow(clippy::cognitive_complexity)]
 pub async fn execute(
     config: &impl ConfigProvider,
     csv_path: &PathBuf,

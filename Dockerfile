@@ -5,7 +5,7 @@ COPY . /app
 RUN pnpm i
 RUN pnpm run build
 
-FROM rust:1.87-bookworm AS build-stage
+FROM rust:1.88-bookworm AS build-stage
 ENV SQLX_OFFLINE=true
 WORKDIR /app
 COPY . /app/

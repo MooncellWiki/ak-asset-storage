@@ -4,7 +4,7 @@ use std::time::Duration;
 use tokio::time::timeout;
 
 #[tokio::test]
-#[ignore]
+#[ignore = "need docker"]
 async fn test_docker_client_launch_container() {
     // Skip test if Docker is not available
     if std::env::var("SKIP_DOCKER_TESTS").is_ok() {

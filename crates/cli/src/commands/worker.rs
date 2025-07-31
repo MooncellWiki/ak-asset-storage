@@ -11,6 +11,7 @@ use sqlx::postgres::PgPoolOptions;
 use std::time::Duration;
 use tracing::info;
 
+#[allow(clippy::cognitive_complexity)]
 pub async fn execute(config: &impl ConfigProvider, concurrent: usize) -> Result<()> {
     info!("Starting worker...");
     let pool = PgPoolOptions::new()

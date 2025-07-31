@@ -64,6 +64,7 @@ where
         self.check_and_save(remote).await
     }
 
+    #[allow(clippy::cognitive_complexity)]
     pub async fn check_and_save(&self, remote: RemoteVersion) -> AppResult<bool> {
         let exist = self
             .version_repo
