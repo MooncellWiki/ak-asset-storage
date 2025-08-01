@@ -3,8 +3,8 @@
     <NButton class="mb-2" @click="openSearch">
       <CarbonSearch />
     </NButton>
-    <div class="max-h-full w-full flex overflow-y-auto">
-      <div class="w-1/2 flex-grow">
+    <div class="max-h-full w-full overflow-y-auto relative">
+      <div class="w-full">
         <div class="max-h-full overflow-y-scroll">
           <NDataTable
             v-model:expanded-row-keys="expandedRowKeys"
@@ -19,7 +19,7 @@
         v-if="previewPath"
         embedded
         :title="previewPath"
-        class="max-h-full w-1/2 overflow-y-auto"
+        class="floating-preview"
       >
         <NButton @click="open(previewPath)">
           <template #icon>
@@ -208,3 +208,23 @@ const searchColumns: DataTableColumns<Entry> = [
   { key: "path", title: "路径" },
 ];
 </script>
+<style scoped>
+.floating-preview {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  width: 400px;
+  max-height: 500px;
+  overflow-y: auto;
+  z-index: 10;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+@media (max-width: 768px) {
+  .floating-preview {
+    width: calc(100% - 32px);
+    right: 16px;
+    left: 16px;
+  }
+}
+</style>
