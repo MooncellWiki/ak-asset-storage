@@ -19,7 +19,7 @@
     <NCard
       v-if="previewPath"
       :title="previewPath"
-      class="floating-preview-card"
+      class="absolute right-4 top-16 z-1000 max-h-[calc(100vh-8rem)] max-w-[calc(100vw-2rem)] w-[400px] border border-[var(--border-color)] bg-[var(--card-color)] shadow-lg"
       size="small"
     >
       <template #header-extra>
@@ -29,7 +29,7 @@
           </template>
         </NButton>
       </template>
-      <div class="preview-actions mb-2">
+      <div class="mb-2 flex gap-2">
         <NButton size="small" @click="open(previewPath)">
           <template #icon>
             <CarbonDownload />
@@ -37,7 +37,7 @@
           下载
         </NButton>
       </div>
-      <div class="preview-content">
+      <div class="max-h-[60vh] overflow-y-auto">
         <Preview :path="previewPath" />
       </div>
     </NCard>
@@ -226,28 +226,3 @@ function closePreview() {
   previewPath.value = "";
 }
 </script>
-
-<style scoped>
-.floating-preview-card {
-  position: absolute;
-  top: 4rem;
-  right: 1rem;
-  width: 400px;
-  max-width: calc(100vw - 2rem);
-  max-height: calc(100vh - 8rem);
-  z-index: 1000;
-  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.15);
-  border: 1px solid var(--border-color);
-  background: var(--card-color);
-}
-
-.preview-content {
-  max-height: 60vh;
-  overflow-y: auto;
-}
-
-.preview-actions {
-  display: flex;
-  gap: 0.5rem;
-}
-</style>
