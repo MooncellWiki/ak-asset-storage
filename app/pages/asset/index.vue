@@ -1,60 +1,74 @@
 <template>
-  <div class="h-full">
+  <div class="relative h-full">
     <NButton class="mb-2" @click="openSearch">
       <CarbonSearch />
     </NButton>
-    <div class="max-h-full w-full flex overflow-y-auto">
-      <div class="w-1/2 flex-grow">
-        <div class="max-h-full overflow-y-scroll">
-          <NDataTable
-            v-model:expanded-row-keys="expandedRowKeys"
-            :data="data"
-            :columns="columns"
-            :row-props="rowProps"
-            @load="onLoad"
-          />
-        </div>
+    <div class="max-h-full w-full overflow-y-auto">
+      <div class="max-h-full overflow-y-scroll">
+        <NDataTable
+          v-model:expanded-row-keys="expandedRowKeys"
+          :data="data"
+          :columns="columns"
+          :row-props="rowProps"
+          @load="onLoad"
+        />
       </div>
-      <NCard
-        v-if="previewPath"
-        embedded
-        :title="previewPath"
-        class="max-h-full w-1/2 overflow-y-auto"
-      >
-        <NButton @click="open(previewPath)">
+    </div>
+
+    <!-- Floating preview card in top-right corner -->
+    <NCard
+      v-if="previewPath"
+      :title="previewPath"
+      class="floating-preview-card"
+      size="small"
+    >
+      <template #header-extra>
+        <NButton size="small" quaternary circle @click="closePreview">
           <template #icon>
-            <CarbonDownload></CarbonDownload>
+            <CarbonClose />
           </template>
         </NButton>
+      </template>
+      <div class="preview-actions mb-2">
+        <NButton size="small" @click="open(previewPath)">
+          <template #icon>
+            <CarbonDownload />
+          </template>
+          下载
+        </NButton>
+      </div>
+      <div class="preview-content">
         <Preview :path="previewPath" />
+      </div>
+    </NCard>
+
+    <NModal v-model:show="searchVisible">
+      <NCard class="container">
+        <NMessageProvider>
+          <NInput
+            v-model:value="searchText"
+            placeholder="搜索"
+            clearable
+            size="small"
+            class="m-2"
+            @update:value="search"
+          >
+            <template #suffix> <CarbonSearch /> </template
+          ></NInput>
+          <NDataTable
+            max-height="80vh"
+            :data="searchData"
+            :columns="searchColumns"
+            :row-props="searchRowProps"
+          ></NDataTable>
+        </NMessageProvider>
       </NCard>
-      <NModal v-model:show="searchVisible">
-        <NCard class="container">
-          <NMessageProvider>
-            <NInput
-              v-model:value="searchText"
-              placeholder="搜索"
-              clearable
-              size="small"
-              class="m-2"
-              @update:value="search"
-            >
-              <template #suffix> <CarbonSearch /> </template
-            ></NInput>
-            <NDataTable
-              max-height="80vh"
-              :data="searchData"
-              :columns="searchColumns"
-              :row-props="searchRowProps"
-            ></NDataTable>
-          </NMessageProvider>
-        </NCard>
-      </NModal>
-    </div>
+    </NModal>
   </div>
 </template>
 <script lang="ts" setup>
 import { useDebounceFn } from "@vueuse/core";
+import CarbonClose from "~icons/carbon/close";
 import CarbonDownload from "~icons/carbon/download";
 import CarbonSearch from "~icons/carbon/search";
 import { format, parseISO } from "date-fns";
@@ -207,4 +221,33 @@ const searchColumns: DataTableColumns<Entry> = [
   { key: "hSize", title: "大小" },
   { key: "path", title: "路径" },
 ];
+
+function closePreview() {
+  previewPath.value = "";
+}
 </script>
+
+<style scoped>
+.floating-preview-card {
+  position: absolute;
+  top: 4rem;
+  right: 1rem;
+  width: 400px;
+  max-width: calc(100vw - 2rem);
+  max-height: calc(100vh - 8rem);
+  z-index: 1000;
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.15);
+  border: 1px solid var(--border-color);
+  background: var(--card-color);
+}
+
+.preview-content {
+  max-height: 60vh;
+  overflow-y: auto;
+}
+
+.preview-actions {
+  display: flex;
+  gap: 0.5rem;
+}
+</style>
