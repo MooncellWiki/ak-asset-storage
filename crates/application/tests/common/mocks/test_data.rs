@@ -16,6 +16,10 @@ impl TestData {
         }
     }
 
+    pub fn create_sample_version_unready() -> Version {
+        Self::create_version(Some(1), "1.0.0", "1.0.0", false)
+    }
+
     pub fn create_file(id: Option<i32>, hash: &str, size: i32) -> File {
         File {
             id,
