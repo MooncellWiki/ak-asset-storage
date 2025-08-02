@@ -44,16 +44,14 @@ where
         let download_service = Arc::new(download_service);
         Self {
             version_check_service: Arc::new(version_check_service),
-            download_service: download_service.clone(),
+            download_service,
             poll_interval,
-            download_task: Arc::new(Mutex::new(Some(Self::start_download_task(
-                download_service,
-            )))),
+            download_task: Arc::new(Mutex::new(None)),
         }
     }
-    fn start_download_task(
-        download_service: Arc<AssetDownloadService<R, A, N, S>>,
-    ) -> JoinHandle<()> {
+    fn start_download_task(&self) -> JoinHandle<()> {
+        let download_service = self.download_service.clone();
+        let download_task = self.download_task.clone();
         spawn(async move {
             loop {
                 match download_service.perform_download().await {
@@ -70,6 +68,7 @@ where
                     }
                 }
             }
+            download_task.lock().unwrap().take();
         })
     }
     /// 执行完整的轮询周期：检查版本 -> 下载资源
@@ -84,8 +83,7 @@ where
                     if task.is_some() {
                         info!("Download task is already running");
                     } else {
-                        let download_service = self.download_service.clone();
-                        *task = Some(Self::start_download_task(download_service));
+                        *task = Some(self.start_download_task());
                     }
                 }
             }
