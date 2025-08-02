@@ -28,3 +28,4 @@ tracing-subscriber = { workspace = true }
 anyhow = { workspace = true }
 sqlx = { workspace = true }
 async-trait = { workspace = true }
+sentry = { workspace = true }

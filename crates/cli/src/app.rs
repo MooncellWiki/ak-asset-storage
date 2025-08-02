@@ -33,24 +33,24 @@ pub enum Commands {
     /// Show version information
     Version,
 }
-fn init(config: &str) -> Result<InfraConfigProvider> {
+fn init(config: &str) -> Result<(InfraConfigProvider, sentry::ClientInitGuard)> {
     let config = InfraConfigProvider {
         settings: AppSettings::new(Path::new(config))?,
     };
-    init_tracing(config.logger_config());
-    Ok(config)
+    let sentry = init_tracing(config.logger_config(), config.sentry_config())?;
+    Ok((config, sentry))
 }
 
 pub async fn run() -> Result<()> {
     let cli = Commands::parse();
     match cli {
         Commands::Server { config } => {
-            let config = init(&config)?;
+            let (config, _sentry) = init(&config)?;
             ak_asset_storage_web::start(&config).await?;
             Ok(())
         }
         Commands::Worker { config, concurrent } => {
-            let config = init(&config)?;
+            let (config, _sentry) = init(&config)?;
             worker::execute(&config, concurrent).await?;
             Ok(())
         }
@@ -59,7 +59,7 @@ pub async fn run() -> Result<()> {
             csv_path,
             concurrent,
         } => {
-            let config = init(&config)?;
+            let (config, _sentry) = init(&config)?;
             seed::execute(&config, &csv_path, concurrent).await?;
             Ok(())
         }

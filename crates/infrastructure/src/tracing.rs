@@ -1,5 +1,8 @@
-use ak_asset_storage_application::{LogFormat, LogLevel, LoggerConfig};
-use sentry::integrations::tracing::EventFilter;
+use std::str::FromStr;
+
+use ak_asset_storage_application::{LogFormat, LogLevel, LoggerConfig, SentryConfig};
+use anyhow::Result;
+use sentry::{integrations::tracing::EventFilter, types::Dsn};
 use tracing::{level_filters::LevelFilter, Level, Metadata};
 use tracing_subscriber::{
     fmt::{self, MakeWriter},
@@ -73,7 +76,10 @@ fn event_filter(metadata: &Metadata<'_>) -> EventFilter {
     }
 }
 
-pub fn init_tracing(config: &LoggerConfig) {
+pub fn init_tracing(
+    config: &LoggerConfig,
+    sentry_cfg: &SentryConfig,
+) -> Result<sentry::ClientInitGuard> {
     let mut layers: Vec<Box<dyn Layer<Registry> + Sync + Send>> = Vec::new();
     if config.enable {
         let stdout_layer = init_layer(std::io::stdout, &config.format, true);
@@ -92,4 +98,10 @@ pub fn init_tracing(config: &LoggerConfig) {
             .with(sentry_layer)
             .init();
     }
+    Ok(sentry::init(sentry::ClientOptions {
+        dsn: Some(Dsn::from_str(&sentry_cfg.dsn)?),
+        release: sentry::release_name!(),
+        traces_sample_rate: sentry_cfg.traces_sample_rate,
+        ..Default::default()
+    }))
 }
