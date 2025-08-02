@@ -3,6 +3,7 @@ use ak_asset_storage_application::{AppResult, DockerConfig};
 use anyhow::anyhow;
 use async_trait::async_trait;
 use bollard::{
+    auth::DockerCredentials,
     errors::Error,
     models::{ContainerCreateBody, HostConfig},
     query_parameters::{
@@ -91,7 +92,15 @@ impl ak_asset_storage_application::DockerService for BollardDockerClient {
             .from_image(image_url)
             .build();
 
-        let mut stream = self.docker.create_image(Some(options), None, None);
+        let mut stream = self.docker.create_image(
+            Some(options),
+            None,
+            Some(DockerCredentials {
+                username: Some(self.config.username.clone()),
+                password: Some(self.config.password.clone()),
+                ..Default::default()
+            }),
+        );
         while let Some(result) = stream.next().await {
             match result {
                 Ok(info) => {

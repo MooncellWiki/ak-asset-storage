@@ -172,6 +172,8 @@ pub struct DockerConfig {
     pub env_vars: Option<Vec<String>>,
     pub volume_mapping: Option<Vec<String>>,
     pub docker_host: String,
+    pub username: String,
+    pub password: String,
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]

@@ -1,7 +1,5 @@
 use ak_asset_storage_application::{DockerConfig, DockerService};
 use ak_asset_storage_infrastructure::external::docker_client::BollardDockerClient;
-use std::time::Duration;
-use tokio::time::timeout;
 
 #[tokio::test]
 #[ignore = "need docker"]
@@ -14,7 +12,7 @@ async fn test_docker_client_launch_container() {
 
     let docker_config = DockerConfig {
         docker_host: "/var/run/docker.sock".to_string(),
-        image_url: "xwbx/docker-test:latest".to_string(),
+        image_url: "registry.cn-shanghai.aliyuncs.com/prts/torappu:latest".to_string(),
         container_name: "test-docker-client".to_string(),
         volume_mapping: Some(vec![
             "/tmp/test-volume:/app/data:rw".to_string(),
@@ -25,20 +23,20 @@ async fn test_docker_client_launch_container() {
             "ANOTHER_ENV=another_value".to_string(),
             "CONTAINER_TYPE=test".to_string(),
         ]),
+        username: String::new(),
+        password: String::new(),
     };
 
     let client = BollardDockerClient::new(docker_config.clone()).unwrap();
 
     // Test launching container with parameters
-    let result = timeout(
-        Duration::from_secs(30),
-        client.launch_container(
+    let result = client
+        .launch_container(
             "client-v1.0.0",
             "res-v2.0.0",
             "prev-client-v0.9.0",
             "prev-res-v1.9.0",
-        ),
-    )
-    .await;
+        )
+        .await;
     println!("{result:?}");
 }
