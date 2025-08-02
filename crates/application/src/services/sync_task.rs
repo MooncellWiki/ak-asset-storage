@@ -75,16 +75,12 @@ where
     #[instrument(name = "services.version_poll", skip_all)]
     pub async fn perform_poll(&self) -> AppResult<()> {
         // 1. 检查版本更新
+        let mut should_start_download = false;
         match self.version_check_service.perform_check().await {
             Ok(has_update) => {
                 if has_update {
-                    info!("New version detected, starting download...");
-                    let mut task = self.download_task.lock().unwrap();
-                    if task.is_some() {
-                        info!("Download task is already running");
-                    } else {
-                        *task = Some(self.start_download_task());
-                    }
+                    info!("New version detected, will start download...");
+                    should_start_download = true;
                 }
             }
             Err(e) => {
@@ -92,6 +88,34 @@ where
                 return Err(e);
             }
         }
+
+        // 2. 检查是否有现有的未完成版本需要下载
+        if !should_start_download {
+            match self.download_service.perform_download().await {
+                Ok(has_work) => {
+                    if has_work {
+                        info!("Found existing unready versions, will start download...");
+                        should_start_download = true;
+                    }
+                }
+                Err(e) => {
+                    error!("Failed to check for existing unready versions: {:?}", e);
+                    // Don't return error here, just log it and continue
+                }
+            }
+        }
+
+        // 3. 启动下载任务（如果需要）
+        if should_start_download {
+            let mut task = self.download_task.lock().unwrap();
+            if task.is_some() {
+                info!("Download task is already running");
+            } else {
+                info!("Starting download task...");
+                *task = Some(self.start_download_task());
+            }
+        }
+
         Ok(())
     }
 }

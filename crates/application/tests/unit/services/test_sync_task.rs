@@ -92,3 +92,64 @@ async fn test_perform_poll_with_new_version() {
     assert!(versions[0].is_ready); // Should be ready after download
     drop(versions);
 }
+
+#[tokio::test]
+async fn test_perform_poll_with_existing_unready_version() {
+    // Arrange
+    let repository = MockRepository::new();
+    let api_client = MockAkApiClient::new();
+    let notification = MockNotificationService::new();
+    let storage = MockStorageService::new();
+
+    // Pre-populate repository with an unready version (simulating a previous incomplete download)
+    let existing_version = crate::common::TestData::create_sample_version_unready();
+    repository.version.versions.lock().unwrap().push(existing_version);
+
+    // Setup API responses for files that need to be downloaded
+    api_client.set_file_data(
+        "arts_furniture_group_hub.dat".to_string(),
+        TestData::sample_file_data1(),
+    );
+    api_client.set_file_data(
+        "arts_[pack]common.dat".to_string(),
+        TestData::sample_file_data2(),
+    );
+
+    // Don't set up new version detection - simulate no new versions from remote
+    let remote_version = RemoteVersion {
+        client_version: "1.0.0".to_string(),  // Same as existing version
+        res_version: "1.0.0".to_string(),      // Same as existing version  
+    };
+    api_client.set_remote_version(remote_version);
+    api_client.set_hot_update_list(SAMPLE_HOT_UPDATE_LIST.to_string());
+
+    let version_check_service = VersionCheckService::new(
+        repository.clone(),
+        api_client.clone(),
+        notification.clone(),
+        None::<MockDockerService>,
+        None::<MockGithubService>,
+    );
+
+    let download_service =
+        AssetDownloadService::new(repository.clone(), api_client, notification, storage, 5);
+
+    let sync_task = SyncTask::new(
+        version_check_service,
+        download_service,
+        Duration::from_secs(60),
+    );
+
+    // Act
+    let result = sync_task.perform_poll().await;
+    // Wait for download task to complete
+    sleep(Duration::from_secs(1)).await;
+
+    // Assert
+    assert!(result.is_ok());
+    
+    // Verify the existing unready version was processed and marked as ready
+    let versions = repository.version.versions.lock().unwrap();
+    assert_eq!(versions.len(), 1); // Still only one version (the existing one)
+    assert!(versions[0].is_ready); // Should now be ready after download
+}
