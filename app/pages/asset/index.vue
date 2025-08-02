@@ -1,18 +1,99 @@
 <template>
-  <div class="h-full">
-    <NButton class="mb-2" @click="openSearch">
-      <CarbonSearch />
-    </NButton>
+  <NButton @click="openSearch">
+    <CarbonSearch />
+  </NButton>
+  <NDataTable
+    v-model:expanded-row-keys="expandedRowKeys"
+    class="mt-2"
+    max-height="80vh"
+    :data="data"
+    :columns="columns"
+    :row-props="rowProps"
+    @load="onLoad"
+  />
+  <NDialog
+    :show-icon="false"
+    class="absolute right-2 top-2 z-10 max-w-400px min-w-400px b b-#ddd b-solid shadow-lg transition-300"
+    :class="[{ 'opacity-0 pointer-events-none': !showFileToast }]"
+    :on-close="
+      () => {
+        showFileToast = false;
+      }
+    "
+  >
+    <template #header>
+      <div class="flex items-center">
+        <NButton tertiary @click="switchPreviewFull">
+          <template #icon>
+            <CarbonFitToScreen></CarbonFitToScreen>
+          </template>
+        </NButton>
+        <div class="pl-2 font-size-sm line-height-1em">{{ previewPath }}</div>
+      </div>
+    </template>
+    <div class="flex flex-col items-center">
+      <Preview
+        :path="previewPath"
+        class="max-h-80% max-w-300px overflow-y-auto"
+      />
+    </div>
+  </NDialog>
+  <NDrawer
+    v-model:show="showFileInfo"
+    placement="bottom"
+    default-height="95%"
+    :min-height="windowHeight * 0.2"
+    :max-height="windowHeight"
+    resizable
+  >
+    <NDrawerContent closable>
+      <template #header>
+        <div class="flex items-center">
+          <NButton tertiary type="primary" @click="open(previewPath)">
+            <template #icon>
+              <CarbonDownload></CarbonDownload>
+            </template>
+          </NButton>
+          <NButton tertiary @click="copyPath">
+            <template #icon>
+              <CarbonCopyLink></CarbonCopyLink>
+            </template>
+          </NButton>
+          <span class="pa-2">{{ previewPath }}</span>
+        </div>
+      </template>
+      <Preview :path="previewPath" />
+    </NDrawerContent>
+  </NDrawer>
+  <NModal v-model:show="searchVisible">
+    <NCard class="container">
+      <NMessageProvider>
+        <NInput
+          v-model:value="searchText"
+          placeholder="搜索"
+          clearable
+          size="small"
+          class="m-2"
+          @update:value="search"
+        >
+          <template #suffix> <CarbonSearch /> </template
+        ></NInput>
+        <NDataTable
+          max-height="80vh"
+          :data="searchData"
+          :columns="searchColumns"
+          :row-props="searchRowProps"
+        ></NDataTable>
+      </NMessageProvider>
+    </NCard>
+  </NModal>
+
+  <!-- <div class="h-full">
+
     <div class="max-h-full w-full flex overflow-y-auto">
       <div class="w-1/2 flex-grow">
         <div class="max-h-full overflow-y-scroll">
-          <NDataTable
-            v-model:expanded-row-keys="expandedRowKeys"
-            :data="data"
-            :columns="columns"
-            :row-props="rowProps"
-            @load="onLoad"
-          />
+
         </div>
       </div>
       <NCard
@@ -28,37 +109,18 @@
         </NButton>
         <Preview :path="previewPath" />
       </NCard>
-      <NModal v-model:show="searchVisible">
-        <NCard class="container">
-          <NMessageProvider>
-            <NInput
-              v-model:value="searchText"
-              placeholder="搜索"
-              clearable
-              size="small"
-              class="m-2"
-              @update:value="search"
-            >
-              <template #suffix> <CarbonSearch /> </template
-            ></NInput>
-            <NDataTable
-              max-height="80vh"
-              :data="searchData"
-              :columns="searchColumns"
-              :row-props="searchRowProps"
-            ></NDataTable>
-          </NMessageProvider>
-        </NCard>
-      </NModal>
+
     </div>
-  </div>
+  </div> -->
 </template>
 <script lang="ts" setup>
 import { useDebounceFn } from "@vueuse/core";
+import CarbonCopyLink from "~icons/carbon/copy-link";
 import CarbonDownload from "~icons/carbon/download";
+import CarbonFitToScreen from "~icons/carbon/fit-to-screen";
 import CarbonSearch from "~icons/carbon/search";
 import { format, parseISO } from "date-fns";
-import { useMessage } from "naive-ui";
+import { NDrawer, NDrawerContent, useMessage } from "naive-ui";
 import { onMounted, ref } from "vue";
 import { client } from "~/common/client";
 import { toReadableSize } from "~/common/utils";
@@ -120,6 +182,9 @@ async function list(path = ""): Promise<Entry[]> {
   return makeDisplayable(data?.children ?? []);
 }
 const previewPath = ref("");
+const showFileToast = ref(false);
+const showFileInfo = ref(false);
+
 const columns: DataTableColumns<Entry> = [
   { key: "name", title: "文件名" },
   { key: "create_at", title: "创建时间" },
@@ -128,6 +193,7 @@ const columns: DataTableColumns<Entry> = [
 ];
 onMounted(async () => {
   data.value = await list();
+  window.addEventListener("resize", updatewindowHeight);
 });
 const expandedRowKeys = ref<string[]>([]);
 async function onLoad(row: RowData) {
@@ -146,6 +212,8 @@ function rowProps(row: Entry) {
         return;
       }
       previewPath.value = realPath(row);
+      showFileToast.value = true;
+      //showFileInfo.value = true;
     },
   };
 }
@@ -207,4 +275,15 @@ const searchColumns: DataTableColumns<Entry> = [
   { key: "hSize", title: "大小" },
   { key: "path", title: "路径" },
 ];
+const windowHeight = ref(window.innerHeight);
+function updatewindowHeight() {
+  windowHeight.value = window.innerHeight;
+}
+function switchPreviewFull() {
+  showFileToast.value = false;
+  showFileInfo.value = true;
+}
+function copyPath() {
+  navigator.clipboard.writeText(previewPath.value);
+}
 </script>
