@@ -2,9 +2,24 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.12.1] - 2025-08-02
+
+[13a007e](13a007eab57e6018d615df201462957f3228836a)...[472740e](472740ef80accd92433e18a1c497fcd5f39297c1)
+
+### 🐛 Bug Fixes
+
+- Pull docker image with credentials ([dc1d79e](https://github.com/MooncellWiki/ak-asset-storage/commit/dc1d79e9d0d2a76e497c382bc208a490b4ef83d1))
+- Sentry ([a7a3eb8](https://github.com/MooncellWiki/ak-asset-storage/commit/a7a3eb86e319424763515e9c21a67a2fb8d66cf8))
+- Download ([472740e](https://github.com/MooncellWiki/ak-asset-storage/commit/472740ef80accd92433e18a1c497fcd5f39297c1))
+
+### ⚙️ Miscellaneous Tasks
+
+- Add claude-code ([e824720](https://github.com/MooncellWiki/ak-asset-storage/commit/e824720ead3adbb76d4fc23b4eb3035353ac1f8e))
+- Fix claude-code ([ee76124](https://github.com/MooncellWiki/ak-asset-storage/commit/ee761241bb51744fad9e48d1fc39d7cccd0aa48f))
+
 ## [0.12.0] - 2025-07-31
 
-[eede223](eede2231e9098e6a1161cfb1fc79b92eb7e6ad18)...[aa24b98](aa24b9896bcf36f2102f2b9f07798a7df02bfc1d)
+[eede223](eede2231e9098e6a1161cfb1fc79b92eb7e6ad18)...[13a007e](13a007eab57e6018d615df201462957f3228836a)
 
 ### 🚀 Features
 
@@ -20,6 +35,7 @@ All notable changes to this project will be documented in this file.
 - Add contributing.md ([e2e7caf](https://github.com/MooncellWiki/ak-asset-storage/commit/e2e7caf1b3b78e2b10ef443f75ad3fc9c6fcbd37))
 - Update dependencies ([112fb6b](https://github.com/MooncellWiki/ak-asset-storage/commit/112fb6b29335cf107a00c86385ee3e13a18c1639))
 - Update rust ([aa24b98](https://github.com/MooncellWiki/ak-asset-storage/commit/aa24b9896bcf36f2102f2b9f07798a7df02bfc1d))
+- Release 0.12.0 ([13a007e](https://github.com/MooncellWiki/ak-asset-storage/commit/13a007eab57e6018d615df201462957f3228836a))
 
 ## [0.11.0] - 2025-07-27
 
