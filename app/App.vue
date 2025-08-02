@@ -19,23 +19,6 @@
             </div>
           </NLayout>
         </NLayout>
-
-        <!-- <div class="relative h-100vh">
-          <NLayout position="absolute">
-            <NLayoutHeader class="mb-2 flex p-3" bordered>
-              <NMenu :options="opts" mode="horizontal"></NMenu>
-              <NButton class="m-auto mr-0" secondary @click="toggleDark()">
-                {{ isDark ? "浅色" : "深色" }}
-              </NButton>
-            </NLayoutHeader>
-            <NLayoutContent
-              position="absolute"
-              class="container mx-auto h-90vh top-19!"
-            >
-              <RouterView />
-            </NLayoutContent>
-          </NLayout>
-        </div> -->
       </NMessageProvider>
     </NModalProvider>
   </NConfigProvider>
