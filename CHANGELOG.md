@@ -2,9 +2,17 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.12.2] - 2025-08-04
+
+[a86eb3c](a86eb3cd8cbfbdf0896c4f60199e9a1954f994ff)...[4bb7d21](4bb7d21847d8e309157ce501e8e936e5880ca0bf)
+
+### 🐛 Bug Fixes
+
+- Start download immedate ([4bb7d21](https://github.com/MooncellWiki/ak-asset-storage/commit/4bb7d21847d8e309157ce501e8e936e5880ca0bf))
+
 ## [0.12.1] - 2025-08-02
 
-[13a007e](13a007eab57e6018d615df201462957f3228836a)...[472740e](472740ef80accd92433e18a1c497fcd5f39297c1)
+[13a007e](13a007eab57e6018d615df201462957f3228836a)...[a86eb3c](a86eb3cd8cbfbdf0896c4f60199e9a1954f994ff)
 
 ### 🐛 Bug Fixes
 
@@ -16,6 +24,7 @@ All notable changes to this project will be documented in this file.
 
 - Add claude-code ([e824720](https://github.com/MooncellWiki/ak-asset-storage/commit/e824720ead3adbb76d4fc23b4eb3035353ac1f8e))
 - Fix claude-code ([ee76124](https://github.com/MooncellWiki/ak-asset-storage/commit/ee761241bb51744fad9e48d1fc39d7cccd0aa48f))
+- Release 0.12.1 ([a86eb3c](https://github.com/MooncellWiki/ak-asset-storage/commit/a86eb3cd8cbfbdf0896c4f60199e9a1954f994ff))
 
 ## [0.12.0] - 2025-07-31
 
