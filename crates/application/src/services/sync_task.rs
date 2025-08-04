@@ -42,12 +42,18 @@ where
         poll_interval: Duration,
     ) -> Self {
         let download_service = Arc::new(download_service);
-        Self {
+        let result = Self {
             version_check_service: Arc::new(version_check_service),
             download_service,
             poll_interval,
             download_task: Arc::new(Mutex::new(None)),
-        }
+        };
+        result
+            .download_task
+            .lock()
+            .unwrap()
+            .replace(result.start_download_task());
+        result
     }
     fn start_download_task(&self) -> JoinHandle<()> {
         let download_service = self.download_service.clone();
