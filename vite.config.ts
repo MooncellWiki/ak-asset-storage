@@ -18,10 +18,10 @@ export default defineConfig({
   },
   server: {
     proxy: {
-      "/api": "http://localhost:25150",
-      "/storage": "http://localhost:29000/arknights-assets/",
-      "/gamedata": "http://localhost:25150",
-      "/assets": "http://localhost:25150",
+      "/api": "https://torappu.prts.wiki",
+      "/storage": "https://torappu.prts.wiki/arknights-assets/",
+      "/gamedata": "https://torappu.prts.wiki",
+      "/assets": "https://torappu.prts.wiki",
     },
     port: 25173,
   },

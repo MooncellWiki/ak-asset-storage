@@ -11,60 +11,53 @@
     :row-props="rowProps"
     @load="onLoad"
   />
-  <NDialog
-    :show-icon="false"
-    class="absolute right-2 top-2 z-10 max-w-400px min-w-400px b b-#ddd b-solid shadow-lg transition-300"
-    :class="[{ 'opacity-0 pointer-events-none': !showFileToast }]"
-    :on-close="
-      () => {
-        showFileToast = false;
-      }
-    "
+  <div
+    ref="el"
+    class="fixed right-2 top-2 z-10"
+    :style="[
+      style,
+      showFullScreen && {
+        left: 0,
+        top: 0,
+      },
+    ]"
   >
-    <template #header>
-      <div class="flex items-center">
-        <NButton tertiary @click="switchPreviewFull">
-          <template #icon>
-            <CarbonFitToScreen></CarbonFitToScreen>
-          </template>
-        </NButton>
-        <div class="pl-2 font-size-sm line-height-1em">{{ previewPath }}</div>
-      </div>
-    </template>
-    <div class="flex flex-col items-center">
-      <Preview
-        :path="previewPath"
-        class="max-h-80% max-w-300px overflow-y-auto"
-      />
-    </div>
-  </NDialog>
-  <NDrawer
-    v-model:show="showFileInfo"
-    placement="bottom"
-    default-height="95%"
-    :min-height="windowHeight * 0.2"
-    :max-height="windowHeight"
-    resizable
-  >
-    <NDrawerContent closable>
+    <NCard
+      class="max-w-400px min-w-400px b b-#ddd b-solid shadow-lg transition-300"
+      :class="{
+        'opacity-0 pointer-events-none': !showFileToast,
+        'min-w-screen min-h-screen max-h-screen max-w-screen': showFullScreen,
+      }"
+    >
       <template #header>
-        <div class="flex items-center">
-          <NButton tertiary type="primary" @click="open(previewPath)">
+        <div class="flex items-center gap-2">
+          <NButton tertiary @click="() => (showFullScreen = !showFullScreen)">
             <template #icon>
-              <CarbonDownload></CarbonDownload>
+              <CarbonFitToScreen></CarbonFitToScreen>
             </template>
           </NButton>
-          <NButton tertiary @click="copyPath">
+          <div
+            class="pl-2 font-size-sm line-height-1em"
+            @pointerdown="(e) => e.stopPropagation()"
+          >
+            {{ previewPath }}
+          </div>
+          <NButton quaternary @click="() => (showFileToast = false)">
             <template #icon>
-              <CarbonCopyLink></CarbonCopyLink>
+              <CarbonCloseLarge></CarbonCloseLarge>
             </template>
           </NButton>
-          <span class="pa-2">{{ previewPath }}</span>
         </div>
       </template>
-      <Preview :path="previewPath" />
-    </NDrawerContent>
-  </NDrawer>
+      <div class="flex flex-col items-center">
+        <Preview
+          :path="previewPath"
+          class="max-h-80% max-w-300px overflow-y-auto"
+        />
+      </div>
+    </NCard>
+  </div>
+
   <NModal v-model:show="searchVisible">
     <NCard class="container">
       <NMessageProvider>
@@ -114,14 +107,13 @@
   </div> -->
 </template>
 <script lang="ts" setup>
-import { useDebounceFn } from "@vueuse/core";
-import CarbonCopyLink from "~icons/carbon/copy-link";
-import CarbonDownload from "~icons/carbon/download";
+import { useDebounceFn, useDraggable } from "@vueuse/core";
+import CarbonCloseLarge from "~icons/carbon/close-large";
 import CarbonFitToScreen from "~icons/carbon/fit-to-screen";
 import CarbonSearch from "~icons/carbon/search";
 import { format, parseISO } from "date-fns";
-import { NDrawer, NDrawerContent, useMessage } from "naive-ui";
-import { onMounted, ref } from "vue";
+import { useMessage } from "naive-ui";
+import { onMounted, ref, useTemplateRef } from "vue";
 import { client } from "~/common/client";
 import { toReadableSize } from "~/common/utils";
 import type { components } from "~/common/schema";
@@ -183,7 +175,7 @@ async function list(path = ""): Promise<Entry[]> {
 }
 const previewPath = ref("");
 const showFileToast = ref(false);
-const showFileInfo = ref(false);
+const showFullScreen = ref(false);
 
 const columns: DataTableColumns<Entry> = [
   { key: "name", title: "文件名" },
@@ -279,11 +271,11 @@ const windowHeight = ref(window.innerHeight);
 function updatewindowHeight() {
   windowHeight.value = window.innerHeight;
 }
-function switchPreviewFull() {
-  showFileToast.value = false;
-  showFileInfo.value = true;
-}
-function copyPath() {
-  navigator.clipboard.writeText(previewPath.value);
-}
+const el = useTemplateRef<HTMLElement>("el");
+const { style } = useDraggable(el, {
+  initialValue: { x: window.innerWidth - 400 - 40, y: 40 },
+  preventDefault: true,
+  capture: false,
+  disabled: showFullScreen,
+});
 </script>
