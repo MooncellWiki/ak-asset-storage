@@ -1,17 +1,23 @@
 <template>
-  <NConfigProvider :theme="theme">
+  <NConfigProvider :theme="theme" class="h-100vh">
     <NModalProvider>
       <NMessageProvider>
-        <NLayout position="absolute">
-          <NLayoutHeader class="mb-2 flex p-3" bordered>
+        <NLayout class="h-full">
+          <NLayoutHeader class="h-4rem flex p-0.75rem" bordered>
             <NMenu :options="opts" mode="horizontal"></NMenu>
             <NButton class="m-auto mr-0" secondary @click="toggleDark()">
               {{ isDark ? "浅色" : "深色" }}
             </NButton>
           </NLayoutHeader>
-          <NLayoutContent class="container mx-auto">
-            <RouterView />
-          </NLayoutContent>
+          <NLayout
+            position="absolute"
+            class="top-4rem!"
+            content-class="mx-auto h-[calc(100vh-4rem)]"
+          >
+            <div class="container mx-auto mt-2">
+              <RouterView />
+            </div>
+          </NLayout>
         </NLayout>
       </NMessageProvider>
     </NModalProvider>

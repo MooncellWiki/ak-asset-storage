@@ -1,18 +1,92 @@
 <template>
-  <div class="h-full">
-    <NButton class="mb-2" @click="openSearch">
-      <CarbonSearch />
-    </NButton>
+  <NButton @click="openSearch">
+    <CarbonSearch />
+  </NButton>
+  <NDataTable
+    v-model:expanded-row-keys="expandedRowKeys"
+    class="mt-2"
+    max-height="80vh"
+    :data="data"
+    :columns="columns"
+    :row-props="rowProps"
+    @load="onLoad"
+  />
+  <div
+    ref="el"
+    class="fixed right-2 top-2 z-10"
+    :style="[
+      style,
+      showFullScreen && {
+        left: 0,
+        top: 0,
+      },
+    ]"
+  >
+    <NCard
+      class="max-w-400px min-w-400px b b-#ddd b-solid shadow-lg transition-300"
+      :class="{
+        'opacity-0 pointer-events-none': !showFileToast,
+        'min-w-screen min-h-screen max-h-screen max-w-screen': showFullScreen,
+      }"
+    >
+      <template #header>
+        <div class="flex items-center gap-2">
+          <NButton tertiary @click="() => (showFullScreen = !showFullScreen)">
+            <template #icon>
+              <CarbonFitToScreen></CarbonFitToScreen>
+            </template>
+          </NButton>
+          <div
+            class="pl-2 font-size-sm line-height-1em"
+            @pointerdown="(e) => e.stopPropagation()"
+          >
+            {{ previewPath }}
+          </div>
+          <NButton quaternary @click="() => (showFileToast = false)">
+            <template #icon>
+              <CarbonCloseLarge></CarbonCloseLarge>
+            </template>
+          </NButton>
+        </div>
+      </template>
+      <div class="flex flex-col items-center">
+        <Preview
+          :path="previewPath"
+          class="max-h-80% max-w-300px overflow-y-auto"
+        />
+      </div>
+    </NCard>
+  </div>
+
+  <NModal v-model:show="searchVisible">
+    <NCard class="container">
+      <NMessageProvider>
+        <NInput
+          v-model:value="searchText"
+          placeholder="搜索"
+          clearable
+          size="small"
+          class="m-2"
+          @update:value="search"
+        >
+          <template #suffix> <CarbonSearch /> </template
+        ></NInput>
+        <NDataTable
+          max-height="80vh"
+          :data="searchData"
+          :columns="searchColumns"
+          :row-props="searchRowProps"
+        ></NDataTable>
+      </NMessageProvider>
+    </NCard>
+  </NModal>
+
+  <!-- <div class="h-full">
+
     <div class="max-h-full w-full flex overflow-y-auto">
       <div class="w-1/2 flex-grow">
         <div class="max-h-full overflow-y-scroll">
-          <NDataTable
-            v-model:expanded-row-keys="expandedRowKeys"
-            :data="data"
-            :columns="columns"
-            :row-props="rowProps"
-            @load="onLoad"
-          />
+
         </div>
       </div>
       <NCard
@@ -28,38 +102,18 @@
         </NButton>
         <Preview :path="previewPath" />
       </NCard>
-      <NModal v-model:show="searchVisible">
-        <NCard class="container">
-          <NMessageProvider>
-            <NInput
-              v-model:value="searchText"
-              placeholder="搜索"
-              clearable
-              size="small"
-              class="m-2"
-              @update:value="search"
-            >
-              <template #suffix> <CarbonSearch /> </template
-            ></NInput>
-            <NDataTable
-              max-height="80vh"
-              :data="searchData"
-              :columns="searchColumns"
-              :row-props="searchRowProps"
-            ></NDataTable>
-          </NMessageProvider>
-        </NCard>
-      </NModal>
+
     </div>
-  </div>
+  </div> -->
 </template>
 <script lang="ts" setup>
-import { useDebounceFn } from "@vueuse/core";
-import CarbonDownload from "~icons/carbon/download";
+import { useDebounceFn, useDraggable } from "@vueuse/core";
+import CarbonCloseLarge from "~icons/carbon/close-large";
+import CarbonFitToScreen from "~icons/carbon/fit-to-screen";
 import CarbonSearch from "~icons/carbon/search";
 import { format, parseISO } from "date-fns";
 import { useMessage } from "naive-ui";
-import { onMounted, ref } from "vue";
+import { onMounted, ref, useTemplateRef } from "vue";
 import { client } from "~/common/client";
 import { toReadableSize } from "~/common/utils";
 import type { components } from "~/common/schema";
@@ -120,6 +174,9 @@ async function list(path = ""): Promise<Entry[]> {
   return makeDisplayable(data?.children ?? []);
 }
 const previewPath = ref("");
+const showFileToast = ref(false);
+const showFullScreen = ref(false);
+
 const columns: DataTableColumns<Entry> = [
   { key: "name", title: "文件名" },
   { key: "create_at", title: "创建时间" },
@@ -128,6 +185,7 @@ const columns: DataTableColumns<Entry> = [
 ];
 onMounted(async () => {
   data.value = await list();
+  window.addEventListener("resize", updatewindowHeight);
 });
 const expandedRowKeys = ref<string[]>([]);
 async function onLoad(row: RowData) {
@@ -146,6 +204,8 @@ function rowProps(row: Entry) {
         return;
       }
       previewPath.value = realPath(row);
+      showFileToast.value = true;
+      //showFileInfo.value = true;
     },
   };
 }
@@ -207,4 +267,15 @@ const searchColumns: DataTableColumns<Entry> = [
   { key: "hSize", title: "大小" },
   { key: "path", title: "路径" },
 ];
+const windowHeight = ref(window.innerHeight);
+function updatewindowHeight() {
+  windowHeight.value = window.innerHeight;
+}
+const el = useTemplateRef<HTMLElement>("el");
+const { style } = useDraggable(el, {
+  initialValue: { x: window.innerWidth - 400 - 40, y: 40 },
+  preventDefault: true,
+  capture: false,
+  disabled: showFullScreen,
+});
 </script>
