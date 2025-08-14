@@ -17,7 +17,7 @@ use tracing::{info, warn};
 
 // DockerService trait is defined in ak_asset_storage_application
 
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 pub struct BollardDockerClient {
     docker: Docker,
     config: DockerConfig,

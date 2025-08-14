@@ -1,6 +1,7 @@
 use crate::{
     handlers::{
-        bundle_handlers, item_demand_handlers, misc_handlers, torappu_handlers, version_handlers,
+        bundle_handlers, docker_handlers, item_demand_handlers, misc_handlers, torappu_handlers,
+        version_handlers,
     },
     middleware::{apply_axum_middleware, serve_dir_with_charset},
     state::AppState,
@@ -20,6 +21,7 @@ use utoipa_scalar::{Scalar, Servable};
         (name = "item", description = "Item demand endpoints"),
         (name = "health", description = "Health check endpoints"),
         (name = "fs", description = "File system endpoints"),
+        (name = "docker", description = "Docker container management endpoints"),
     ),
 )]
 pub struct ApiDoc;
@@ -43,6 +45,8 @@ pub fn build_router(state: AppState) -> Router {
         // Item endpoints
         .routes(routes!(item_demand_handlers::get_item_demand))
         .routes(routes!(item_demand_handlers::update_item_demands))
+        // Docker endpoints
+        .routes(routes!(docker_handlers::launch_container))
         .split_for_parts();
 
     openapi.paths.paths = openapi
