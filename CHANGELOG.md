@@ -2,9 +2,21 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.13.2] - 2025-08-15
+
+[d73282e](d73282e44b9556594a3870659ab584fd5ee661ec)...[c5f07cf](c5f07cf85d3037e2370e59bd88f595dd0b366821)
+
+### 🐛 Bug Fixes
+
+- Memory leak ([c5f07cf](https://github.com/MooncellWiki/ak-asset-storage/commit/c5f07cf85d3037e2370e59bd88f595dd0b366821))
+
+### ⚙️ Miscellaneous Tasks
+
+- Fix lint-stage ([6c342dc](https://github.com/MooncellWiki/ak-asset-storage/commit/6c342dce682053302c2bd8170612f78bb4ae7c40))
+
 ## [0.13.1] - 2025-08-15
 
-[19b0e76](19b0e769df22eb5f6b557fdd05440f5b0493d262)...[1fc921a](1fc921ab316fe00da1194f4b0066513475b40d7c)
+[19b0e76](19b0e769df22eb5f6b557fdd05440f5b0493d262)...[d73282e](d73282e44b9556594a3870659ab584fd5ee661ec)
 
 ### 🚀 Features
 
@@ -14,6 +26,7 @@ All notable changes to this project will be documented in this file.
 
 - Enable rust cache ([5c78fde](https://github.com/MooncellWiki/ak-asset-storage/commit/5c78fde008298f12db4de89754c0d2b22eeafe64))
 - Run cargo fmt and cargo clippy when has rs file change ([1fc921a](https://github.com/MooncellWiki/ak-asset-storage/commit/1fc921ab316fe00da1194f4b0066513475b40d7c))
+- Release 0.13.1 ([d73282e](https://github.com/MooncellWiki/ak-asset-storage/commit/d73282e44b9556594a3870659ab584fd5ee661ec))
 
 ## [0.13.0] - 2025-08-15
 
