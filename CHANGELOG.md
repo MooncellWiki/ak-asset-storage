@@ -2,13 +2,33 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.13.0] - 2025-08-15
+
+[7391e1b](7391e1b4b20db3656dc46d4a90fd333d9bcec294)...[2c3c761](2c3c76115dda19ad01b6cfd5d9664a4bf0670ebc)
+
+### 🚀 Features
+
+- Docker api ([7ba9be4](https://github.com/MooncellWiki/ak-asset-storage/commit/7ba9be4994e784daf67bb86316a027b163d90574))
+
+### 🐛 Bug Fixes
+
+- Layout (#128) ([9ffb981](https://github.com/MooncellWiki/ak-asset-storage/commit/9ffb9812b39e7d13560cd1c4d851eda0fe77b819)), Co-authored-by:StarHeartHunt <starheart233@gmail.com>
+
+### ⚡ Performance
+
+- Use mimalloc ([2c3c761](https://github.com/MooncellWiki/ak-asset-storage/commit/2c3c76115dda19ad01b6cfd5d9664a4bf0670ebc))
+
 ## [0.12.2] - 2025-08-04
 
-[a86eb3c](a86eb3cd8cbfbdf0896c4f60199e9a1954f994ff)...[4bb7d21](4bb7d21847d8e309157ce501e8e936e5880ca0bf)
+[a86eb3c](a86eb3cd8cbfbdf0896c4f60199e9a1954f994ff)...[7391e1b](7391e1b4b20db3656dc46d4a90fd333d9bcec294)
 
 ### 🐛 Bug Fixes
 
 - Start download immedate ([4bb7d21](https://github.com/MooncellWiki/ak-asset-storage/commit/4bb7d21847d8e309157ce501e8e936e5880ca0bf))
+
+### ⚙️ Miscellaneous Tasks
+
+- Release 0.12.2 ([7391e1b](https://github.com/MooncellWiki/ak-asset-storage/commit/7391e1b4b20db3656dc46d4a90fd333d9bcec294))
 
 ## [0.12.1] - 2025-08-02
 
