@@ -2,9 +2,22 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.13.1] - 2025-08-15
+
+[19b0e76](19b0e769df22eb5f6b557fdd05440f5b0493d262)...[1fc921a](1fc921ab316fe00da1194f4b0066513475b40d7c)
+
+### 🚀 Features
+
+- Docker support attach to network ([1adb98e](https://github.com/MooncellWiki/ak-asset-storage/commit/1adb98ee105086e38561f4f98468627ee07e4248))
+
+### ⚙️ Miscellaneous Tasks
+
+- Enable rust cache ([5c78fde](https://github.com/MooncellWiki/ak-asset-storage/commit/5c78fde008298f12db4de89754c0d2b22eeafe64))
+- Run cargo fmt and cargo clippy when has rs file change ([1fc921a](https://github.com/MooncellWiki/ak-asset-storage/commit/1fc921ab316fe00da1194f4b0066513475b40d7c))
+
 ## [0.13.0] - 2025-08-15
 
-[7391e1b](7391e1b4b20db3656dc46d4a90fd333d9bcec294)...[2c3c761](2c3c76115dda19ad01b6cfd5d9664a4bf0670ebc)
+[7391e1b](7391e1b4b20db3656dc46d4a90fd333d9bcec294)...[19b0e76](19b0e769df22eb5f6b557fdd05440f5b0493d262)
 
 ### 🚀 Features
 
@@ -17,6 +30,10 @@ All notable changes to this project will be documented in this file.
 ### ⚡ Performance
 
 - Use mimalloc ([2c3c761](https://github.com/MooncellWiki/ak-asset-storage/commit/2c3c76115dda19ad01b6cfd5d9664a4bf0670ebc))
+
+### ⚙️ Miscellaneous Tasks
+
+- Release 0.13.0 ([19b0e76](https://github.com/MooncellWiki/ak-asset-storage/commit/19b0e769df22eb5f6b557fdd05440f5b0493d262))
 
 ## [0.12.2] - 2025-08-04
 
