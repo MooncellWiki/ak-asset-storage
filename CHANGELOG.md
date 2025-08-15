@@ -2,9 +2,17 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.13.3] - 2025-08-15
+
+[0bfddb6](0bfddb6a45de8b91b11e61837cc7d19c2a37f2ae)...[39c4d48](39c4d4807c75bd4dc1dfe6deb0205e3e43bc0db5)
+
+### 🐛 Bug Fixes
+
+- Memory leak ([39c4d48](https://github.com/MooncellWiki/ak-asset-storage/commit/39c4d4807c75bd4dc1dfe6deb0205e3e43bc0db5))
+
 ## [0.13.2] - 2025-08-15
 
-[d73282e](d73282e44b9556594a3870659ab584fd5ee661ec)...[c5f07cf](c5f07cf85d3037e2370e59bd88f595dd0b366821)
+[d73282e](d73282e44b9556594a3870659ab584fd5ee661ec)...[0bfddb6](0bfddb6a45de8b91b11e61837cc7d19c2a37f2ae)
 
 ### 🐛 Bug Fixes
 
@@ -13,6 +21,7 @@ All notable changes to this project will be documented in this file.
 ### ⚙️ Miscellaneous Tasks
 
 - Fix lint-stage ([6c342dc](https://github.com/MooncellWiki/ak-asset-storage/commit/6c342dce682053302c2bd8170612f78bb4ae7c40))
+- Release 0.13.2 ([0bfddb6](https://github.com/MooncellWiki/ak-asset-storage/commit/0bfddb6a45de8b91b11e61837cc7d19c2a37f2ae))
 
 ## [0.13.1] - 2025-08-15
 
