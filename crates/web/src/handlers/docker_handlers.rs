@@ -2,16 +2,14 @@ use crate::{error::WebError, state::AppState};
 use ak_asset_storage_application::{ConfigProvider, DockerService};
 use axum::{extract::State, http::HeaderMap, Json};
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
 
+#[allow(clippy::struct_field_names)]
 #[derive(Debug, Deserialize, Serialize, utoipa::ToSchema)]
 pub struct DockerLaunchRequest {
     pub client_version: String,
     pub res_version: String,
     pub prev_client_version: String,
     pub prev_res_version: String,
-    #[serde(default)]
-    pub extra_env_vars: HashMap<String, String>,
 }
 
 #[derive(Debug, Serialize, utoipa::ToSchema)]

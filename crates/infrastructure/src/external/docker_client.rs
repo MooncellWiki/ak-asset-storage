@@ -1,10 +1,14 @@
+use std::collections::HashMap;
+
 use crate::InfraError;
 use ak_asset_storage_application::{AppResult, DockerConfig};
 use anyhow::anyhow;
 use async_trait::async_trait;
 use bollard::{
     auth::DockerCredentials,
+    container::NetworkingConfig,
     errors::Error,
+    models::EndpointSettings,
     models::{ContainerCreateBody, HostConfig},
     query_parameters::{
         CreateContainerOptionsBuilder, CreateImageOptionsBuilder, InspectContainerOptions,
@@ -35,6 +39,7 @@ impl BollardDockerClient {
 
 #[async_trait]
 impl ak_asset_storage_application::DockerService for BollardDockerClient {
+    #[allow(clippy::too_many_lines)]
     async fn launch_container(
         &self,
         client_version: &str,
@@ -135,6 +140,15 @@ impl ak_asset_storage_application::DockerService for BollardDockerClient {
                 "-r".to_string(),
                 prev_res_version.to_string(),
             ]),
+            networking_config: Some(
+                NetworkingConfig {
+                    endpoints_config: HashMap::from([(
+                        self.config.network.to_string(),
+                        EndpointSettings::default(),
+                    )]),
+                }
+                .into(),
+            ),
             ..Default::default()
         };
 

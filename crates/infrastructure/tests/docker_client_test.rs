@@ -25,6 +25,7 @@ async fn test_docker_client_launch_container() {
         ]),
         username: String::new(),
         password: String::new(),
+        network: String::from("host"),
     };
 
     let client = BollardDockerClient::new(docker_config.clone()).unwrap();

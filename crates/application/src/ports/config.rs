@@ -174,6 +174,7 @@ pub struct DockerConfig {
     pub docker_host: String,
     pub username: String,
     pub password: String,
+    pub network: String,
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
