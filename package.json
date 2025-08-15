@@ -43,6 +43,10 @@
     "vue-tsc": "^3.0.4"
   },
   "lint-staged": {
-    "*": "eslint --fix"
+    "*": "eslint --fix",
+    "*.rs": [
+      "cargo fmt --all -- --check",
+      "cargo clippy --all-features -- -D warnings"
+    ]
   }
 }
