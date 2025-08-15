@@ -41,12 +41,5 @@
     "unplugin-vue-router": "^0.14.0",
     "vite": "^7.0.6",
     "vue-tsc": "^3.0.4"
-  },
-  "lint-staged": {
-    "*": "eslint --fix",
-    "*.rs": [
-      "cargo fmt --all -- --check",
-      "cargo clippy --all-features -- -D warnings"
-    ]
   }
 }
