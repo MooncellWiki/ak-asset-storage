@@ -21,7 +21,7 @@ pub struct DockerLaunchResponse {
 /// Launch Docker container with game asset processing
 ///
 /// This endpoint launches a Docker container to process game assets using the provided version parameters.
-/// It uses the same authentication mechanism as update_item_demands endpoint.
+/// It uses the same authentication mechanism as `update_item_demands` endpoint.
 #[utoipa::path(
     post,
     path = "/docker/launch",

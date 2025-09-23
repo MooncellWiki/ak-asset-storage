@@ -41,8 +41,8 @@ pub async fn static_handler(uri: Uri) -> impl IntoResponse {
 
             ([(header::CONTENT_TYPE, mime.as_ref())], content.data).into_response()
         }
-        None => Assets::get(INDEX_HTML).map_or(
-            (StatusCode::NOT_FOUND, "404").into_response(),
+        None => Assets::get(INDEX_HTML).map_or_else(
+            || (StatusCode::NOT_FOUND, "404").into_response(),
             |content| {
                 (
                     [(header::CONTENT_TYPE, "text/html; charset=utf-8")],

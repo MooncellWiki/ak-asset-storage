@@ -48,7 +48,7 @@ where
         }
     }
 
-    /// 执行下载任务（事件驱动，由Check UseCase触发）
+    /// 执行下载任务
     /// 返回true 如果执行了
     #[instrument(name = "service.asset_download", skip(self))]
     pub async fn perform_download(&self) -> AppResult<bool> {
@@ -95,7 +95,7 @@ where
             .repo
             .get_version_by_id(version_id)
             .await?
-            .ok_or_else(|| anyhow::anyhow!("Version not found: {}", version_id))?;
+            .ok_or_else(|| anyhow::anyhow!("Version not found: {version_id}"))?;
 
         info!(
             "start sync specific version {}-{}",

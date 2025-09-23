@@ -13,7 +13,7 @@ use axum::{
 };
 use std::collections::HashMap;
 
-/// /item/:item_name/demand
+/// `/item/:item_name/demand`
 #[debug_handler]
 #[utoipa::path(
     get,

@@ -1,3 +1,4 @@
+#![allow(clippy::needless_for_each)]
 use crate::{
     handlers::{
         bundle_handlers, docker_handlers, item_demand_handlers, misc_handlers, torappu_handlers,
