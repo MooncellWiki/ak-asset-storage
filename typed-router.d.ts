@@ -28,4 +28,64 @@ declare module 'vue-router/auto-routes' {
     '/diff': RouteRecordInfo<'/diff', '/diff', Record<never, never>, Record<never, never>>,
     '/file/': RouteRecordInfo<'/file/', '/file', Record<never, never>, Record<never, never>>,
   }
+
+  /**
+   * Route file to route info map by unplugin-vue-router.
+   * Used by the volar plugin to automatically type useRoute()
+   *
+   * Each key is a file path relative to the project root with 2 properties:
+   * - routes: union of route names of the possible routes when in this page (passed to useRoute<...>())
+   * - views: names of nested views (can be passed to <RouterView name="...">)
+   *
+   * @internal
+   */
+  export interface _RouteFileInfoMap {
+    'app/pages/index.vue': {
+      routes: '/'
+      views: never
+    }
+    'app/pages/[...all].vue': {
+      routes: '/[...all]'
+      views: never
+    }
+    'app/pages/asset/index.vue': {
+      routes: '/asset/'
+      views: never
+    }
+    'app/pages/asset/components/Preview.vue': {
+      routes: '/asset/components/Preview'
+      views: never
+    }
+    'app/pages/asset/components/TextPreview.vue': {
+      routes: '/asset/components/TextPreview'
+      views: never
+    }
+    'app/pages/components/FileDetail.vue': {
+      routes: '/components/FileDetail'
+      views: never
+    }
+    'app/pages/components/FileDetailDiff.vue': {
+      routes: '/components/FileDetailDiff'
+      views: never
+    }
+    'app/pages/diff.vue': {
+      routes: '/diff'
+      views: never
+    }
+    'app/pages/file/index.vue': {
+      routes: '/file/'
+      views: never
+    }
+  }
+
+  /**
+   * Get a union of possible route names in a certain route component file.
+   * Used by the volar plugin to automatically type useRoute()
+   *
+   * @internal
+   */
+  export type _RouteNamesForFilePath<FilePath extends string> =
+    _RouteFileInfoMap extends Record<FilePath, infer Info>
+      ? Info['routes']
+      : keyof RouteNamedMap
 }
