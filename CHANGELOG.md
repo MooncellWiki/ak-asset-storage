@@ -2,13 +2,29 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.14.0] - 2025-09-23
+
+[715d7cf](715d7cfe2600fe26144cf7c7a281b7c53fe0df33)...[e70d3f7](e70d3f7c0cc3da51e891348e8d270de503f5f79d)
+
+### 🐛 Bug Fixes
+
+- Clippy ([e70d3f7](https://github.com/MooncellWiki/ak-asset-storage/commit/e70d3f7c0cc3da51e891348e8d270de503f5f79d))
+
+### ⚙️ Miscellaneous Tasks
+
+- Update dependencies ([90b2ae9](https://github.com/MooncellWiki/ak-asset-storage/commit/90b2ae97c18c760e58cb34ccb88b8ee7c1855983))
+
 ## [0.13.3] - 2025-08-15
 
-[0bfddb6](0bfddb6a45de8b91b11e61837cc7d19c2a37f2ae)...[39c4d48](39c4d4807c75bd4dc1dfe6deb0205e3e43bc0db5)
+[0bfddb6](0bfddb6a45de8b91b11e61837cc7d19c2a37f2ae)...[715d7cf](715d7cfe2600fe26144cf7c7a281b7c53fe0df33)
 
 ### 🐛 Bug Fixes
 
 - Memory leak ([39c4d48](https://github.com/MooncellWiki/ak-asset-storage/commit/39c4d4807c75bd4dc1dfe6deb0205e3e43bc0db5))
+
+### ⚙️ Miscellaneous Tasks
+
+- Release 0.13.3 ([715d7cf](https://github.com/MooncellWiki/ak-asset-storage/commit/715d7cfe2600fe26144cf7c7a281b7c53fe0df33))
 
 ## [0.13.2] - 2025-08-15
 
