@@ -17,6 +17,11 @@
       :options="versionOpts"
       clearable
     ></NSelect>
+    <NButton class="ml-2" secondary circle @click="copyCommand">
+      <template #icon>
+        <CarbonCopy />
+      </template>
+    </NButton>
   </div>
   <div class="mt-2 flex">
     <NInput
@@ -53,9 +58,11 @@
   ></FileDetailDiff>
 </template>
 <script setup lang="ts">
-import { useUrlSearchParams, watchDebounced } from "@vueuse/core";
+import { useClipboard, useUrlSearchParams, watchDebounced } from "@vueuse/core";
 import CarbonArrowsHorizontal from "~icons/carbon/arrows-horizontal";
+import CarbonCopy from "~icons/carbon/copy";
 import CarbonSettings from "~icons/carbon/settings";
+import { useMessage } from "naive-ui";
 import { h, onBeforeMount, ref, watch } from "vue";
 import { client } from "~/common/client";
 import { useVersionSelect } from "~/common/useVersionSelect";
@@ -71,6 +78,8 @@ const left = ref<number>();
 const right = ref<number>();
 const keyword = ref<string>("");
 const { versions, versionOpts, load: loadVersions } = useVersionSelect();
+const { copy } = useClipboard();
+const message = useMessage();
 watch(
   () => [left.value, right.value],
   () => {
@@ -108,6 +117,30 @@ function switchVer() {
   const leftVal = left.value;
   left.value = right.value;
   right.value = leftVal;
+}
+async function copyCommand() {
+  const leftVersion = versions.value.find((v) => v.id === left.value);
+  const rightVersion = versions.value.find((v) => v.id === right.value);
+
+  if (!leftVersion && !rightVersion) {
+    message.warning("请先选择版本");
+    return;
+  }
+
+  let command = "";
+  if (rightVersion && !leftVersion) {
+    // Only right side selected
+    command = `${rightVersion.clientVersion} ${rightVersion.resVersion}`;
+  } else if (rightVersion && leftVersion) {
+    // Both sides selected
+    command = `${rightVersion.clientVersion} ${rightVersion.resVersion} -c ${leftVersion.clientVersion} -r ${leftVersion.resVersion}`;
+  } else if (leftVersion && !rightVersion) {
+    // Only left side selected
+    command = `${leftVersion.clientVersion} ${leftVersion.resVersion}`;
+  }
+
+  await copy(command);
+  message.success("已复制到剪贴板");
 }
 function dirOrder(a: string, b: string) {
   if (a === b) {
