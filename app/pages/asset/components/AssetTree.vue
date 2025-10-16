@@ -84,19 +84,31 @@ const expandedKeys = ref<string[]>([]);
 
 // Load root directory
 async function loadRoot() {
-  const { data } = await client.GET("/api/v1/files/{path}", {
-    params: { path: { path: "" } },
-  });
+  try {
+    const { data, error } = await client.GET("/api/v1/files/{path}", {
+      params: { path: { path: "" } },
+    });
 
-  if (data?.children) {
-    treeData.value = data.children.map((item) => ({
-      key: item.path,
-      label: item.name,
-      path: item.path,
-      is_dir: item.is_dir,
-      isLeaf: !item.is_dir,
-      children: item.is_dir ? [] : undefined,
-    }));
+    if (error) {
+      console.error("Failed to load root directory:", error);
+      // Show empty state with error
+      treeData.value = [];
+      return;
+    }
+
+    if (data?.children) {
+      treeData.value = data.children.map((item) => ({
+        key: item.path,
+        label: item.name,
+        path: item.path,
+        is_dir: item.is_dir,
+        isLeaf: !item.is_dir,
+        children: item.is_dir ? [] : undefined,
+      }));
+    }
+  } catch (err) {
+    console.error("Error loading root:", err);
+    treeData.value = [];
   }
 }
 
