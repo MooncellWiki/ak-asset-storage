@@ -1,37 +1,80 @@
 <template>
-  <div class="asset-page h-screen flex">
-    <!-- Left Panel - Tree -->
-    <div
-      class="overflow-hidden border-r border-gray-200"
-      :style="{ width: `${leftWidth}px` }"
-    >
-      <AssetTree :selected-path="selectedPath" @select="handleTreeSelect" />
+  <div class="asset-page h-screen flex flex-col">
+    <!-- Header with Breadcrumb and Mobile Menu Button -->
+    <div class="border-b border-gray-200 p-3">
+      <div class="flex items-center gap-2">
+        <!-- Mobile Menu Button -->
+        <NButton v-if="isMobile" quaternary @click="toggleMobileMenu">
+          <template #icon>
+            <CarbonMenu v-if="!showMobileMenu" />
+            <CarbonClose v-else />
+          </template>
+        </NButton>
+
+        <!-- Breadcrumb Navigation -->
+        <NBreadcrumb v-if="selectedPath">
+          <NBreadcrumbItem @click="handleBreadcrumbClick('')">
+            <div class="flex items-center gap-1">
+              <CarbonHome />
+              <span>根目录</span>
+            </div>
+          </NBreadcrumbItem>
+          <NBreadcrumbItem
+            v-for="(part, idx) in pathParts"
+            :key="idx"
+            @click="
+              handleBreadcrumbClick(pathParts.slice(0, idx + 1).join('/'))
+            "
+          >
+            {{ part }}
+          </NBreadcrumbItem>
+        </NBreadcrumb>
+        <div v-else class="text-gray-400">资产浏览器</div>
+      </div>
     </div>
 
-    <!-- Resizer -->
-    <div
-      ref="resizer"
-      class="resizer w-1 cursor-col-resize bg-gray-200 transition-colors hover:bg-blue-400"
-      @mousedown="startResize"
-    ></div>
-
-    <!-- Right Panel - Content -->
+    <!-- Main Content Area -->
     <div class="flex-1 overflow-hidden">
-      <AssetContent
-        :path="selectedPath"
-        :is-dir="selectedIsDir"
-        @navigate="handleNavigate"
-      />
-    </div>
-
-    <!-- Mobile Menu Toggle (for small screens) -->
-    <div v-if="isMobile" class="fixed left-4 top-4 z-50">
-      <NButton @click="toggleMobileMenu">
-        <template #icon>
-          <CarbonMenu v-if="!showMobileMenu" />
-          <CarbonClose v-else />
+      <NSplit
+        v-if="!isMobile"
+        direction="horizontal"
+        :default-size="0.25"
+        :min="0.15"
+        :max="0.4"
+      >
+        <template #1>
+          <div class="h-full overflow-hidden">
+            <AssetTree
+              :selected-path="selectedPath"
+              :tree-data="treeData"
+              @select="handleTreeSelect"
+              @load="handleTreeLoad"
+            />
+          </div>
         </template>
-      </NButton>
+        <template #2>
+          <div class="h-full overflow-hidden">
+            <AssetContent
+              :path="selectedPath"
+              :is-dir="selectedIsDir"
+              :dir-content="dirContent"
+              :loading="contentLoading"
+              @navigate="handleNavigate"
+            />
+          </div>
+        </template>
+      </NSplit>
+
+      <!-- Mobile: Content Only -->
+      <div v-else class="h-full overflow-hidden">
+        <AssetContent
+          :path="selectedPath"
+          :is-dir="selectedIsDir"
+          :dir-content="dirContent"
+          :loading="contentLoading"
+          @navigate="handleNavigate"
+        />
+      </div>
     </div>
 
     <!-- Mobile Drawer -->
@@ -39,7 +82,9 @@
       <NDrawerContent title="文件浏览">
         <AssetTree
           :selected-path="selectedPath"
+          :tree-data="treeData"
           @select="handleTreeSelectMobile"
+          @load="handleTreeLoad"
         />
       </NDrawerContent>
     </NDrawer>
@@ -48,45 +93,119 @@
 
 <script lang="ts" setup>
 import { useBreakpoints } from "@vueuse/core";
+import { useRouteQuery } from "@vueuse/router";
 import CarbonClose from "~icons/carbon/close";
+import CarbonHome from "~icons/carbon/home";
 import CarbonMenu from "~icons/carbon/menu";
-import { onMounted, onUnmounted, ref } from "vue";
-import { useRoute, useRouter } from "vue-router";
+import { computed, ref, watch } from "vue";
+import { client } from "~/common/client";
+import type { components } from "~/common/schema";
 import AssetContent from "./components/AssetContent.vue";
 import AssetTree from "./components/AssetTree.vue";
 
-const route = useRoute();
-const router = useRouter();
+type AssetDir = components["schemas"]["AssetDir"];
 
-const selectedPath = ref("");
-const selectedIsDir = ref(false);
-const leftWidth = ref(350);
-const showMobileMenu = ref(false);
+interface TreeNode {
+  key: string;
+  label: string;
+  path: string;
+  is_dir: boolean;
+  isLeaf?: boolean;
+  children?: TreeNode[];
+}
 
 // Responsive design
 const breakpoints = useBreakpoints({ mobile: 768 });
 const isMobile = breakpoints.smaller("mobile");
 
-// Resizer logic
-const isResizing = ref(false);
-const resizer = ref<HTMLElement | null>(null);
+// Use route query for path synchronization
+const pathQuery = useRouteQuery<string>("path", "");
 
-function startResize(e: MouseEvent) {
-  isResizing.value = true;
-  e.preventDefault();
-}
+// State
+const selectedPath = ref("");
+const selectedIsDir = ref(false);
+const showMobileMenu = ref(false);
+const treeData = ref<TreeNode[]>([]);
+const dirContent = ref<AssetDir | null>(null);
+const contentLoading = ref(false);
 
-function onMouseMove(e: MouseEvent) {
-  if (!isResizing.value) return;
+// Computed
+const pathParts = computed(() => {
+  if (!selectedPath.value) return [];
+  return selectedPath.value.replace("./asset/", "").split("/").filter(Boolean);
+});
 
-  const newWidth = e.clientX;
-  if (newWidth >= 200 && newWidth <= 600) {
-    leftWidth.value = newWidth;
+// Load root directory
+async function loadRoot() {
+  try {
+    const { data, error } = await client.GET("/api/v1/files/{path}", {
+      params: { path: { path: "" } },
+    });
+
+    if (error) {
+      console.error("Failed to load root directory:", error);
+      treeData.value = [];
+      return;
+    }
+
+    if (data?.children) {
+      treeData.value = data.children.map((item) => ({
+        key: item.path,
+        label: item.name,
+        path: item.path,
+        is_dir: item.is_dir,
+        isLeaf: !item.is_dir,
+        children: undefined,
+      }));
+    }
+  } catch (error) {
+    console.error("Error loading root:", error);
+    treeData.value = [];
   }
 }
 
-function stopResize() {
-  isResizing.value = false;
+// Load children for a directory (for tree lazy loading)
+async function handleTreeLoad(node: TreeNode) {
+  const { data } = await client.GET("/api/v1/files/{path}", {
+    params: { path: { path: node.path.replace("./asset/", "") } },
+  });
+
+  if (data?.children) {
+    node.children = data.children.map((item) => ({
+      key: item.path,
+      label: item.name,
+      path: item.path,
+      is_dir: item.is_dir,
+      isLeaf: !item.is_dir,
+      children: undefined,
+    }));
+  }
+}
+
+// Load content for display
+async function loadContent(path: string, isDir: boolean) {
+  if (!path) {
+    dirContent.value = null;
+    return;
+  }
+
+  contentLoading.value = true;
+  try {
+    if (isDir) {
+      const { data } = await client.GET("/api/v1/files/{path}", {
+        params: { path: { path: path.replace("./asset/", "") } },
+      });
+      dirContent.value = data || null;
+    } else {
+      // For files, just clear dirContent (AssetContent will handle file loading)
+      dirContent.value = null;
+    }
+  } catch (error) {
+    console.error("Error loading content:", error);
+    dirContent.value = null;
+  } finally {
+    contentLoading.value = false;
+  }
 }
 
 // Handle tree selection
@@ -96,10 +215,10 @@ function handleTreeSelect(path: string, isDir: boolean) {
 
   // Update URL
   const pathParam = path.replace("./asset/", "");
-  router.push({
-    path: "/asset",
-    query: pathParam ? { path: pathParam } : {},
-  });
+  pathQuery.value = pathParam;
+
+  // Load content
+  loadContent(path, isDir);
 }
 
 function handleTreeSelectMobile(path: string, isDir: boolean) {
@@ -114,51 +233,49 @@ function handleNavigate(path: string, isDir: boolean) {
 
   // Update URL
   const pathParam = path.replace("./asset/", "");
-  router.push({
-    path: "/asset",
-    query: pathParam ? { path: pathParam } : {},
-  });
+  pathQuery.value = pathParam;
+
+  // Load content
+  loadContent(path, isDir);
+}
+
+// Handle breadcrumb click
+function handleBreadcrumbClick(path: string) {
+  const fullPath = path ? `./asset/${path}` : "";
+  handleNavigate(fullPath, true);
 }
 
 function toggleMobileMenu() {
   showMobileMenu.value = !showMobileMenu.value;
 }
 
-// Initialize from URL
-onMounted(() => {
-  // Add resize listeners
-  document.addEventListener("mousemove", onMouseMove);
-  document.addEventListener("mouseup", stopResize);
+// Watch for URL query changes
+watch(
+  pathQuery,
+  (newPath) => {
+    if (newPath) {
+      const fullPath = `./asset/${newPath}`;
+      if (fullPath !== selectedPath.value) {
+        selectedPath.value = fullPath;
+        // Determine if it's a directory or file (simple heuristic)
+        selectedIsDir.value = !newPath.includes(".");
+        loadContent(fullPath, selectedIsDir.value);
+      }
+    } else {
+      selectedPath.value = "";
+      selectedIsDir.value = false;
+      dirContent.value = null;
+    }
+  },
+  { immediate: true },
+);
 
-  // Load from URL query
-  const pathFromQuery = route.query.path as string;
-  if (pathFromQuery) {
-    selectedPath.value = `./asset/${pathFromQuery}`;
-    selectedIsDir.value = false; // Will be determined by the API
-  }
-});
-
-onUnmounted(() => {
-  document.removeEventListener("mousemove", onMouseMove);
-  document.removeEventListener("mouseup", stopResize);
-});
+// Initialize
+loadRoot();
 </script>
 
 <style scoped>
 .asset-page {
   position: relative;
-}
-
-.resizer {
-  user-select: none;
-}
-
-@media (max-width: 768px) {
-  .asset-page > div:first-child {
-    display: none;
-  }
-  .resizer {
-    display: none;
-  }
 }
 </style>

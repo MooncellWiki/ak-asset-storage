@@ -69,73 +69,31 @@ interface TreeNode extends TreeOption {
 
 const props = defineProps<{
   selectedPath?: string;
+  treeData: TreeNode[];
 }>();
 
 const emit = defineEmits<{
   select: [path: string, isDir: boolean];
+  load: [node: TreeNode];
 }>();
 
 const searchText = ref("");
 const isSearching = ref(false);
 const searchResults = ref<AssetEntry[]>([]);
-const treeData = ref<TreeNode[]>([]);
 const selectedKeys = ref<string[]>([]);
 const expandedKeys = ref<string[]>([]);
-
-// Load root directory
-async function loadRoot() {
-  try {
-    const { data, error } = await client.GET("/api/v1/files/{path}", {
-      params: { path: { path: "" } },
-    });
-
-    if (error) {
-      console.error("Failed to load root directory:", error);
-      // Show empty state with error
-      treeData.value = [];
-      return;
-    }
-
-    if (data?.children) {
-      treeData.value = data.children.map((item) => ({
-        key: item.path,
-        label: item.name,
-        path: item.path,
-        is_dir: item.is_dir,
-        isLeaf: !item.is_dir,
-        children: item.is_dir ? [] : undefined,
-      }));
-    }
-  } catch (error) {
-    console.error("Error loading root:", error);
-    treeData.value = [];
-  }
-}
 
 // Load children for a directory
 async function handleLoad(node: TreeOption) {
   const treeNode = node as TreeNode;
-  const { data } = await client.GET("/api/v1/files/{path}", {
-    params: { path: { path: treeNode.path.replace("./asset/", "") } },
-  });
-
-  if (data?.children) {
-    treeNode.children = data.children.map((item) => ({
-      key: item.path,
-      label: item.name,
-      path: item.path,
-      is_dir: item.is_dir,
-      isLeaf: !item.is_dir,
-      children: item.is_dir ? [] : undefined,
-    }));
-  }
+  emit("load", treeNode);
 }
 
 // Handle node selection
 function handleSelect(keys: string[]) {
   if (keys.length > 0) {
     selectedKeys.value = keys;
-    const node = findNodeByKey(treeData.value, keys[0]);
+    const node = findNodeByKey(props.treeData, keys[0]);
     if (node) {
       emit("select", node.path, node.is_dir);
     }
@@ -177,9 +135,9 @@ async function handleSearchSelect(item: AssetEntry) {
     expandKeys.push(partialPath);
 
     // Load if needed
-    const node = findNodeByKey(treeData.value, partialPath);
+    const node = findNodeByKey(props.treeData, partialPath);
     if (node && node.is_dir && (!node.children || node.children.length === 0)) {
-      await handleLoad(node);
+      emit("load", node);
     }
   }
 
@@ -210,9 +168,6 @@ watch(
   },
   { immediate: true },
 );
-
-// Initialize
-loadRoot();
 </script>
 
 <style scoped>

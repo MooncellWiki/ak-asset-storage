@@ -1,21 +1,5 @@
 <template>
   <div class="asset-content h-full flex flex-col">
-    <!-- Breadcrumb Navigation -->
-    <div v-if="path" class="border-b border-gray-200 p-3">
-      <NBreadcrumb>
-        <NBreadcrumbItem @click="handleBreadcrumbClick('')">
-          <CarbonHome class="mr-1" /> 根目录
-        </NBreadcrumbItem>
-        <NBreadcrumbItem
-          v-for="(part, idx) in pathParts"
-          :key="idx"
-          @click="handleBreadcrumbClick(pathParts.slice(0, idx + 1).join('/'))"
-        >
-          {{ part }}
-        </NBreadcrumbItem>
-      </NBreadcrumb>
-    </div>
-
     <!-- Content Area -->
     <div class="flex-1 overflow-auto p-4">
       <!-- Loading State -->
@@ -114,7 +98,6 @@ import CarbonCopy from "~icons/carbon/copy";
 import CarbonDocumentBlank from "~icons/carbon/document-blank";
 import CarbonDocumentUnknown from "~icons/carbon/document-unknown";
 import CarbonDownload from "~icons/carbon/download";
-import CarbonHome from "~icons/carbon/home";
 import { format, parseISO } from "date-fns";
 import MarkdownIt from "markdown-it";
 import { useMessage } from "naive-ui";
@@ -131,6 +114,8 @@ type AssetDir = components["schemas"]["AssetDir"];
 const props = defineProps<{
   path: string;
   isDir: boolean;
+  dirContent: AssetDir | null;
+  loading: boolean;
 }>();
 
 const emit = defineEmits<{
@@ -140,8 +125,6 @@ const emit = defineEmits<{
 const message = useMessage();
 const md = new MarkdownIt();
 
-const loading = ref(false);
-const dirContent = ref<AssetDir | null>(null);
 const fileContent = ref("");
 const highlightedCode = ref("");
 const renderedMarkdown = ref("");
@@ -249,48 +232,38 @@ function rowProps(row: AssetEntry) {
   };
 }
 
-// Load content based on type
-async function loadContent() {
-  loading.value = true;
+// Load file content for preview
+async function loadFileContent() {
   highlightedCode.value = "";
   renderedMarkdown.value = "";
   fileContent.value = "";
-  dirContent.value = null;
+
+  if (!props.path || props.isDir) return;
 
   try {
-    if (props.isDir) {
-      // Load directory
-      const { data } = await client.GET("/api/v1/files/{path}", {
-        params: { path: { path: props.path.replace("./asset/", "") } },
-      });
-      dirContent.value = data || null;
-    } else {
-      // Load file content for preview
-      if (isText.value || isCode.value || isMarkdown.value) {
-        const response = await fetch(fileUrl.value);
-        const text = await response.text();
-        fileContent.value = text;
+    // Load file content for preview
+    if (isText.value || isCode.value || isMarkdown.value) {
+      const response = await fetch(fileUrl.value);
+      const text = await response.text();
+      fileContent.value = text;
 
-        if (isMarkdown.value) {
-          renderedMarkdown.value = md.render(text);
-        } else if (isCode.value) {
-          await highlightCode(text, fileExtension.value);
-        }
+      if (isMarkdown.value) {
+        renderedMarkdown.value = md.render(text);
+      } else if (isCode.value) {
+        await highlightCode(text, fileExtension.value);
       }
+    }
 
-      // Get file size
-      const { data } = await client.GET("/api/v1/files/{path}", {
-        params: { path: { path: props.path.replace("./asset/", "") } },
-      });
-      if (data?.dir) {
-        fileSize.value = toReadableSize(data.dir.size);
-      }
+    // Get file size
+    const { data } = await client.GET("/api/v1/files/{path}", {
+      params: { path: { path: props.path.replace("./asset/", "") } },
+    });
+    if (data?.dir) {
+      fileSize.value = toReadableSize(data.dir.size);
     }
   } catch (error) {
     console.error("Error loading content:", error);
     message.error("加载内容失败");
-  } finally {
-    loading.value = false;
   }
 }
 
@@ -306,12 +279,6 @@ async function highlightCode(code: string, lang: string) {
     // Fallback to plain text
     highlightedCode.value = "";
   }
-}
-
-// Handle breadcrumb click
-function handleBreadcrumbClick(path: string) {
-  const fullPath = path ? `./asset/${path}` : "";
-  emit("navigate", fullPath, true);
 }
 
 // Copy content to clipboard
@@ -333,8 +300,8 @@ function downloadFile() {
 watch(
   () => props.path,
   () => {
-    if (props.path) {
-      loadContent();
+    if (props.path && !props.isDir) {
+      loadFileContent();
     }
   },
   { immediate: true },
