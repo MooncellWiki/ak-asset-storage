@@ -1,16 +1,42 @@
 <template>
-  <NButton @click="openSearch">
-    <CarbonSearch />
-  </NButton>
-  <NDataTable
-    v-model:expanded-row-keys="expandedRowKeys"
-    class="mt-2"
-    max-height="80vh"
-    :data="data"
-    :columns="columns"
-    :row-props="rowProps"
-    @load="onLoad"
-  />
+  <div class="flex flex-col gap-4">
+    <!-- Search Button and Breadcrumb -->
+    <div class="flex items-center justify-between">
+      <NBreadcrumb>
+        <NBreadcrumbItem @click="navigateTo('')">
+          <div class="flex cursor-pointer items-center gap-1">
+            <CarbonFolderShared />
+            <span>asset</span>
+          </div>
+        </NBreadcrumbItem>
+        <NBreadcrumbItem
+          v-for="(part, index) in pathParts"
+          :key="index"
+          @click="navigateTo(pathParts.slice(0, index + 1).join('/'))"
+        >
+          <div class="cursor-pointer">{{ part }}</div>
+        </NBreadcrumbItem>
+      </NBreadcrumb>
+      <NButton @click="openSearch">
+        <template #icon>
+          <CarbonSearch />
+        </template>
+        搜索
+      </NButton>
+    </div>
+
+    <!-- File/Folder List -->
+    <NCard>
+      <NDataTable
+        :data="data"
+        :columns="columns"
+        :row-props="rowProps"
+        :loading="loading"
+      />
+    </NCard>
+  </div>
+
+  <!-- File Preview Modal -->
   <div
     ref="el"
     class="fixed right-2 top-2 z-10"
@@ -58,6 +84,7 @@
     </NCard>
   </div>
 
+  <!-- Search Modal -->
   <NModal v-model:show="searchVisible">
     <NCard class="container">
       <NMessageProvider>
@@ -80,46 +107,23 @@
       </NMessageProvider>
     </NCard>
   </NModal>
-
-  <!-- <div class="h-full">
-
-    <div class="max-h-full w-full flex overflow-y-auto">
-      <div class="w-1/2 flex-grow">
-        <div class="max-h-full overflow-y-scroll">
-
-        </div>
-      </div>
-      <NCard
-        v-if="previewPath"
-        embedded
-        :title="previewPath"
-        class="max-h-full w-1/2 overflow-y-auto"
-      >
-        <NButton @click="open(previewPath)">
-          <template #icon>
-            <CarbonDownload></CarbonDownload>
-          </template>
-        </NButton>
-        <Preview :path="previewPath" />
-      </NCard>
-
-    </div>
-  </div> -->
 </template>
 <script lang="ts" setup>
 import { useDebounceFn, useDraggable } from "@vueuse/core";
 import CarbonCloseLarge from "~icons/carbon/close-large";
+import CarbonDocument from "~icons/carbon/document";
 import CarbonFitToScreen from "~icons/carbon/fit-to-screen";
+import CarbonFolder from "~icons/carbon/folder";
+import CarbonFolderShared from "~icons/carbon/folder-shared";
 import CarbonSearch from "~icons/carbon/search";
 import { format, parseISO } from "date-fns";
-import { useMessage } from "naive-ui";
-import { onMounted, ref, useTemplateRef } from "vue";
+import { computed, h, onMounted, ref, useTemplateRef, watch } from "vue";
+import { useRoute, useRouter } from "vue-router";
 import { client } from "~/common/client";
 import { toReadableSize } from "~/common/utils";
 import type { components } from "~/common/schema";
 import Preview from "./components/Preview.vue";
 import type { DataTableColumns } from "naive-ui";
-import type { RowData } from "naive-ui/es/data-table/src/interface";
 
 const DATE_FORMAT_STRING = "yyyy-MM-dd HH:mm:ss";
 interface Entry {
@@ -129,40 +133,58 @@ interface Entry {
   name: string;
   path: string;
   key: string;
-  isLeaf?: boolean;
   size: number;
   hSize: string;
-  children?: Entry[];
 }
-function makeDisplayable(
-  arr: components["schemas"]["AssetEntry"][],
-  withLeaf = true,
-): Entry[] {
+
+function makeDisplayable(arr: components["schemas"]["AssetEntry"][]): Entry[] {
   return arr
     .map((item) => {
       return {
         ...item,
         key: item.path,
-        isLeaf: withLeaf ? !item.is_dir : undefined,
         create_at: format(parseISO(item.create_at), DATE_FORMAT_STRING),
         modified_at: format(parseISO(item.modified_at), DATE_FORMAT_STRING),
         hSize: item.is_dir ? "" : toReadableSize(item.size),
       } satisfies Entry;
     })
     .sort((a, b) => {
+      // Sort directories first, then by name
+      if (a.is_dir && !b.is_dir) return -1;
+      if (!a.is_dir && b.is_dir) return 1;
       return a.name > b.name ? 1 : -1;
     });
 }
+
 function realPath(e: Entry): string {
   if (e.path.startsWith("raw")) {
     return `${location.origin}/${e.path.replace("raw", "assets")}`;
   }
   return `${location.origin}/${e.path}`;
 }
+
 function open(p: string) {
   window.open(p);
 }
+
+const route = useRoute();
+const router = useRouter();
 const data = ref<Entry[]>([]);
+const loading = ref(false);
+
+// Get current path from route query parameter
+const currentPath = computed(() => {
+  const path = (route.query.path as string) || "";
+  return path;
+});
+
+// Split path into breadcrumb parts
+const pathParts = computed(() => {
+  const path = currentPath.value;
+  if (!path) return [];
+  return path.split("/").filter(Boolean);
+});
+
 async function list(path = ""): Promise<Entry[]> {
   const { data } = await client.GET("/api/v1/files/{path}", {
     params: {
@@ -173,70 +195,94 @@ async function list(path = ""): Promise<Entry[]> {
   });
   return makeDisplayable(data?.children ?? []);
 }
+
+// Navigate to a path
+function navigateTo(path: string) {
+  router.push({
+    path: "/asset",
+    query: path ? { path } : {},
+  });
+}
+
+// Load data when path changes
+async function loadData() {
+  loading.value = true;
+  try {
+    data.value = await list(currentPath.value);
+  } finally {
+    loading.value = false;
+  }
+}
+
 const previewPath = ref("");
 const showFileToast = ref(false);
 const showFullScreen = ref(false);
 
 const columns: DataTableColumns<Entry> = [
-  { key: "name", title: "文件名" },
+  {
+    key: "name",
+    title: "名称",
+    render: (row) => {
+      return h("div", { class: "flex items-center gap-2" }, [
+        row.is_dir
+          ? h(CarbonFolder, { class: "text-blue-500" })
+          : h(CarbonDocument, { class: "text-gray-500" }),
+        h("span", row.name),
+      ]);
+    },
+  },
   { key: "create_at", title: "创建时间" },
   { key: "modified_at", title: "修改时间" },
   { key: "hSize", title: "大小" },
 ];
+
 onMounted(async () => {
-  data.value = await list();
+  await loadData();
   window.addEventListener("resize", updatewindowHeight);
 });
-const expandedRowKeys = ref<string[]>([]);
-async function onLoad(row: RowData) {
-  const resp = await list(row.path.replace("./asset/", ""));
-  row.children = resp;
-}
+
+// Watch for path changes
+watch(currentPath, async () => {
+  await loadData();
+});
 
 function rowProps(row: Entry) {
   return {
     onClick: () => {
       if (row.is_dir) {
+        // Navigate into the directory
+        const newPath = currentPath.value
+          ? `${currentPath.value}/${row.name}`
+          : row.name;
+        navigateTo(newPath);
         return;
       }
+
+      // For files, show preview
       if (row.path.endsWith(".json")) {
         open(realPath(row));
         return;
       }
       previewPath.value = realPath(row);
       showFileToast.value = true;
-      //showFileInfo.value = true;
+    },
+    style: {
+      cursor: "pointer",
     },
   };
 }
+
 const searchVisible = ref(false);
-const message = useMessage();
+
 function searchRowProps(row: Entry) {
   return {
     onClick: async () => {
-      const msgHandler = message.loading("", { duration: 0 });
-      const arr = row.path.split("/");
-      const set = new Set<string>();
-      for (let i = 1; i < arr.length; i++) {
-        set.add(arr.slice(0, i).join("/"));
-      }
-      const keys = [...set];
-      let curList = data.value;
-      for (const p of arr) {
-        const entry = curList.find((v) => v.name === p)!;
-        if (entry.children) {
-          curList = entry.children;
-          continue;
-        }
-        if (entry.is_dir) {
-          await onLoad(entry);
-          curList = entry.children!;
-        } else {
-          break;
-        }
-      }
-      msgHandler.destroy();
-      expandedRowKeys.value = keys;
+      // Extract the directory path from the file path
+      const pathParts = row.path.replace("./asset/", "").split("/");
+      pathParts.pop(); // Remove the filename
+      const dirPath = pathParts.join("/");
+
+      navigateTo(dirPath);
       searchVisible.value = false;
     },
   };
@@ -245,6 +291,7 @@ function searchRowProps(row: Entry) {
 function openSearch() {
   searchVisible.value = true;
 }
+
 const searchText = ref("");
 const searchData = ref<Entry[]>([]);
 
@@ -258,8 +305,9 @@ const search = useDebounceFn(async () => {
       query: { path: searchText.value },
     },
   });
-  searchData.value = makeDisplayable(data ?? [], false);
+  searchData.value = makeDisplayable(data ?? []);
 }, 500);
+
 const searchColumns: DataTableColumns<Entry> = [
   { key: "name", title: "文件名" },
   { key: "create_at", title: "创建时间" },
@@ -267,10 +315,12 @@ const searchColumns: DataTableColumns<Entry> = [
   { key: "hSize", title: "大小" },
   { key: "path", title: "路径" },
 ];
+
 const windowHeight = ref(window.innerHeight);
 function updatewindowHeight() {
   windowHeight.value = window.innerHeight;
 }
+
 const el = useTemplateRef<HTMLElement>("el");
 const { style } = useDraggable(el, {
   initialValue: { x: window.innerWidth - 400 - 40, y: 40 },
