@@ -185,17 +185,6 @@ const pathParts = computed(() => {
   return path.split("/").filter(Boolean);
 });
 
-async function list(path = ""): Promise<Entry[]> {
-  const { data } = await client.GET("/api/v1/files/{path}", {
-    params: {
-      path: {
-        path,
-      },
-    },
-  });
-  return makeDisplayable(data?.children ?? []);
-}
-
 // Navigate to a path
 function navigateTo(path: string) {
   router.push({
@@ -208,7 +197,22 @@ function navigateTo(path: string) {
 async function loadData() {
   loading.value = true;
   try {
-    data.value = await list(currentPath.value);
+    const { data, error } = await client.GET("/api/v1/files/{path}", {
+      params: {
+        path: {
+          path: currentPath.value,
+        },
+      },
+    });
+    if (error) {
+      console.error("Failed to load data:", error);
+      data.value = [];
+    } else {
+      data.value = makeDisplayable(data?.children ?? []);
+    }
+  } catch (error) {
+    console.error("Failed to load data:", error);
+    data.value = [];
   } finally {
     loading.value = false;
   }
