@@ -106,8 +106,8 @@ async function loadRoot() {
         children: item.is_dir ? [] : undefined,
       }));
     }
-  } catch (err) {
-    console.error("Error loading root:", err);
+  } catch (error) {
+    console.error("Error loading root:", error);
     treeData.value = [];
   }
 }
