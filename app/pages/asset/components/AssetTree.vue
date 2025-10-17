@@ -18,7 +18,6 @@
       <NTree
         v-if="!isSearching"
         block-line
-        expand-on-click
         :data="treeData"
         :selected-keys="selectedKeys"
         :expanded-keys="expandedKeys"
@@ -63,7 +62,7 @@ type AssetEntry = components["schemas"]["AssetEntry"];
 const props = defineProps<{
   selectedPath?: string;
   treeData: TreeNode[];
-  onLoad: (node: TreeNode) => void | Promise<void>;
+  onLoad: (node: TreeNode) => Promise<void>;
 }>();
 
 const emit = defineEmits<{
@@ -129,7 +128,7 @@ async function handleSearchSelect(item: AssetEntry) {
     // Load if needed
     const node = findNodeByKey(props.treeData, partialPath);
     if (node && node.is_dir && (!node.children || node.children.length === 0)) {
-      props.onLoad(node);
+      await props.onLoad(node);
     }
   }
 
@@ -150,12 +149,36 @@ function findNodeByKey(nodes: TreeNode[], key: string): TreeNode | null {
   return null;
 }
 
-// Watch for prop changes
+// Watch for prop changes and load path if needed
 watch(
   () => props.selectedPath,
-  (newPath) => {
+  async (newPath) => {
     if (newPath) {
       selectedKeys.value = [newPath];
+
+      // Expand tree to show the selected item (like handleSearchSelect)
+      const pathParts = newPath
+        .replace("./asset/", "")
+        .split("/")
+        .filter(Boolean);
+      const expandKeys: string[] = [];
+
+      for (let i = 0; i < pathParts.length; i++) {
+        const partialPath = `./asset/${pathParts.slice(0, i + 1).join("/")}`;
+        expandKeys.push(partialPath);
+
+        // Load if needed
+        const node = findNodeByKey(props.treeData, partialPath);
+        if (
+          node &&
+          node.is_dir &&
+          (!node.children || node.children.length === 0)
+        ) {
+          await props.onLoad(node);
+        }
+      }
+
+      expandedKeys.value = expandKeys;
     }
   },
   { immediate: true },
