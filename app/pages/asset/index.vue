@@ -1,8 +1,8 @@
 <template>
-  <div class="asset-page h-screen flex flex-col">
+  <div class="h-[calc(100vh-4.5rem)] flex flex-col overflow-auto">
     <!-- Header with Breadcrumb and Mobile Menu Button -->
     <div class="border-b border-gray-200 p-3">
-      <div class="flex items-center gap-2">
+      <div class="flex items-center gap-2 overflow-auto">
         <!-- Mobile Menu Button -->
         <NButton v-if="isMobile" quaternary @click="toggleMobileMenu">
           <template #icon>
@@ -13,18 +13,16 @@
 
         <!-- Breadcrumb Navigation -->
         <NBreadcrumb v-if="selectedPath">
-          <NBreadcrumbItem @click="handleBreadcrumbClick('')">
-            <div class="flex items-center gap-1">
+          <NBreadcrumbItem @click="handleNavigation('')">
+            <NIcon>
               <CarbonHome />
-              <span>根目录</span>
-            </div>
+            </NIcon>
+            <span>根目录</span>
           </NBreadcrumbItem>
           <NBreadcrumbItem
             v-for="(part, idx) in pathParts"
             :key="idx"
-            @click="
-              handleBreadcrumbClick(pathParts.slice(0, idx + 1).join('/'))
-            "
+            @click="handleNavigation(pathParts.slice(0, idx + 1).join('/'))"
           >
             {{ part }}
           </NBreadcrumbItem>
@@ -45,37 +43,34 @@
         <template #1>
           <div class="h-full overflow-hidden">
             <AssetTree
-              :selected-path="selectedPath"
+              v-model="selectedPath"
               :tree-data="treeData"
               :on-load="handleTreeLoad"
-              @select="handleTreeSelect"
             />
           </div>
         </template>
         <template #2>
-          <div class="h-full overflow-hidden">
-            <AssetContent
-              :path="selectedPath"
-              :is-dir="selectedIsDir"
-              :dir-content="dirContent"
-              :loading="contentLoading"
-              :file-size="selectedFileSize"
-              @navigate="handleNavigate"
-            />
+          <div class="relative h-full overflow-auto px-4">
+            <div
+              v-if="contentLoading"
+              class="h-full flex items-center justify-center"
+            >
+              <NSpin size="large"> </NSpin>
+            </div>
+            <AssetContent v-else v-model="selectedPath" :node="selectedNode!" />
           </div>
         </template>
       </NSplit>
 
       <!-- Mobile: Content Only -->
-      <div v-else class="h-full overflow-hidden">
-        <AssetContent
-          :path="selectedPath"
-          :is-dir="selectedIsDir"
-          :dir-content="dirContent"
-          :loading="contentLoading"
-          :file-size="selectedFileSize"
-          @navigate="handleNavigate"
-        />
+      <div v-else class="relative h-full overflow-auto px-4">
+        <div
+          v-if="contentLoading"
+          class="h-full flex items-center justify-center"
+        >
+          <NSpin size="large"> </NSpin>
+        </div>
+        <AssetContent v-else v-model="selectedPath" :node="selectedNode!" />
       </div>
     </div>
 
@@ -83,10 +78,10 @@
     <NDrawer v-model:show="showMobileMenu" :width="300" placement="left">
       <NDrawerContent title="文件浏览">
         <AssetTree
-          :selected-path="selectedPath"
+          v-model="selectedPath"
           :tree-data="treeData"
           :on-load="handleTreeLoad"
-          @select="handleTreeSelectMobile"
+          @update:model-value="handleTreeSelectMobile"
         />
       </NDrawerContent>
     </NDrawer>
@@ -101,62 +96,42 @@ import CarbonHome from "~icons/carbon/home";
 import CarbonMenu from "~icons/carbon/menu";
 import { computed, ref, watch } from "vue";
 import { client } from "~/common/client";
-import type { components } from "~/common/schema";
 import AssetContent from "./components/AssetContent.vue";
 import AssetTree from "./components/AssetTree.vue";
 import type { TreeNode } from "./types";
-
-type AssetDir = components["schemas"]["AssetDir"];
 
 // Responsive design
 const breakpoints = useBreakpoints({ mobile: 768 });
 const isMobile = breakpoints.smaller("mobile");
 
 // Use route query for path synchronization
-const pathQuery = useRouteQuery<string>("path", "");
-
+const selectedPath = useRouteQuery<string>("path", "");
+const selectedNode = ref<TreeNode>();
 // State
-const selectedPath = ref("");
-const selectedIsDir = ref(false);
-const selectedFileSize = ref(0);
 const showMobileMenu = ref(false);
 const treeData = ref<TreeNode[]>([]);
-const dirContent = ref<AssetDir | null>(null);
 const contentLoading = ref(false);
 
 // Computed
 const pathParts = computed(() => {
   if (!selectedPath.value) return [];
-  return selectedPath.value.replace("./asset/", "").split("/").filter(Boolean);
+  return selectedPath.value.split("/").filter(Boolean);
 });
 
-// Helper to find node by path
-function findNodeByPath(nodes: TreeNode[], path: string): TreeNode | null {
-  for (const node of nodes) {
-    if (node.path === path) return node;
-    if (node.children) {
-      const found = findNodeByPath(node.children, path);
-      if (found) return found;
-    }
-  }
-  return null;
-}
-
-// Load root directory
-async function loadRoot() {
+// Unified function to load directory data
+async function loadDirectory(path: string): Promise<TreeNode[]> {
   try {
     const { data, error } = await client.GET("/api/v1/files/{path}", {
-      params: { path: { path: "" } },
+      params: { path: { path } },
     });
 
     if (error) {
-      console.error("Failed to load root directory:", error);
-      treeData.value = [];
-      return;
+      console.error(`Failed to load directory ${path}:`, error);
+      return [];
     }
 
     if (data?.children) {
-      treeData.value = data.children.map((item) => ({
+      return data.children.map((item) => ({
         key: item.path,
         label: item.name,
         path: item.path,
@@ -164,98 +139,68 @@ async function loadRoot() {
         size: item.size,
         isLeaf: !item.is_dir,
         children: undefined,
+        create_at: item.create_at,
+        modified_at: item.modified_at,
       }));
     }
+    return [];
   } catch (error) {
-    console.error("Error loading root:", error);
-    treeData.value = [];
+    console.error(`Error loading directory ${path}:`, error);
+    return [];
   }
 }
 
 // Load children for a directory (for tree lazy loading)
 async function handleTreeLoad(node: TreeNode) {
-  const { data } = await client.GET("/api/v1/files/{path}", {
-    params: { path: { path: node.path.replace("./asset/", "") } },
-  });
-
-  if (data?.children) {
-    node.children = data.children.map((item) => ({
-      key: item.path,
-      label: item.name,
-      path: item.path,
-      is_dir: item.is_dir,
-      size: item.size,
-      isLeaf: !item.is_dir,
-      children: undefined,
-    }));
-  }
+  node.children = await loadDirectory(node.path);
 }
 
-// Load content for display
-async function loadContent(path: string, isDir: boolean) {
-  if (!path) {
-    dirContent.value = null;
+// Unified function to handle navigation with tree validation
+async function handleNavigation(path: string) {
+  selectedPath.value = path;
+  await ensurePathInTree(path);
+}
+
+// Ensure the path exists in the tree by loading necessary parent directories
+async function ensurePathInTree(targetPath: string) {
+  contentLoading.value = true;
+  if (treeData.value.length === 0) {
+    treeData.value = await loadDirectory("");
+  }
+  if (!targetPath) {
+    contentLoading.value = false;
     return;
   }
-
-  contentLoading.value = true;
-  try {
-    if (isDir) {
-      const { data } = await client.GET("/api/v1/files/{path}", {
-        params: { path: { path: path.replace("./asset/", "") } },
-      });
-      dirContent.value = data || null;
-    } else {
-      // For files, just clear dirContent (AssetContent will handle file loading)
-      dirContent.value = null;
+  let list = treeData.value;
+  const parts = targetPath.split("/");
+  let cur = "";
+  for (const part of parts) {
+    cur = cur ? `${cur}/${part}` : part;
+    const node = list.find((v) => v.path === cur);
+    if (!node) {
+      throw new Error(`Path not found in tree: ${cur}`);
     }
-  } catch (error) {
-    console.error("Error loading content:", error);
-    dirContent.value = null;
-  } finally {
-    contentLoading.value = false;
+    if (targetPath === cur) {
+      if (node.is_dir) {
+        node.children = await loadDirectory(cur);
+      }
+      selectedNode.value = node;
+      contentLoading.value = false;
+      return;
+    }
+    if (!node.is_dir) {
+      throw new Error(`${cur} is not a directory`);
+    }
+    if (!Array.isArray(node.children)) {
+      node.children = await loadDirectory(cur);
+    }
+    list = node.children;
   }
+  contentLoading.value = false;
 }
 
-// Handle tree selection
-function handleTreeSelect(path: string, isDir: boolean) {
-  selectedPath.value = path;
-  selectedIsDir.value = isDir;
-
-  // Get file size from tree node
-  const node = findNodeByPath(treeData.value, path);
-  selectedFileSize.value = node?.size || 0;
-
-  // Update URL
-  const pathParam = path.replace("./asset/", "");
-  pathQuery.value = pathParam;
-
-  // Load content
-  loadContent(path, isDir);
-}
-
-function handleTreeSelectMobile(path: string, isDir: boolean) {
-  handleTreeSelect(path, isDir);
+function handleTreeSelectMobile() {
   showMobileMenu.value = false;
-}
-
-// Handle navigation from content
-function handleNavigate(path: string, isDir: boolean) {
-  selectedPath.value = path;
-  selectedIsDir.value = isDir;
-
-  // Update URL
-  const pathParam = path.replace("./asset/", "");
-  pathQuery.value = pathParam;
-
-  // Load content
-  loadContent(path, isDir);
-}
-
-// Handle breadcrumb click
-function handleBreadcrumbClick(path: string) {
-  const fullPath = path ? `./asset/${path}` : "";
-  handleNavigate(fullPath, true);
 }
 
 function toggleMobileMenu() {
@@ -264,31 +209,10 @@ function toggleMobileMenu() {
 
 // Watch for URL query changes
 watch(
-  pathQuery,
+  selectedPath,
   (newPath) => {
-    if (newPath) {
-      const fullPath = `./asset/${newPath}`;
-      if (fullPath !== selectedPath.value) {
-        selectedPath.value = fullPath;
-        // Determine if it's a directory or file (simple heuristic)
-        selectedIsDir.value = !newPath.includes(".");
-        loadContent(fullPath, selectedIsDir.value);
-      }
-    } else {
-      selectedPath.value = "";
-      selectedIsDir.value = false;
-      dirContent.value = null;
-    }
+    ensurePathInTree(newPath);
   },
   { immediate: true },
 );
-
-// Initialize
-loadRoot();
 </script>
-
-<style scoped>
-.asset-page {
-  position: relative;
-}
-</style>

@@ -17,12 +17,10 @@
     <div class="flex-1 overflow-auto">
       <NTree
         v-if="!isSearching"
+        v-model:selected-keys="selectedKeys"
+        v-model:expanded-keys="expandedKeys"
         block-line
         :data="treeData"
-        :selected-keys="selectedKeys"
-        :expanded-keys="expandedKeys"
-        :on-update:selected-keys="handleSelect"
-        :on-update:expanded-keys="handleExpand"
         :on-load="handleLoad"
         :pattern="searchText"
       />
@@ -52,48 +50,35 @@ import { useDebounceFn } from "@vueuse/core";
 import CarbonDocument from "~icons/carbon/document";
 import CarbonFolder from "~icons/carbon/folder";
 import CarbonSearch from "~icons/carbon/search";
-import { ref, watch } from "vue";
+import { computed, ref, watch } from "vue";
 import { client } from "~/common/client";
 import type { components } from "~/common/schema";
 import type { TreeNode } from "../types";
+import type { TreeOption } from "naive-ui";
 
 type AssetEntry = components["schemas"]["AssetEntry"];
 
 const props = defineProps<{
-  selectedPath?: string;
   treeData: TreeNode[];
   onLoad: (node: TreeNode) => Promise<void>;
 }>();
-
-const emit = defineEmits<{
-  select: [path: string, isDir: boolean];
-}>();
-
+const selectedPath = defineModel<string>({ required: true });
 const searchText = ref("");
 const isSearching = ref(false);
 const searchResults = ref<AssetEntry[]>([]);
-const selectedKeys = ref<string[]>([]);
+const selectedKeys = computed<string[]>({
+  get() {
+    return [selectedPath.value];
+  },
+  set(v) {
+    selectedPath.value = v[0] || "";
+  },
+});
 const expandedKeys = ref<string[]>([]);
 
 // Load children for a directory
-function handleLoad(node: TreeNode) {
-  props.onLoad(node);
-}
-
-// Handle node selection
-function handleSelect(keys: string[]) {
-  if (keys.length > 0) {
-    selectedKeys.value = keys;
-    const node = findNodeByKey(props.treeData, keys[0]);
-    if (node) {
-      emit("select", node.path, node.is_dir);
-    }
-  }
-}
-
-// Handle expansion
-function handleExpand(keys: string[]) {
-  expandedKeys.value = keys;
+async function handleLoad(node: TreeOption) {
+  await props.onLoad(node as TreeNode);
 }
 
 // Search files
@@ -114,72 +99,26 @@ const onSearch = useDebounceFn(async () => {
 
 // Handle search result selection
 async function handleSearchSelect(item: AssetEntry) {
-  isSearching.value = false;
-  searchText.value = "";
-
-  // Expand tree to show the selected item
-  const pathParts = item.path.split("/");
-  const expandKeys: string[] = [];
-
-  for (let i = 1; i < pathParts.length; i++) {
-    const partialPath = pathParts.slice(0, i).join("/");
-    expandKeys.push(partialPath);
-
-    // Load if needed
-    const node = findNodeByKey(props.treeData, partialPath);
-    if (node && node.is_dir && (!node.children || node.children.length === 0)) {
-      await props.onLoad(node);
-    }
-  }
-
-  expandedKeys.value = expandKeys;
   selectedKeys.value = [item.path];
-  emit("select", item.path, item.is_dir);
-}
-
-// Helper to find node by key
-function findNodeByKey(nodes: TreeNode[], key: string): TreeNode | null {
-  for (const node of nodes) {
-    if (node.key === key) return node;
-    if (node.children) {
-      const found = findNodeByKey(node.children, key);
-      if (found) return found;
-    }
-  }
-  return null;
 }
 
 // Watch for prop changes and load path if needed
 watch(
-  () => props.selectedPath,
+  selectedPath,
   async (newPath) => {
-    if (newPath) {
-      selectedKeys.value = [newPath];
-
-      // Expand tree to show the selected item (like handleSearchSelect)
-      const pathParts = newPath
-        .replace("./asset/", "")
-        .split("/")
-        .filter(Boolean);
-      const expandKeys: string[] = [];
-
-      for (let i = 0; i < pathParts.length; i++) {
-        const partialPath = `./asset/${pathParts.slice(0, i + 1).join("/")}`;
-        expandKeys.push(partialPath);
-
-        // Load if needed
-        const node = findNodeByKey(props.treeData, partialPath);
-        if (
-          node &&
-          node.is_dir &&
-          (!node.children || node.children.length === 0)
-        ) {
-          await props.onLoad(node);
-        }
-      }
-
-      expandedKeys.value = expandKeys;
+    const result = [];
+    let cur = "";
+    const parts = newPath.split("/");
+    // 选到最顶级的了
+    if (parts.length === 1) {
+      expandedKeys.value = [];
+      return;
     }
+    for (let i = 0; i < parts.length - 1; i++) {
+      cur = cur ? `${cur}/${parts[i]}` : parts[i]!;
+      result.push(cur);
+    }
+    expandedKeys.value = result;
   },
   { immediate: true },
 );

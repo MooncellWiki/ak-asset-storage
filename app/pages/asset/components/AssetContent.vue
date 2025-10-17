@@ -1,93 +1,74 @@
 <template>
-  <div class="asset-content h-full flex flex-col">
-    <!-- Content Area -->
-    <div class="flex-1 overflow-auto p-4">
-      <!-- Loading State -->
-      <div v-if="loading" class="h-full flex items-center justify-center">
-        <NSpin size="large" />
-      </div>
+  <!-- Empty State -->
+  <div
+    v-if="!path"
+    class="h-full flex flex-col items-center justify-center text-gray-400"
+  >
+    <CarbonDocumentBlank class="mb-4 text-6xl" />
+    <p>选择一个文件或目录查看内容</p>
+  </div>
 
-      <!-- Empty State -->
+  <!-- Directory View -->
+  <div v-else-if="node!.is_dir && node!.children">
+    <h3 class="mb-4 text-lg font-semibold">{{ currentName }}</h3>
+    <NDataTable
+      :columns="columns"
+      :data="node!.children"
+      :row-props="rowProps"
+    />
+  </div>
+
+  <!-- File View -->
+  <div v-else-if="!node!.is_dir" class="file-viewer">
+    <!-- Header with actions -->
+    <div class="sticky top-0 flex items-center justify-between bg-white">
+      <h3 class="text-lg font-semibold">{{ currentName }}</h3>
+      <div class="flex gap-2">
+        <NButton v-if="canCopy" size="small" @click="copyContent">
+          <template #icon><CarbonCopy /></template>
+          复制
+        </NButton>
+        <NButton size="small" @click="downloadFile">
+          <template #icon><CarbonDownload /></template>
+          下载
+        </NButton>
+      </div>
+    </div>
+
+    <!-- Image Preview -->
+    <div v-if="isImage" class="flex justify-center">
+      <img :src="fileUrl" :alt="currentName" class="preview-img max-w-full" />
+    </div>
+
+    <!-- Audio Preview -->
+    <audio v-else-if="isAudio" controls :src="fileUrl" class="w-full"></audio>
+
+    <!-- Text/Code Preview with Syntax Highlighting -->
+    <div v-else-if="isCode" class="code-viewer">
       <div
-        v-else-if="!path"
-        class="h-full flex flex-col items-center justify-center text-gray-400"
-      >
-        <CarbonDocumentBlank class="mb-4 text-6xl" />
-        <p>选择一个文件或目录查看内容</p>
-      </div>
+        v-if="highlightedCode"
+        class="shiki-container"
+        v-html="highlightedCode"
+      ></div>
+    </div>
+    <div v-else-if="isText">
+      <pre>{{ fileContent }}</pre>
+    </div>
 
-      <!-- Directory View -->
-      <div v-else-if="isDir && dirContent">
-        <h3 class="mb-4 text-lg font-semibold">{{ currentName }}</h3>
-        <NDataTable
-          :columns="columns"
-          :data="dirContent.children"
-          :row-props="rowProps"
-        />
-      </div>
+    <!-- Markdown Preview -->
+    <div
+      v-else-if="isMarkdown"
+      class="markdown-body prose max-w-none"
+      v-html="renderedMarkdown"
+    ></div>
 
-      <!-- File View -->
-      <div v-else-if="!isDir" class="file-viewer">
-        <!-- Header with actions -->
-        <div class="mb-4 flex items-center justify-between">
-          <h3 class="text-lg font-semibold">{{ currentName }}</h3>
-          <div class="flex gap-2">
-            <NButton v-if="canCopy" size="small" @click="copyContent">
-              <template #icon><CarbonCopy /></template>
-              复制
-            </NButton>
-            <NButton size="small" @click="downloadFile">
-              <template #icon><CarbonDownload /></template>
-              下载
-            </NButton>
-          </div>
-        </div>
-
-        <!-- Image Preview -->
-        <div v-if="isImage" class="flex justify-center">
-          <img
-            :src="fileUrl"
-            :alt="currentName"
-            class="preview-img max-w-full"
-          />
-        </div>
-
-        <!-- Audio Preview -->
-        <audio
-          v-else-if="isAudio"
-          controls
-          :src="fileUrl"
-          class="w-full"
-        ></audio>
-
-        <!-- Text/Code Preview with Syntax Highlighting -->
-        <div v-else-if="isText || isCode" class="code-viewer">
-          <div
-            v-if="highlightedCode"
-            class="shiki-container"
-            v-html="highlightedCode"
-          ></div>
-          <pre v-else class="overflow-x-auto rounded bg-gray-50 p-4">{{
-            fileContent
-          }}</pre>
-        </div>
-
-        <!-- Markdown Preview -->
-        <div
-          v-else-if="isMarkdown"
-          class="markdown-body prose max-w-none"
-          v-html="renderedMarkdown"
-        ></div>
-
-        <!-- Binary/Unknown File -->
-        <div v-else class="p-8 text-center">
-          <CarbonDocumentUnknown class="mx-auto mb-4 text-6xl text-gray-400" />
-          <p class="mb-4 text-gray-600">无法预览此文件类型</p>
-          <div class="mb-4 text-sm text-gray-500">
-            <p>文件名: {{ currentName }}</p>
-            <p v-if="fileSizeDisplay">大小: {{ fileSizeDisplay }}</p>
-          </div>
-        </div>
+    <!-- Binary/Unknown File -->
+    <div v-else class="p-8 text-center">
+      <CarbonDocumentUnknown class="mx-auto mb-4 text-6xl text-gray-400" />
+      <p class="mb-4 text-gray-600">无法预览此文件类型</p>
+      <div class="mb-4 text-sm text-gray-500">
+        <p>文件名: {{ currentName }}</p>
+        <p v-if="node!.size > 0">大小: {{ toReadableSize(node!.size) }}</p>
       </div>
     </div>
   </div>
@@ -105,22 +86,16 @@ import { codeToHtml } from "shiki";
 import { computed, ref, watch } from "vue";
 import { toReadableSize } from "~/common/utils";
 import type { components } from "~/common/schema";
+import type { TreeNode } from "../types";
 import type { DataTableColumns } from "naive-ui";
 
 type AssetEntry = components["schemas"]["AssetEntry"];
-type AssetDir = components["schemas"]["AssetDir"];
 
 const props = defineProps<{
-  path: string;
-  isDir: boolean;
-  dirContent: AssetDir | null;
-  loading: boolean;
-  fileSize: number;
+  node: TreeNode;
 }>();
 
-const emit = defineEmits<{
-  navigate: [path: string, isDir: boolean];
-}>();
+const path = defineModel<string>({ required: true });
 
 const message = useMessage();
 const md = new MarkdownIt();
@@ -131,28 +106,19 @@ const renderedMarkdown = ref("");
 
 const DATE_FORMAT_STRING = "yyyy-MM-dd HH:mm:ss";
 
-// Computed properties
-const pathParts = computed(() => {
-  if (!props.path) return [];
-  return props.path.replace("./asset/", "").split("/").filter(Boolean);
-});
-
 const currentName = computed(() => {
-  if (!props.path) return "";
-  return pathParts.value.at(-1) || "根目录";
+  return path.value.split("/").at(-1) || "根目录";
 });
 
 const fileUrl = computed(() => {
-  if (!props.path) return "";
-  if (props.path.startsWith("raw")) {
-    return `${location.origin}/${props.path.replace("raw", "assets")}`;
+  if (path.value.startsWith("raw")) {
+    return `${location.origin}/${path.value.replace("raw", "assets")}`;
   }
-  return `${location.origin}/${props.path}`;
+  return `${location.origin}/${path.value}`;
 });
 
 const fileExtension = computed(() => {
-  if (!props.path) return "";
-  return props.path.slice(props.path.lastIndexOf(".") + 1).toLowerCase();
+  return path.value.slice(path.value.lastIndexOf(".") + 1).toLowerCase();
 });
 
 const isImage = computed(() =>
@@ -202,7 +168,8 @@ const columns: DataTableColumns<AssetEntry> = [
     key: "name",
     title: "文件名",
     render: (row) => {
-      return row.is_dir ? `📁 ${row.name}` : `📄 ${row.name}`;
+      const name = row.path.split("/").at(-1) || "根目录";
+      return row.is_dir ? `📁 ${name}` : `📄 ${name}`;
     },
   },
   {
@@ -226,7 +193,7 @@ function rowProps(row: AssetEntry) {
   return {
     style: "cursor: pointer;",
     onClick: () => {
-      emit("navigate", row.path, row.is_dir);
+      path.value = row.path;
     },
   };
 }
@@ -237,18 +204,23 @@ async function loadFileContent() {
   renderedMarkdown.value = "";
   fileContent.value = "";
 
-  if (!props.path || props.isDir) return;
+  if (!path.value || props.node!.is_dir) return;
 
   try {
     // Load file content for preview
     if (isText.value || isCode.value || isMarkdown.value) {
       const response = await fetch(fileUrl.value);
-      const text = await response.text();
+      let text = await response.text();
       fileContent.value = text;
 
       if (isMarkdown.value) {
         renderedMarkdown.value = md.render(text);
       } else if (isCode.value) {
+        if (fileExtension.value === "json") {
+          try {
+            text = JSON.stringify(JSON.parse(text), undefined, "  ");
+          } catch {}
+        }
         await highlightCode(text, fileExtension.value);
       }
     }
@@ -268,7 +240,7 @@ async function highlightCode(code: string, lang: string) {
   } catch (error) {
     console.error("Highlighting error:", error);
     // Fallback to plain text
-    highlightedCode.value = "";
+    highlightedCode.value = `<pre>${code}</pre>`;
   }
 }
 
@@ -289,9 +261,9 @@ function downloadFile() {
 
 // Watch for path changes
 watch(
-  () => props.path,
+  path,
   () => {
-    if (props.path && !props.isDir) {
+    if (path.value && !props.node!.is_dir) {
       loadFileContent();
     }
   },
@@ -300,10 +272,6 @@ watch(
 </script>
 
 <style scoped>
-.asset-content {
-  background: #fff;
-}
-
 .preview-img {
   background-image:
     linear-gradient(45deg, rgb(204, 204, 204) 25%, transparent 25%),
