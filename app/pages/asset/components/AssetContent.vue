@@ -85,7 +85,7 @@
           <p class="mb-4 text-gray-600">无法预览此文件类型</p>
           <div class="mb-4 text-sm text-gray-500">
             <p>文件名: {{ currentName }}</p>
-            <p v-if="fileSize">大小: {{ fileSize }}</p>
+            <p v-if="fileSizeDisplay">大小: {{ fileSizeDisplay }}</p>
           </div>
         </div>
       </div>
@@ -103,7 +103,6 @@ import MarkdownIt from "markdown-it";
 import { useMessage } from "naive-ui";
 import { codeToHtml } from "shiki";
 import { computed, ref, watch } from "vue";
-import { client } from "~/common/client";
 import { toReadableSize } from "~/common/utils";
 import type { components } from "~/common/schema";
 import type { DataTableColumns } from "naive-ui";
@@ -116,6 +115,7 @@ const props = defineProps<{
   isDir: boolean;
   dirContent: AssetDir | null;
   loading: boolean;
+  fileSize: number;
 }>();
 
 const emit = defineEmits<{
@@ -128,7 +128,6 @@ const md = new MarkdownIt();
 const fileContent = ref("");
 const highlightedCode = ref("");
 const renderedMarkdown = ref("");
-const fileSize = ref("");
 
 const DATE_FORMAT_STRING = "yyyy-MM-dd HH:mm:ss";
 
@@ -252,14 +251,6 @@ async function loadFileContent() {
       } else if (isCode.value) {
         await highlightCode(text, fileExtension.value);
       }
-    }
-
-    // Get file size
-    const { data } = await client.GET("/api/v1/files/{path}", {
-      params: { path: { path: props.path.replace("./asset/", "") } },
-    });
-    if (data?.dir) {
-      fileSize.value = toReadableSize(data.dir.size);
     }
   } catch (error) {
     console.error("Error loading content:", error);

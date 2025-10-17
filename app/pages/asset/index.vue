@@ -47,8 +47,8 @@
             <AssetTree
               :selected-path="selectedPath"
               :tree-data="treeData"
+              :on-load="handleTreeLoad"
               @select="handleTreeSelect"
-              @load="handleTreeLoad"
             />
           </div>
         </template>
@@ -59,6 +59,7 @@
               :is-dir="selectedIsDir"
               :dir-content="dirContent"
               :loading="contentLoading"
+              :file-size="selectedFileSize"
               @navigate="handleNavigate"
             />
           </div>
@@ -72,6 +73,7 @@
           :is-dir="selectedIsDir"
           :dir-content="dirContent"
           :loading="contentLoading"
+          :file-size="selectedFileSize"
           @navigate="handleNavigate"
         />
       </div>
@@ -83,8 +85,8 @@
         <AssetTree
           :selected-path="selectedPath"
           :tree-data="treeData"
+          :on-load="handleTreeLoad"
           @select="handleTreeSelectMobile"
-          @load="handleTreeLoad"
         />
       </NDrawerContent>
     </NDrawer>
@@ -102,17 +104,9 @@ import { client } from "~/common/client";
 import type { components } from "~/common/schema";
 import AssetContent from "./components/AssetContent.vue";
 import AssetTree from "./components/AssetTree.vue";
+import type { TreeNode } from "./types";
 
 type AssetDir = components["schemas"]["AssetDir"];
-
-interface TreeNode {
-  key: string;
-  label: string;
-  path: string;
-  is_dir: boolean;
-  isLeaf?: boolean;
-  children?: TreeNode[];
-}
 
 // Responsive design
 const breakpoints = useBreakpoints({ mobile: 768 });
@@ -124,6 +118,7 @@ const pathQuery = useRouteQuery<string>("path", "");
 // State
 const selectedPath = ref("");
 const selectedIsDir = ref(false);
+const selectedFileSize = ref(0);
 const showMobileMenu = ref(false);
 const treeData = ref<TreeNode[]>([]);
 const dirContent = ref<AssetDir | null>(null);
@@ -134,6 +129,18 @@ const pathParts = computed(() => {
   if (!selectedPath.value) return [];
   return selectedPath.value.replace("./asset/", "").split("/").filter(Boolean);
 });
+
+// Helper to find node by path
+function findNodeByPath(nodes: TreeNode[], path: string): TreeNode | null {
+  for (const node of nodes) {
+    if (node.path === path) return node;
+    if (node.children) {
+      const found = findNodeByPath(node.children, path);
+      if (found) return found;
+    }
+  }
+  return null;
+}
 
 // Load root directory
 async function loadRoot() {
@@ -154,6 +161,7 @@ async function loadRoot() {
         label: item.name,
         path: item.path,
         is_dir: item.is_dir,
+        size: item.size,
         isLeaf: !item.is_dir,
         children: undefined,
       }));
@@ -176,6 +184,7 @@ async function handleTreeLoad(node: TreeNode) {
       label: item.name,
       path: item.path,
       is_dir: item.is_dir,
+      size: item.size,
       isLeaf: !item.is_dir,
       children: undefined,
     }));
@@ -212,6 +221,10 @@ async function loadContent(path: string, isDir: boolean) {
 function handleTreeSelect(path: string, isDir: boolean) {
   selectedPath.value = path;
   selectedIsDir.value = isDir;
+
+  // Get file size from tree node
+  const node = findNodeByPath(treeData.value, path);
+  selectedFileSize.value = node?.size || 0;
 
   // Update URL
   const pathParam = path.replace("./asset/", "");

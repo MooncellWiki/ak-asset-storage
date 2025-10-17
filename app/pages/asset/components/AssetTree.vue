@@ -56,25 +56,18 @@ import CarbonSearch from "~icons/carbon/search";
 import { ref, watch } from "vue";
 import { client } from "~/common/client";
 import type { components } from "~/common/schema";
-import type { TreeOption } from "naive-ui";
+import type { TreeNode } from "../types";
 
 type AssetEntry = components["schemas"]["AssetEntry"];
-
-interface TreeNode extends TreeOption {
-  path: string;
-  is_dir: boolean;
-  isLeaf?: boolean;
-  children?: TreeNode[];
-}
 
 const props = defineProps<{
   selectedPath?: string;
   treeData: TreeNode[];
+  onLoad: (node: TreeNode) => void | Promise<void>;
 }>();
 
 const emit = defineEmits<{
   select: [path: string, isDir: boolean];
-  load: [node: TreeNode];
 }>();
 
 const searchText = ref("");
@@ -84,9 +77,8 @@ const selectedKeys = ref<string[]>([]);
 const expandedKeys = ref<string[]>([]);
 
 // Load children for a directory
-async function handleLoad(node: TreeOption) {
-  const treeNode = node as TreeNode;
-  emit("load", treeNode);
+function handleLoad(node: TreeNode) {
+  props.onLoad(node);
 }
 
 // Handle node selection
@@ -137,7 +129,7 @@ async function handleSearchSelect(item: AssetEntry) {
     // Load if needed
     const node = findNodeByKey(props.treeData, partialPath);
     if (node && node.is_dir && (!node.children || node.children.length === 0)) {
-      emit("load", node);
+      props.onLoad(node);
     }
   }
 
