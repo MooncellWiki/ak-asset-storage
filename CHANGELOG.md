@@ -2,9 +2,60 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.15.0] - 2025-10-18
+
+[38a4ff1](38a4ff1b06f396a501bee1990a008476560ae879)...[466ab8a](466ab8a182c67225d0b67679552e29d810467dae)
+
+### 🚀 Features
+
+- Add copy button to diff page for command parameters (#132) ([63b2d26](https://github.com/MooncellWiki/ak-asset-storage/commit/63b2d26446799e9ba4d5581e0cab38677ff4bca8)), Co-authored-by:daflyinbed <21363956+daflyinbed@users.noreply.github.com>
+
+---------, Co-authored-by:copilot-swe-agent[bot] <198982749+Copilot@users.noreply.github.com>, Co-authored-by:daflyinbed <21363956+daflyinbed@users.noreply.github.com>
+- Implement GitHub-style dual-panel asset viewer (#134) ([466ab8a](https://github.com/MooncellWiki/ak-asset-storage/commit/466ab8a182c67225d0b67679552e29d810467dae)), Co-authored-by:daflyinbed <21363956+daflyinbed@users.noreply.github.com>
+
+* fix: add error handling for API failures in AssetTree, Co-authored-by:daflyinbed <21363956+daflyinbed@users.noreply.github.com>
+
+* fix: rename catch parameter to follow linting rules, Co-authored-by:daflyinbed <21363956+daflyinbed@users.noreply.github.com>
+
+* refactor: address code review feedback
+
+- Fix children initialization to undefined for NTree lazy loading
+- Move breadcrumb navigation to index.vue header
+- Replace custom resizer with NSplit component
+- Use useRouteQuery for URL synchronization
+- Lift data management to index.vue to share between tree and content
+- Fix icon centering in breadcrumb
+- Move mobile menu button next to breadcrumb, Co-authored-by:daflyinbed <21363956+daflyinbed@users.noreply.github.com>
+
+* refactor: improve data flow and type consistency
+
+- Create shared TreeNode type in app/pages/asset/types/index.ts
+- Change AssetTree to receive onLoad as prop instead of emitting
+- Pass file size from treeData to AssetContent via props
+- Remove unnecessary API call in AssetContent for file size
+- Add size field to TreeNode interface for better data passing, Co-authored-by:daflyinbed <21363956+daflyinbed@users.noreply.github.com>
+
+* fix: improve tree navigation and async handling
+
+- Remove expand-on-click from NTree to prevent unwanted expansions
+- Change onLoad prop to always return Promise<void> for consistency
+- Add manual onLoad handling in watch for selectedPath
+- Ensure tree expands and loads necessary nodes when path changes
+- Await onLoad calls in handleSearchSelect for proper loading, Co-authored-by:daflyinbed <21363956+daflyinbed@users.noreply.github.com>
+
+* refactor
+
+* feat: apt path from env
+
+---------, Co-authored-by:copilot-swe-agent[bot] <198982749+Copilot@users.noreply.github.com>, Co-authored-by:daflyinbed <21363956+daflyinbed@users.noreply.github.com>, Co-authored-by:xwbx <1677759063@qq.com>
+
+### 📚 Documentation
+
+- 兼容copilot ([e460918](https://github.com/MooncellWiki/ak-asset-storage/commit/e460918a24f973b361e0f86c327ff7bde4f5bae6))
+
 ## [0.14.0] - 2025-09-23
 
-[715d7cf](715d7cfe2600fe26144cf7c7a281b7c53fe0df33)...[e70d3f7](e70d3f7c0cc3da51e891348e8d270de503f5f79d)
+[715d7cf](715d7cfe2600fe26144cf7c7a281b7c53fe0df33)...[38a4ff1](38a4ff1b06f396a501bee1990a008476560ae879)
 
 ### 🐛 Bug Fixes
 
@@ -13,6 +64,7 @@ All notable changes to this project will be documented in this file.
 ### ⚙️ Miscellaneous Tasks
 
 - Update dependencies ([90b2ae9](https://github.com/MooncellWiki/ak-asset-storage/commit/90b2ae97c18c760e58cb34ccb88b8ee7c1855983))
+- Release 0.14.0 ([38a4ff1](https://github.com/MooncellWiki/ak-asset-storage/commit/38a4ff1b06f396a501bee1990a008476560ae879))
 
 ## [0.13.3] - 2025-08-15
 
