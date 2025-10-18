@@ -123,9 +123,3 @@ watch(
   { immediate: true },
 );
 </script>
-
-<style scoped>
-.asset-tree {
-  background: #fff;
-}
-</style>

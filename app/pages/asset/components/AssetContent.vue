@@ -21,7 +21,9 @@
   <!-- File View -->
   <div v-else-if="!node!.is_dir" class="file-viewer">
     <!-- Header with actions -->
-    <div class="sticky top-0 flex items-center justify-between bg-white">
+    <div
+      class="sticky top-0 flex items-center justify-between bg-[var(--n-color)]"
+    >
       <h3 class="text-lg font-semibold">{{ currentName }}</h3>
       <div class="flex gap-2">
         <NButton v-if="canCopy" size="small" @click="copyContent">
@@ -235,7 +237,10 @@ async function highlightCode(code: string, lang: string) {
   try {
     highlightedCode.value = await codeToHtml(code, {
       lang: lang as any,
-      theme: "github-light",
+      themes: {
+        light: "github-light",
+        dark: "github-dark",
+      },
     });
   } catch (error) {
     console.error("Highlighting error:", error);
@@ -317,5 +322,16 @@ watch(
 .markdown-body :deep(pre code) {
   background: none;
   padding: 0;
+}
+</style>
+<style>
+html.dark .shiki,
+html.dark .shiki span {
+  color: var(--shiki-dark) !important;
+  background-color: var(--shiki-dark-bg) !important;
+  /* Optional, if you also want font styles */
+  font-style: var(--shiki-dark-font-style) !important;
+  font-weight: var(--shiki-dark-font-weight) !important;
+  text-decoration: var(--shiki-dark-text-decoration) !important;
 }
 </style>
