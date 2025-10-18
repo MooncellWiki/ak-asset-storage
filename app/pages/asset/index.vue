@@ -1,281 +1,218 @@
 <template>
-  <NButton @click="openSearch">
-    <CarbonSearch />
-  </NButton>
-  <NDataTable
-    v-model:expanded-row-keys="expandedRowKeys"
-    class="mt-2"
-    max-height="80vh"
-    :data="data"
-    :columns="columns"
-    :row-props="rowProps"
-    @load="onLoad"
-  />
-  <div
-    ref="el"
-    class="fixed right-2 top-2 z-10"
-    :style="[
-      style,
-      showFullScreen && {
-        left: 0,
-        top: 0,
-      },
-    ]"
-  >
-    <NCard
-      class="max-w-400px min-w-400px b b-#ddd b-solid shadow-lg transition-300"
-      :class="{
-        'opacity-0 pointer-events-none': !showFileToast,
-        'min-w-screen min-h-screen max-h-screen max-w-screen': showFullScreen,
-      }"
-    >
-      <template #header>
-        <div class="flex items-center gap-2">
-          <NButton tertiary @click="() => (showFullScreen = !showFullScreen)">
-            <template #icon>
-              <CarbonFitToScreen></CarbonFitToScreen>
-            </template>
-          </NButton>
-          <div
-            class="pl-2 font-size-sm line-height-1em"
-            @pointerdown="(e) => e.stopPropagation()"
-          >
-            {{ previewPath }}
-          </div>
-          <NButton quaternary @click="() => (showFileToast = false)">
-            <template #icon>
-              <CarbonCloseLarge></CarbonCloseLarge>
-            </template>
-          </NButton>
-        </div>
-      </template>
-      <div class="flex flex-col items-center">
-        <Preview
-          :path="previewPath"
-          class="max-h-80% max-w-300px overflow-y-auto"
-        />
-      </div>
-    </NCard>
-  </div>
-
-  <NModal v-model:show="searchVisible">
-    <NCard class="container">
-      <NMessageProvider>
-        <NInput
-          v-model:value="searchText"
-          placeholder="搜索"
-          clearable
-          size="small"
-          class="m-2"
-          @update:value="search"
-        >
-          <template #suffix> <CarbonSearch /> </template
-        ></NInput>
-        <NDataTable
-          max-height="80vh"
-          :data="searchData"
-          :columns="searchColumns"
-          :row-props="searchRowProps"
-        ></NDataTable>
-      </NMessageProvider>
-    </NCard>
-  </NModal>
-
-  <!-- <div class="h-full">
-
-    <div class="max-h-full w-full flex overflow-y-auto">
-      <div class="w-1/2 flex-grow">
-        <div class="max-h-full overflow-y-scroll">
-
-        </div>
-      </div>
-      <NCard
-        v-if="previewPath"
-        embedded
-        :title="previewPath"
-        class="max-h-full w-1/2 overflow-y-auto"
-      >
-        <NButton @click="open(previewPath)">
+  <div class="h-[calc(100vh-4.5rem)] flex flex-col overflow-auto">
+    <!-- Header with Breadcrumb and Mobile Menu Button -->
+    <div class="border-b border-gray-200 p-3">
+      <div class="flex items-center gap-2 overflow-auto">
+        <!-- Mobile Menu Button -->
+        <NButton v-if="isMobile" quaternary @click="toggleMobileMenu">
           <template #icon>
-            <CarbonDownload></CarbonDownload>
+            <CarbonMenu v-if="!showMobileMenu" />
+            <CarbonClose v-else />
           </template>
         </NButton>
-        <Preview :path="previewPath" />
-      </NCard>
 
+        <!-- Breadcrumb Navigation -->
+        <NBreadcrumb v-if="selectedPath">
+          <NBreadcrumbItem @click="handleNavigation('')">
+            <NIcon>
+              <CarbonHome />
+            </NIcon>
+            <span>根目录</span>
+          </NBreadcrumbItem>
+          <NBreadcrumbItem
+            v-for="(part, idx) in pathParts"
+            :key="idx"
+            @click="handleNavigation(pathParts.slice(0, idx + 1).join('/'))"
+          >
+            {{ part }}
+          </NBreadcrumbItem>
+        </NBreadcrumb>
+        <div v-else class="text-gray-400">资产浏览器</div>
+      </div>
     </div>
-  </div> -->
+
+    <!-- Main Content Area -->
+    <div class="flex-1 overflow-hidden">
+      <NSplit
+        v-if="!isMobile"
+        direction="horizontal"
+        :default-size="0.25"
+        :min="0.15"
+        :max="0.4"
+      >
+        <template #1>
+          <div class="h-full overflow-hidden">
+            <AssetTree
+              v-model="selectedPath"
+              :tree-data="treeData"
+              :on-load="handleTreeLoad"
+            />
+          </div>
+        </template>
+        <template #2>
+          <div class="relative h-full overflow-auto px-4">
+            <div
+              v-if="contentLoading"
+              class="h-full flex items-center justify-center"
+            >
+              <NSpin size="large"> </NSpin>
+            </div>
+            <AssetContent v-else v-model="selectedPath" :node="selectedNode!" />
+          </div>
+        </template>
+      </NSplit>
+
+      <!-- Mobile: Content Only -->
+      <div v-else class="relative h-full overflow-auto px-4">
+        <div
+          v-if="contentLoading"
+          class="h-full flex items-center justify-center"
+        >
+          <NSpin size="large"> </NSpin>
+        </div>
+        <AssetContent v-else v-model="selectedPath" :node="selectedNode!" />
+      </div>
+    </div>
+
+    <!-- Mobile Drawer -->
+    <NDrawer v-model:show="showMobileMenu" :width="300" placement="left">
+      <NDrawerContent title="文件浏览">
+        <AssetTree
+          v-model="selectedPath"
+          :tree-data="treeData"
+          :on-load="handleTreeLoad"
+          @update:model-value="handleTreeSelectMobile"
+        />
+      </NDrawerContent>
+    </NDrawer>
+  </div>
 </template>
+
 <script lang="ts" setup>
-import { useDebounceFn, useDraggable } from "@vueuse/core";
-import CarbonCloseLarge from "~icons/carbon/close-large";
-import CarbonFitToScreen from "~icons/carbon/fit-to-screen";
-import CarbonSearch from "~icons/carbon/search";
-import { format, parseISO } from "date-fns";
-import { useMessage } from "naive-ui";
-import { onMounted, ref, useTemplateRef } from "vue";
+import { useBreakpoints } from "@vueuse/core";
+import { useRouteQuery } from "@vueuse/router";
+import CarbonClose from "~icons/carbon/close";
+import CarbonHome from "~icons/carbon/home";
+import CarbonMenu from "~icons/carbon/menu";
+import { computed, ref, watch } from "vue";
 import { client } from "~/common/client";
-import { toReadableSize } from "~/common/utils";
-import type { components } from "~/common/schema";
-import Preview from "./components/Preview.vue";
-import type { DataTableColumns } from "naive-ui";
-import type { RowData } from "naive-ui/es/data-table/src/interface";
+import AssetContent from "./components/AssetContent.vue";
+import AssetTree from "./components/AssetTree.vue";
+import type { TreeNode } from "./types";
 
-const DATE_FORMAT_STRING = "yyyy-MM-dd HH:mm:ss";
-interface Entry {
-  create_at: string;
-  is_dir: boolean;
-  modified_at: string;
-  name: string;
-  path: string;
-  key: string;
-  isLeaf?: boolean;
-  size: number;
-  hSize: string;
-  children?: Entry[];
-}
-function makeDisplayable(
-  arr: components["schemas"]["AssetEntry"][],
-  withLeaf = true,
-): Entry[] {
-  return arr
-    .map((item) => {
-      return {
-        ...item,
-        key: item.path,
-        isLeaf: withLeaf ? !item.is_dir : undefined,
-        create_at: format(parseISO(item.create_at), DATE_FORMAT_STRING),
-        modified_at: format(parseISO(item.modified_at), DATE_FORMAT_STRING),
-        hSize: item.is_dir ? "" : toReadableSize(item.size),
-      } satisfies Entry;
-    })
-    .sort((a, b) => {
-      return a.name > b.name ? 1 : -1;
-    });
-}
-function realPath(e: Entry): string {
-  if (e.path.startsWith("raw")) {
-    return `${location.origin}/${e.path.replace("raw", "assets")}`;
-  }
-  return `${location.origin}/${e.path}`;
-}
-function open(p: string) {
-  window.open(p);
-}
-const data = ref<Entry[]>([]);
-async function list(path = ""): Promise<Entry[]> {
-  const { data } = await client.GET("/api/v1/files/{path}", {
-    params: {
-      path: {
-        path,
-      },
-    },
-  });
-  return makeDisplayable(data?.children ?? []);
-}
-const previewPath = ref("");
-const showFileToast = ref(false);
-const showFullScreen = ref(false);
+// Responsive design
+const breakpoints = useBreakpoints({ mobile: 768 });
+const isMobile = breakpoints.smaller("mobile");
 
-const columns: DataTableColumns<Entry> = [
-  { key: "name", title: "文件名" },
-  { key: "create_at", title: "创建时间" },
-  { key: "modified_at", title: "修改时间" },
-  { key: "hSize", title: "大小" },
-];
-onMounted(async () => {
-  data.value = await list();
-  window.addEventListener("resize", updatewindowHeight);
+// Use route query for path synchronization
+const selectedPath = useRouteQuery<string>("path", "");
+const selectedNode = ref<TreeNode>();
+// State
+const showMobileMenu = ref(false);
+const treeData = ref<TreeNode[]>([]);
+const contentLoading = ref(false);
+
+// Computed
+const pathParts = computed(() => {
+  if (!selectedPath.value) return [];
+  return selectedPath.value.split("/").filter(Boolean);
 });
-const expandedRowKeys = ref<string[]>([]);
-async function onLoad(row: RowData) {
-  const resp = await list(row.path.replace("./asset/", ""));
-  row.children = resp;
+
+// Unified function to load directory data
+async function loadDirectory(path: string): Promise<TreeNode[]> {
+  try {
+    const { data, error } = await client.GET("/api/v1/files/{path}", {
+      params: { path: { path } },
+    });
+
+    if (error) {
+      console.error(`Failed to load directory ${path}:`, error);
+      return [];
+    }
+
+    if (data?.children) {
+      return data.children.map((item) => ({
+        key: item.path,
+        label: item.name,
+        path: item.path,
+        is_dir: item.is_dir,
+        size: item.size,
+        isLeaf: !item.is_dir,
+        children: undefined,
+        create_at: item.create_at,
+        modified_at: item.modified_at,
+      }));
+    }
+    return [];
+  } catch (error) {
+    console.error(`Error loading directory ${path}:`, error);
+    return [];
+  }
 }
 
-function rowProps(row: Entry) {
-  return {
-    onClick: () => {
-      if (row.is_dir) {
-        return;
-      }
-      if (row.path.endsWith(".json")) {
-        open(realPath(row));
-        return;
-      }
-      previewPath.value = realPath(row);
-      showFileToast.value = true;
-      //showFileInfo.value = true;
-    },
-  };
-}
-const searchVisible = ref(false);
-const message = useMessage();
-function searchRowProps(row: Entry) {
-  return {
-    onClick: async () => {
-      const msgHandler = message.loading("", { duration: 0 });
-      const arr = row.path.split("/");
-      const set = new Set<string>();
-      for (let i = 1; i < arr.length; i++) {
-        set.add(arr.slice(0, i).join("/"));
-      }
-      const keys = [...set];
-      let curList = data.value;
-      for (const p of arr) {
-        const entry = curList.find((v) => v.name === p)!;
-        if (entry.children) {
-          curList = entry.children;
-          continue;
-        }
-        if (entry.is_dir) {
-          await onLoad(entry);
-          curList = entry.children!;
-        } else {
-          break;
-        }
-      }
-      msgHandler.destroy();
-      expandedRowKeys.value = keys;
-      searchVisible.value = false;
-    },
-  };
+// Load children for a directory (for tree lazy loading)
+async function handleTreeLoad(node: TreeNode) {
+  node.children = await loadDirectory(node.path);
 }
 
-function openSearch() {
-  searchVisible.value = true;
+// Unified function to handle navigation with tree validation
+async function handleNavigation(path: string) {
+  selectedPath.value = path;
+  await ensurePathInTree(path);
 }
-const searchText = ref("");
-const searchData = ref<Entry[]>([]);
 
-const search = useDebounceFn(async () => {
-  if (!searchText.value) {
-    searchData.value = [];
+// Ensure the path exists in the tree by loading necessary parent directories
+async function ensurePathInTree(targetPath: string) {
+  contentLoading.value = true;
+  if (treeData.value.length === 0) {
+    treeData.value = await loadDirectory("");
+  }
+  if (!targetPath) {
+    contentLoading.value = false;
     return;
   }
-  const { data } = await client.GET("/api/v1/files", {
-    params: {
-      query: { path: searchText.value },
-    },
-  });
-  searchData.value = makeDisplayable(data ?? [], false);
-}, 500);
-const searchColumns: DataTableColumns<Entry> = [
-  { key: "name", title: "文件名" },
-  { key: "create_at", title: "创建时间" },
-  { key: "modified_at", title: "修改时间" },
-  { key: "hSize", title: "大小" },
-  { key: "path", title: "路径" },
-];
-const windowHeight = ref(window.innerHeight);
-function updatewindowHeight() {
-  windowHeight.value = window.innerHeight;
+  let list = treeData.value;
+  const parts = targetPath.split("/");
+  let cur = "";
+  for (const part of parts) {
+    cur = cur ? `${cur}/${part}` : part;
+    const node = list.find((v) => v.path === cur);
+    if (!node) {
+      throw new Error(`Path not found in tree: ${cur}`);
+    }
+    if (targetPath === cur) {
+      if (node.is_dir) {
+        node.children = await loadDirectory(cur);
+      }
+      selectedNode.value = node;
+      contentLoading.value = false;
+      return;
+    }
+    if (!node.is_dir) {
+      throw new Error(`${cur} is not a directory`);
+    }
+    if (!Array.isArray(node.children)) {
+      node.children = await loadDirectory(cur);
+    }
+    list = node.children;
+  }
+  contentLoading.value = false;
 }
-const el = useTemplateRef<HTMLElement>("el");
-const { style } = useDraggable(el, {
-  initialValue: { x: window.innerWidth - 400 - 40, y: 40 },
-  preventDefault: true,
-  capture: false,
-  disabled: showFullScreen,
-});
+
+function handleTreeSelectMobile() {
+  showMobileMenu.value = false;
+}
+
+function toggleMobileMenu() {
+  showMobileMenu.value = !showMobileMenu.value;
+}
+
+// Watch for URL query changes
+watch(
+  selectedPath,
+  (newPath) => {
+    ensurePathInTree(newPath);
+  },
+  { immediate: true },
+);
 </script>
