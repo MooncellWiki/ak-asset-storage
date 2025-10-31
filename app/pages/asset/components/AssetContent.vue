@@ -181,9 +181,9 @@ const canCopy = computed(
 // Check if file is too large (>1MB) for text/code/markdown rendering
 const MAX_PREVIEW_SIZE = 1024 * 1024; // 1MB in bytes
 const isLargeTextFile = computed(() => {
-  if (props.node!.is_dir) return false;
+  if (!props.node || props.node.is_dir) return false;
   const isTextType = isText.value || isCode.value || isMarkdown.value;
-  return isTextType && props.node!.size > MAX_PREVIEW_SIZE;
+  return isTextType && props.node.size > MAX_PREVIEW_SIZE;
 });
 
 // Columns for directory listing
