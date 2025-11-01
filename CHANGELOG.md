@@ -2,9 +2,25 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.16.0] - 2025-11-01
+
+[9f87851](9f87851944389529aab08c4852e347d1fc521024)...[40eb15e](40eb15e2f3065f60de6e2a4a77a4f698e05b34b6)
+
+### 🚀 Features
+
+- 搜索接口按字母序排序 ([934907a](https://github.com/MooncellWiki/ak-asset-storage/commit/934907a0dc856a8614d15e2f5a680798b4251514))
+
+### ⚙️ Miscellaneous Tasks
+
+- Update dependencies ([40eb15e](https://github.com/MooncellWiki/ak-asset-storage/commit/40eb15e2f3065f60de6e2a4a77a4f698e05b34b6))
+
 ## [0.15.2] - 2025-11-01
 
-[f60d588](f60d588d89d525c4c6c8dec2a9ff833c3a7204b5)...[88b87a0](88b87a00762e5ea79302b32da354bb0478e2a0ee)
+[f60d588](f60d588d89d525c4c6c8dec2a9ff833c3a7204b5)...[9f87851](9f87851944389529aab08c4852e347d1fc521024)
+
+### ⚙️ Miscellaneous Tasks
+
+- Release 0.15.2 ([9f87851](https://github.com/MooncellWiki/ak-asset-storage/commit/9f87851944389529aab08c4852e347d1fc521024))
 
 ### Build
 
