@@ -2,9 +2,33 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.15.1] - 2025-11-01
+
+[3b6dbb3](3b6dbb31b7c754330941f96c48df30408bb1c7d6)...[6b1b553](6b1b553ad74b7117cb8e3f83bd2bad6c30abd792)
+
+### 🚀 Features
+
+- Check file size before rendering: show warning for files >1MB (#136) ([7a68362](https://github.com/MooncellWiki/ak-asset-storage/commit/7a68362b289a07ce0d57f6730d6da9b8b187ffef)), Co-authored-by:daflyinbed <21363956+daflyinbed@users.noreply.github.com>
+
+* Add null check for props.node in isLargeTextFile, Co-authored-by:daflyinbed <21363956+daflyinbed@users.noreply.github.com>
+
+---------, Co-authored-by:copilot-swe-agent[bot] <198982749+Copilot@users.noreply.github.com>, Co-authored-by:daflyinbed <21363956+daflyinbed@users.noreply.github.com>
+
+### 🐛 Bug Fixes
+
+- EncodeUri ([b33e906](https://github.com/MooncellWiki/ak-asset-storage/commit/b33e9067ae1d42ff6b030bfa045515f597eb985c))
+
+### 🚜 Refactor
+
+- Remove unused code ([53481af](https://github.com/MooncellWiki/ak-asset-storage/commit/53481af63701403c05b9e536c08a2ec83a6b360e))
+
+### Build
+
+- Release to ghcr ([6b1b553](https://github.com/MooncellWiki/ak-asset-storage/commit/6b1b553ad74b7117cb8e3f83bd2bad6c30abd792))
+
 ## [0.15.0] - 2025-10-18
 
-[38a4ff1](38a4ff1b06f396a501bee1990a008476560ae879)...[466ab8a](466ab8a182c67225d0b67679552e29d810467dae)
+[38a4ff1](38a4ff1b06f396a501bee1990a008476560ae879)...[3b6dbb3](3b6dbb31b7c754330941f96c48df30408bb1c7d6)
 
 ### 🚀 Features
 
@@ -52,6 +76,10 @@ All notable changes to this project will be documented in this file.
 ### 📚 Documentation
 
 - 兼容copilot ([e460918](https://github.com/MooncellWiki/ak-asset-storage/commit/e460918a24f973b361e0f86c327ff7bde4f5bae6))
+
+### ⚙️ Miscellaneous Tasks
+
+- Release 0.15.0 ([3b6dbb3](https://github.com/MooncellWiki/ak-asset-storage/commit/3b6dbb31b7c754330941f96c48df30408bb1c7d6))
 
 ## [0.14.0] - 2025-09-23
 
