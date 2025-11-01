@@ -23,8 +23,6 @@ declare module 'vue-router/auto-routes' {
     '/asset/': RouteRecordInfo<'/asset/', '/asset', Record<never, never>, Record<never, never>>,
     '/asset/components/AssetContent': RouteRecordInfo<'/asset/components/AssetContent', '/asset/components/AssetContent', Record<never, never>, Record<never, never>>,
     '/asset/components/AssetTree': RouteRecordInfo<'/asset/components/AssetTree', '/asset/components/AssetTree', Record<never, never>, Record<never, never>>,
-    '/asset/components/Preview': RouteRecordInfo<'/asset/components/Preview', '/asset/components/Preview', Record<never, never>, Record<never, never>>,
-    '/asset/components/TextPreview': RouteRecordInfo<'/asset/components/TextPreview', '/asset/components/TextPreview', Record<never, never>, Record<never, never>>,
     '/components/FileDetail': RouteRecordInfo<'/components/FileDetail', '/components/FileDetail', Record<never, never>, Record<never, never>>,
     '/components/FileDetailDiff': RouteRecordInfo<'/components/FileDetailDiff', '/components/FileDetailDiff', Record<never, never>, Record<never, never>>,
     '/diff': RouteRecordInfo<'/diff', '/diff', Record<never, never>, Record<never, never>>,
@@ -60,14 +58,6 @@ declare module 'vue-router/auto-routes' {
     }
     'app/pages/asset/components/AssetTree.vue': {
       routes: '/asset/components/AssetTree'
-      views: never
-    }
-    'app/pages/asset/components/Preview.vue': {
-      routes: '/asset/components/Preview'
-      views: never
-    }
-    'app/pages/asset/components/TextPreview.vue': {
-      routes: '/asset/components/TextPreview'
       views: never
     }
     'app/pages/components/FileDetail.vue': {
