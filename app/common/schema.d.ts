@@ -72,6 +72,27 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/docker/launch": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Launch Docker container with game asset processing
+         * @description This endpoint launches a Docker container to process game assets using the provided version parameters.
+         *     It uses the same authentication mechanism as `update_item_demands` endpoint.
+         */
+        post: operations["launch_container"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/files": {
         parameters: {
             query?: never;
@@ -130,7 +151,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** /item/:item_name/demand */
+        /** `/item/:item_name/demand` */
         get: operations["get_item_demand"];
         put?: never;
         post?: never;
@@ -222,6 +243,16 @@ export interface components {
             versionId: number;
             versionIsReady: boolean;
             versionRes: string;
+        };
+        DockerLaunchRequest: {
+            client_version: string;
+            prev_client_version: string;
+            prev_res_version: string;
+            res_version: string;
+        };
+        DockerLaunchResponse: {
+            container_name: string;
+            status: string;
         };
         Health: {
             ok: boolean;
@@ -330,6 +361,51 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["BundleDetailsDto"];
                 };
+            };
+        };
+    };
+    launch_container: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DockerLaunchRequest"];
+            };
+        };
+        responses: {
+            /** @description Container launched successfully */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DockerLaunchResponse"];
+                };
+            };
+            /** @description Bad request - invalid parameters */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Unauthorized - invalid or missing authentication token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Internal server error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
         };
     };
