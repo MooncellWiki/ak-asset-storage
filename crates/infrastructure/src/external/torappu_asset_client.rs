@@ -20,6 +20,7 @@ impl TorappuAssetService for TorappuAssetClient {
             let asset_entry = AssetEntry::new(&entry.path(), &self.asset_base_path)?;
             children.push(asset_entry);
         }
+        children.sort_by(|a, b| a.name.cmp(&b.name));
         let dir = AssetEntry::new(&target_path, &self.asset_base_path)?;
         Ok(AssetDirInfo { dir, children })
     }
