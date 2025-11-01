@@ -5,7 +5,7 @@ COPY . /app
 RUN pnpm i
 RUN pnpm run build
 
-FROM rust:1.90-trixie AS build-stage
+FROM rust:1.91-trixie AS build-stage
 ENV SQLX_OFFLINE=true
 WORKDIR /app
 COPY . /app/
