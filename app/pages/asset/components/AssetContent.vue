@@ -127,10 +127,15 @@ const currentName = computed(() => {
 });
 
 const fileUrl = computed(() => {
+  const pathSegments = path.value.split("/");
+  const filename = pathSegments.pop() || "";
+  const encodedFilename = encodeURIComponent(filename);
+  const encodedPath = [...pathSegments, encodedFilename].join("/");
+
   if (path.value.startsWith("raw")) {
-    return `${location.origin}/${path.value.replace("raw", "assets")}`;
+    return `${location.origin}/${encodedPath.replace("raw", "assets")}`;
   }
-  return `${location.origin}/${path.value}`;
+  return `${location.origin}/${encodedPath}`;
 });
 
 const fileExtension = computed(() => {
