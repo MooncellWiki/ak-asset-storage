@@ -25,7 +25,7 @@ module_name_repetitions = { level = "allow", priority = 1 }
 [workspace.dependencies]
 serde = { version = "1.0.226", features = [ "derive" ] }
 serde_json = "1.0.145"
-tokio = { version = "1.47.1", features = [
+tokio = { version = "1.47.2", features = [
   "signal",
   "rt-multi-thread",
   "macros",
@@ -35,7 +35,7 @@ async-trait = "0.1.89"
 tracing = "0.1.41"
 chrono = "0.4.42"
 validator = { version = "0.20.0" }
-clap = { version = "4.5.48", features = [ "derive" ] }
+clap = { version = "4.5.51", features = [ "derive" ] }
 axum = { version = "0.8.4", features = [
   "macros",
   "multipart"
@@ -47,7 +47,7 @@ tracing-subscriber = { version = "0.3.20", features = [
   "env-filter",
   "json"
 ] }
-reqwest = { version = "0.12.23", features = [ "json" ] }
+reqwest = { version = "0.12.24", features = [ "json" ] }
 anyhow = "1.0.100"
 tower-http = { version = "0.6.6", features = [
   "timeout",
@@ -57,11 +57,11 @@ tower-http = { version = "0.6.6", features = [
   "fs",
   "set-header"
 ] }
-thiserror = "2.0.16"
-toml = "0.9.7"
-lettre = { version = "0.11.18", features = [ "tokio1-native-tls" ] }
+thiserror = "2.0.17"
+toml = "0.9.8"
+lettre = { version = "0.11.19", features = [ "tokio1-native-tls" ] }
 serde_variant = "0.1.3"
-object_store = { version = "0.12.3", features = [ "aws" ] }
+object_store = { version = "0.12.4", features = [ "aws" ] }
 sha256 = "1.6.0"
 utoipa = { version = "5.4.0", features = [
   "debug",
@@ -103,7 +103,7 @@ utoipa-gen = "5.4.0"
 zip = { version = "5.1.1" }
 itertools = { version = "0.14.0" }
 walkdir = "2.5.0"
-bollard = "0.19.2"
+bollard = "0.19.3"
 octocrab = "0.45.0"
 mimalloc = "0.1.48"
 
