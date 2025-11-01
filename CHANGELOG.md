@@ -2,9 +2,17 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.15.2] - 2025-11-01
+
+[f60d588](f60d588d89d525c4c6c8dec2a9ff833c3a7204b5)...[88b87a0](88b87a00762e5ea79302b32da354bb0478e2a0ee)
+
+### Build
+
+- Fix permission ([88b87a0](https://github.com/MooncellWiki/ak-asset-storage/commit/88b87a00762e5ea79302b32da354bb0478e2a0ee))
+
 ## [0.15.1] - 2025-11-01
 
-[3b6dbb3](3b6dbb31b7c754330941f96c48df30408bb1c7d6)...[6b1b553](6b1b553ad74b7117cb8e3f83bd2bad6c30abd792)
+[3b6dbb3](3b6dbb31b7c754330941f96c48df30408bb1c7d6)...[f60d588](f60d588d89d525c4c6c8dec2a9ff833c3a7204b5)
 
 ### 🚀 Features
 
@@ -21,6 +29,10 @@ All notable changes to this project will be documented in this file.
 ### 🚜 Refactor
 
 - Remove unused code ([53481af](https://github.com/MooncellWiki/ak-asset-storage/commit/53481af63701403c05b9e536c08a2ec83a6b360e))
+
+### ⚙️ Miscellaneous Tasks
+
+- Release 0.15.1 ([f60d588](https://github.com/MooncellWiki/ak-asset-storage/commit/f60d588d89d525c4c6c8dec2a9ff833c3a7204b5))
 
 ### Build
 

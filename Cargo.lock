@@ -203,7 +203,7 @@ dependencies = [
 
 [[package]]
 name = "ak-asset-storage-application"
-version = "0.15.1"
+version = "0.15.2"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -224,7 +224,7 @@ dependencies = [
 
 [[package]]
 name = "ak-asset-storage-cli"
-version = "0.15.1"
+version = "0.15.2"
 dependencies = [
  "ak-asset-storage-application",
  "ak-asset-storage-infrastructure",
@@ -243,7 +243,7 @@ dependencies = [
 
 [[package]]
 name = "ak-asset-storage-infrastructure"
-version = "0.15.1"
+version = "0.15.2"
 dependencies = [
  "ak-asset-storage-application",
  "anyhow",
@@ -269,7 +269,7 @@ dependencies = [
 
 [[package]]
 name = "ak-asset-storage-web"
-version = "0.15.1"
+version = "0.15.2"
 dependencies = [
  "ak-asset-storage-application",
  "ak-asset-storage-infrastructure",
