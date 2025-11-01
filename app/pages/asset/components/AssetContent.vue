@@ -45,6 +45,19 @@
     <!-- Audio Preview -->
     <audio v-else-if="isAudio" controls :src="fileUrl" class="w-full"></audio>
 
+    <!-- Large File Warning -->
+    <div v-else-if="isLargeTextFile" class="p-8 text-center">
+      <CarbonWarning class="mx-auto mb-4 text-6xl text-yellow-500" />
+      <p class="mb-2 text-lg font-semibold">文件过大</p>
+      <p class="mb-4 text-gray-600">
+        此文件大小为 {{ toReadableSize(node!.size) }}，超过 1MB，无法预览
+      </p>
+      <NButton type="primary" @click="downloadFile">
+        <template #icon><CarbonDownload /></template>
+        查看原始文件
+      </NButton>
+    </div>
+
     <!-- Text/Code Preview with Syntax Highlighting -->
     <div v-else-if="isCode" class="code-viewer">
       <div
@@ -81,6 +94,7 @@ import CarbonCopy from "~icons/carbon/copy";
 import CarbonDocumentBlank from "~icons/carbon/document-blank";
 import CarbonDocumentUnknown from "~icons/carbon/document-unknown";
 import CarbonDownload from "~icons/carbon/download";
+import CarbonWarning from "~icons/carbon/warning";
 import { format, parseISO } from "date-fns";
 import MarkdownIt from "markdown-it";
 import { useMessage } from "naive-ui";
@@ -164,6 +178,14 @@ const canCopy = computed(
   () => isText.value || isCode.value || isMarkdown.value,
 );
 
+// Check if file is too large (>1MB) for text/code/markdown rendering
+const MAX_PREVIEW_SIZE = 1024 * 1024; // 1MB in bytes
+const isLargeTextFile = computed(() => {
+  if (!props.node || props.node.is_dir) return false;
+  const isTextType = isText.value || isCode.value || isMarkdown.value;
+  return isTextType && props.node.size > MAX_PREVIEW_SIZE;
+});
+
 // Columns for directory listing
 const columns: DataTableColumns<AssetEntry> = [
   {
@@ -207,6 +229,11 @@ async function loadFileContent() {
   fileContent.value = "";
 
   if (!path.value || props.node!.is_dir) return;
+
+  // Skip loading content for large files
+  if (isLargeTextFile.value) {
+    return;
+  }
 
   try {
     // Load file content for preview
