@@ -2,9 +2,19 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.17.0] - 2025-12-01
+
+[9357c19](9357c19bbe65bef2a601ee679baafbea78c2d170)...[bc23854](bc238545255fed9f619700c2cf10d494ab31efeb)
+
+### ⚙️ Miscellaneous Tasks
+
+- Update dependencies ([2cc9044](https://github.com/MooncellWiki/ak-asset-storage/commit/2cc9044ad98ab6044b434fd9d11e1cc28e82d989))
+- Update dependencies ([5c44012](https://github.com/MooncellWiki/ak-asset-storage/commit/5c440123ee237845bf76139b5eca6650138d5c17))
+- Update dependencies ([bc23854](https://github.com/MooncellWiki/ak-asset-storage/commit/bc238545255fed9f619700c2cf10d494ab31efeb))
+
 ## [0.16.0] - 2025-11-01
 
-[9f87851](9f87851944389529aab08c4852e347d1fc521024)...[40eb15e](40eb15e2f3065f60de6e2a4a77a4f698e05b34b6)
+[9f87851](9f87851944389529aab08c4852e347d1fc521024)...[9357c19](9357c19bbe65bef2a601ee679baafbea78c2d170)
 
 ### 🚀 Features
 
@@ -13,6 +23,7 @@ All notable changes to this project will be documented in this file.
 ### ⚙️ Miscellaneous Tasks
 
 - Update dependencies ([40eb15e](https://github.com/MooncellWiki/ak-asset-storage/commit/40eb15e2f3065f60de6e2a4a77a4f698e05b34b6))
+- Release 0.16.0 ([9357c19](https://github.com/MooncellWiki/ak-asset-storage/commit/9357c19bbe65bef2a601ee679baafbea78c2d170))
 
 ## [0.15.2] - 2025-11-01
 
