@@ -13,7 +13,7 @@ pub struct GithubClient {
 impl GithubClient {
     pub fn new(config: GithubConfig) -> AppResult<Self> {
         let client = octocrab::OctocrabBuilder::new()
-            .user_access_token(config.token.to_string())
+            .user_access_token(config.token.clone())
             .build()
             .into_app_result()?;
         Ok(Self {

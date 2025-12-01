@@ -31,8 +31,8 @@ impl HttpAkApiClient {
 
         Self {
             client,
-            conf_url: config.conf_url.to_string(),
-            asset_url: config.asset_url.to_string(),
+            conf_url: config.conf_url.clone(),
+            asset_url: config.asset_url.clone(),
         }
     }
 }

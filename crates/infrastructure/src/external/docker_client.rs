@@ -143,7 +143,7 @@ impl ak_asset_storage_application::DockerService for BollardDockerClient {
             networking_config: Some(
                 NetworkingConfig {
                     endpoints_config: HashMap::from([(
-                        self.config.network.to_string(),
+                        self.config.network.clone(),
                         EndpointSettings::default(),
                     )]),
                 }
@@ -171,7 +171,7 @@ impl ak_asset_storage_application::DockerService for BollardDockerClient {
             .into_app_result()?;
 
         info!("Container started successfully: {container_name}");
-        Ok(container_name.to_string())
+        Ok(container_name.clone())
     }
 }
 

@@ -18,10 +18,7 @@ pub struct SmtpNotificationClient {
 
 impl SmtpNotificationClient {
     pub fn new(config: &SmtpConfig) -> InfraResult<Self> {
-        let creds = Credentials::new(
-            config.auth.user.to_string(),
-            config.auth.password.to_string(),
-        );
+        let creds = Credentials::new(config.auth.user.clone(), config.auth.password.clone());
 
         let mailer = AsyncSmtpTransport::<Tokio1Executor>::relay(&config.host)
             .map_err(|e| InfraError::Email(e.into()))?
@@ -31,9 +28,9 @@ impl SmtpNotificationClient {
 
         Ok(Self {
             mailer,
-            from_email: config.from_email.to_string(),
-            to_email: config.to_email.to_string(),
-            frontend_url: config.frontend_url.to_string(),
+            from_email: config.from_email.clone(),
+            to_email: config.to_email.clone(),
+            frontend_url: config.frontend_url.clone(),
         })
     }
 
