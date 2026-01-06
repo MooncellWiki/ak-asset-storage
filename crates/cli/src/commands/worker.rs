@@ -3,8 +3,8 @@ use ak_asset_storage_application::{
     AssetDownloadService, ConfigProvider, SyncTask, VersionCheckService,
 };
 use ak_asset_storage_infrastructure::{
-    shutdown_signal, BollardDockerClient, GithubClient, HttpAkApiClient, PostgresRepository,
-    S3StorageClient, SimpleScheduler,
+    BollardDockerClient, GithubClient, HttpAkApiClient, PostgresRepository, S3StorageClient,
+    SimpleScheduler, shutdown_signal,
 };
 use anyhow::Result;
 use sqlx::postgres::PgPoolOptions;

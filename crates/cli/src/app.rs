@@ -1,6 +1,6 @@
 use crate::commands::{seed, worker};
 use ak_asset_storage_application::ConfigProvider;
-use ak_asset_storage_infrastructure::{init_tracing, AppSettings, InfraConfigProvider};
+use ak_asset_storage_infrastructure::{AppSettings, InfraConfigProvider, init_tracing};
 use anyhow::Result;
 use clap::Parser;
 use std::path::{Path, PathBuf};

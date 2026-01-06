@@ -1,7 +1,7 @@
 use axum::{
-    http::{header::CONTENT_TYPE, HeaderValue, Response},
-    routing::{get_service, MethodRouter},
     Router,
+    http::{HeaderValue, Response, header::CONTENT_TYPE},
+    routing::{MethodRouter, get_service},
 };
 use std::{path::PathBuf, time::Duration};
 use tower::ServiceBuilder;

@@ -5,7 +5,7 @@ use crate::{
     NotificationService, StorageService, Version, VersionRepository,
 };
 use anyhow::Context;
-use futures::{stream, StreamExt, TryStreamExt};
+use futures::{StreamExt, TryStreamExt, stream};
 use itertools::Itertools;
 use sha256::digest;
 use tracing::{debug, error, info, instrument};

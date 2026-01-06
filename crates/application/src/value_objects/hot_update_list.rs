@@ -20,7 +20,7 @@ impl ABInfo {
         if let Some((left, _)) = path.rsplit_once('.') {
             format!("{left}.dat")
         } else {
-            path.clone()
+            path
         }
     }
 }

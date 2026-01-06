@@ -1,6 +1,6 @@
 use ak_asset_storage_application::ConfigProvider;
 use ak_asset_storage_infrastructure::{
-    config::InfraConfigProvider, BollardDockerClient, PostgresRepository, TorappuAssetClient,
+    BollardDockerClient, PostgresRepository, TorappuAssetClient, config::InfraConfigProvider,
 };
 use std::path::PathBuf;
 use tracing::{info, warn};

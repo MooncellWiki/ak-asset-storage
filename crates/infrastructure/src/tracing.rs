@@ -3,12 +3,12 @@ use std::str::FromStr;
 use ak_asset_storage_application::{LogFormat, LogLevel, LoggerConfig, SentryConfig};
 use anyhow::Result;
 use sentry::{integrations::tracing::EventFilter, types::Dsn};
-use tracing::{level_filters::LevelFilter, Level, Metadata};
+use tracing::{Level, Metadata, level_filters::LevelFilter};
 use tracing_subscriber::{
+    EnvFilter, Layer, Registry,
     fmt::{self, MakeWriter},
     layer::SubscriberExt,
     util::SubscriberInitExt,
-    EnvFilter, Layer, Registry,
 };
 
 const MODULE_WHITELIST: &[&str] = &[

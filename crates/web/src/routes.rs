@@ -8,7 +8,7 @@ use crate::{
     state::AppState,
 };
 use ak_asset_storage_application::ConfigProvider;
-use axum::{routing::get, Json, Router};
+use axum::{Json, Router, routing::get};
 use std::path::PathBuf;
 use utoipa::OpenApi;
 use utoipa_axum::{router::OpenApiRouter, routes};

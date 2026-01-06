@@ -134,13 +134,15 @@ async fn test_multiple_versions_sync() {
     assert!(!result4.unwrap()); // Should return false (not work)
 
     // Verify all versions are marked as ready
-    assert!(repository
-        .version
-        .versions
-        .lock()
-        .unwrap()
-        .iter()
-        .all(|v| v.is_ready));
+    assert!(
+        repository
+            .version
+            .versions
+            .lock()
+            .unwrap()
+            .iter()
+            .all(|v| v.is_ready)
+    );
 }
 
 #[tokio::test]

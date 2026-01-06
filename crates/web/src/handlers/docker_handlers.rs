@@ -1,6 +1,6 @@
 use crate::{error::WebError, state::AppState};
 use ak_asset_storage_application::{ConfigProvider, DockerService};
-use axum::{extract::State, http::HeaderMap, Json};
+use axum::{Json, extract::State, http::HeaderMap};
 use serde::{Deserialize, Serialize};
 
 #[allow(clippy::struct_field_names)]

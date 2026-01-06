@@ -1,11 +1,10 @@
 use crate::{dto::responses::Health, state::AppState};
 use ak_asset_storage_application::Repository;
 use axum::{
-    debug_handler,
+    Json, debug_handler,
     extract::State,
-    http::{header, StatusCode, Uri},
+    http::{StatusCode, Uri, header},
     response::{Html, IntoResponse, Response},
-    Json,
 };
 use rust_embed::Embed;
 

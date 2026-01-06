@@ -1,6 +1,6 @@
 use crate::{
-    ak_api_client::AkApiClientError, docker_client::DockerClientError,
-    github_client::GithubClientError, smtp_client::EmailError, ConfigError,
+    ConfigError, ak_api_client::AkApiClientError, docker_client::DockerClientError,
+    github_client::GithubClientError, smtp_client::EmailError,
 };
 use ak_asset_storage_application::error::AppError;
 use thiserror::Error;

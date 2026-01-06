@@ -71,7 +71,7 @@ pub async fn execute(
                 info!("Error during download: {}", e);
                 break;
             }
-        };
+        }
     }
 
     info!("Database seeding completed.");

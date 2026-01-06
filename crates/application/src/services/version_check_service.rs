@@ -1,6 +1,6 @@
 use crate::{
-    repositories::VersionRepository, AkApiClient, AppResult, DockerService, GithubService,
-    HotUpdateList, NotificationService, RemoteVersion, Version,
+    AkApiClient, AppResult, DockerService, GithubService, HotUpdateList, NotificationService,
+    RemoteVersion, Version, repositories::VersionRepository,
 };
 use tracing::{error, info, instrument};
 
@@ -127,19 +127,19 @@ where
         }
 
         // 如果启用了Docker容器功能，启动新容器
-        if let Some(docker_service) = &self.docker_service {
-            if let Some(ref prev) = prev {
-                info!("Attempting to launch Docker container for new version");
-                match docker_service
-                    .launch_container(client_version, res_version, &prev.client, &prev.res)
-                    .await
-                {
-                    Ok(container_name) => {
-                        info!("Docker container launched successfully: {container_name}");
-                    }
-                    Err(e) => {
-                        error!("Failed to launch Docker container: {e}");
-                    }
+        if let Some(docker_service) = &self.docker_service
+            && let Some(ref prev) = prev
+        {
+            info!("Attempting to launch Docker container for new version");
+            match docker_service
+                .launch_container(client_version, res_version, &prev.client, &prev.res)
+                .await
+            {
+                Ok(container_name) => {
+                    info!("Docker container launched successfully: {container_name}");
+                }
+                Err(e) => {
+                    error!("Failed to launch Docker container: {e}");
                 }
             }
         }

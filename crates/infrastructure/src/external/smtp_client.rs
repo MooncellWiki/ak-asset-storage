@@ -2,9 +2,9 @@ use crate::error::{InfraError, InfraResult};
 use ak_asset_storage_application::{AppResult, NotificationService, SmtpConfig};
 use async_trait::async_trait;
 use lettre::{
-    message::{header, MultiPart, SinglePart},
-    transport::smtp::authentication::Credentials,
     AsyncSmtpTransport, AsyncTransport, Message, Tokio1Executor,
+    message::{MultiPart, SinglePart, header},
+    transport::smtp::authentication::Credentials,
 };
 use tracing::{info, instrument};
 

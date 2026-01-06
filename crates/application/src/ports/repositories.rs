@@ -40,7 +40,7 @@ pub trait BundleRepository: Send + Sync + Clone + 'static {
 
     // queries
     async fn query_bundle_by_id_with_details(&self, id: i32)
-        -> AppResult<Option<BundleDetailsDto>>;
+    -> AppResult<Option<BundleDetailsDto>>;
     async fn query_bundles_with_details(
         &self,
         query: BundleFilterDto,

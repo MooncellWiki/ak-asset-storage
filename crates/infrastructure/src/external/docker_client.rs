@@ -5,6 +5,7 @@ use ak_asset_storage_application::{AppResult, DockerConfig};
 use anyhow::anyhow;
 use async_trait::async_trait;
 use bollard::{
+    Docker,
     auth::DockerCredentials,
     container::NetworkingConfig,
     errors::Error,
@@ -14,7 +15,6 @@ use bollard::{
         CreateContainerOptionsBuilder, CreateImageOptionsBuilder, InspectContainerOptions,
         RemoveContainerOptions, StartContainerOptions,
     },
-    Docker,
 };
 use futures::stream::StreamExt;
 use tracing::{info, warn};
@@ -58,13 +58,13 @@ impl ak_asset_storage_application::DockerService for BollardDockerClient {
         {
             Ok(container_info) => {
                 // 检查容器是否正在运行
-                if let Some(ref state) = container_info.state {
-                    if state.running.unwrap_or(false) {
-                        return Err(InfraError::Docker(
-                            anyhow!("Container {container_name} is already running").into(),
-                        )
-                        .into());
-                    }
+                if let Some(ref state) = container_info.state
+                    && state.running.unwrap_or(false)
+                {
+                    return Err(InfraError::Docker(
+                        anyhow!("Container {container_name} is already running").into(),
+                    )
+                    .into());
                 }
 
                 // 容器存在但不是运行状态，删除它

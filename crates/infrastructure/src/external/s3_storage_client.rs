@@ -3,8 +3,8 @@ use ak_asset_storage_application::{AppResult, S3Config, StorageService};
 use async_trait::async_trait;
 use bytes::Bytes;
 use object_store::{
+    ObjectStoreExt,
     aws::{AmazonS3, AmazonS3Builder},
-    ObjectStore,
 };
 use tracing::{info, instrument};
 
