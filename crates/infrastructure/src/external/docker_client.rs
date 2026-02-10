@@ -17,6 +17,7 @@ use bollard::{
     },
 };
 use futures::stream::StreamExt;
+use tokio::time::{sleep, Duration};
 use tracing::{info, warn};
 
 // DockerService trait is defined in ak_asset_storage_application
@@ -92,30 +93,67 @@ impl ak_asset_storage_application::DockerService for BollardDockerClient {
         }
 
         info!("Pulling Docker image: {image_url}");
-        // 拉取镜像
-        let options = CreateImageOptionsBuilder::default()
-            .from_image(image_url)
-            .build();
+        // 拉取镜像，支持重试 (最多3次，间隔1s, 4s, 8s)
+        let retry_delays = [1, 4, 8]; // 重试间隔(秒)
+        let mut last_error = None;
 
-        let mut stream = self.docker.create_image(
-            Some(options),
-            None,
-            Some(DockerCredentials {
-                username: Some(self.config.username.clone()),
-                password: Some(self.config.password.clone()),
-                ..Default::default()
-            }),
-        );
-        while let Some(result) = stream.next().await {
-            match result {
-                Ok(info) => {
-                    if let Some(status) = info.status {
-                        info!("Pull progress: {status}");
+        for attempt in 0..=3 {
+            if attempt > 0 {
+                let delay_secs = retry_delays[attempt - 1];
+                warn!(
+                    "Retrying image pull (attempt {}/3) after {}s delay",
+                    attempt, delay_secs
+                );
+                sleep(Duration::from_secs(delay_secs)).await;
+            }
+
+            let options = CreateImageOptionsBuilder::default()
+                .from_image(image_url)
+                .build();
+
+            let mut stream = self.docker.create_image(
+                Some(options),
+                None,
+                Some(DockerCredentials {
+                    username: Some(self.config.username.clone()),
+                    password: Some(self.config.password.clone()),
+                    ..Default::default()
+                }),
+            );
+
+            let mut pull_failed = false;
+            while let Some(result) = stream.next().await {
+                match result {
+                    Ok(info) => {
+                        if let Some(status) = info.status {
+                            info!("Pull progress: {status}");
+                        }
+                    }
+                    Err(e) => {
+                        warn!("Image pull failed on attempt {}: {:?}", attempt + 1, e);
+                        last_error = Some(e);
+                        pull_failed = true;
+                        break;
                     }
                 }
-                Err(e) => {
-                    return Err(InfraError::Docker(e.into()).into());
-                }
+            }
+
+            if !pull_failed {
+                info!("Image pulled successfully");
+                break;
+            }
+
+            if attempt == 3 {
+                return Err(InfraError::Docker(
+                    last_error.unwrap_or_else(|| {
+                        Error::DockerResponseServerError {
+                            status_code: 500,
+                            message: "Unknown error during image pull".to_string(),
+                        }
+                    })
+                    .into(),
+                )
+                .into());
             }
         }
 
