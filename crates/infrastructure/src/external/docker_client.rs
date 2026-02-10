@@ -94,15 +94,16 @@ impl ak_asset_storage_application::DockerService for BollardDockerClient {
 
         info!("Pulling Docker image: {image_url}");
         // 拉取镜像，支持重试 (最多3次，间隔1s, 4s, 8s)
-        let retry_delays = [1, 4, 8]; // 重试间隔(秒)
+        const MAX_RETRIES: usize = 3;
+        const RETRY_DELAYS_SECS: [u64; MAX_RETRIES] = [1, 4, 8]; // 重试间隔(秒)
         let mut last_error = None;
 
-        for attempt in 0..=3 {
+        for attempt in 0..=MAX_RETRIES {
             if attempt > 0 {
-                let delay_secs = retry_delays[attempt - 1];
+                let delay_secs = RETRY_DELAYS_SECS[attempt - 1];
                 warn!(
-                    "Retrying image pull (attempt {}/3) after {}s delay",
-                    attempt, delay_secs
+                    "Retrying image pull (attempt {}/{}) after {}s delay",
+                    attempt, MAX_RETRIES, delay_secs
                 );
                 sleep(Duration::from_secs(delay_secs)).await;
             }
@@ -143,15 +144,13 @@ impl ak_asset_storage_application::DockerService for BollardDockerClient {
                 break;
             }
 
-            if attempt == 3 {
+            if attempt == MAX_RETRIES {
+                // All retries exhausted, return the last error.
+                // last_error should always be Some here as we only reach this when pull_failed is true
                 return Err(InfraError::Docker(
-                    last_error.unwrap_or_else(|| {
-                        Error::DockerResponseServerError {
-                            status_code: 500,
-                            message: "Unknown error during image pull".to_string(),
-                        }
-                    })
-                    .into(),
+                    last_error
+                        .expect("last_error should be set when all retries are exhausted")
+                        .into(),
                 )
                 .into());
             }
