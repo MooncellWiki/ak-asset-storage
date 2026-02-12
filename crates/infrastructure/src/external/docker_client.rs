@@ -17,6 +17,7 @@ use bollard::{
     },
 };
 use futures::stream::StreamExt;
+use tokio::time::{sleep, Duration};
 use tracing::{info, warn};
 
 // DockerService trait is defined in ak_asset_storage_application
@@ -92,30 +93,66 @@ impl ak_asset_storage_application::DockerService for BollardDockerClient {
         }
 
         info!("Pulling Docker image: {image_url}");
-        // 拉取镜像
-        let options = CreateImageOptionsBuilder::default()
-            .from_image(image_url)
-            .build();
+        // 拉取镜像，支持重试 (最多3次，间隔1s, 4s, 8s)
+        const MAX_RETRIES: usize = 3;
+        const RETRY_DELAYS_SECS: [u64; MAX_RETRIES] = [1, 4, 8]; // 重试间隔(秒)
+        let mut last_error = None;
 
-        let mut stream = self.docker.create_image(
-            Some(options),
-            None,
-            Some(DockerCredentials {
-                username: Some(self.config.username.clone()),
-                password: Some(self.config.password.clone()),
-                ..Default::default()
-            }),
-        );
-        while let Some(result) = stream.next().await {
-            match result {
-                Ok(info) => {
-                    if let Some(status) = info.status {
-                        info!("Pull progress: {status}");
+        for attempt in 0..=MAX_RETRIES {
+            if attempt > 0 {
+                let delay_secs = RETRY_DELAYS_SECS[attempt - 1];
+                warn!(
+                    "Retrying image pull (attempt {}/{}) after {}s delay",
+                    attempt + 1, MAX_RETRIES, delay_secs
+                );
+                sleep(Duration::from_secs(delay_secs)).await;
+            }
+
+            let options = CreateImageOptionsBuilder::default()
+                .from_image(image_url)
+                .build();
+
+            let mut stream = self.docker.create_image(
+                Some(options),
+                None,
+                Some(DockerCredentials {
+                    username: Some(self.config.username.clone()),
+                    password: Some(self.config.password.clone()),
+                    ..Default::default()
+                }),
+            );
+
+            let mut pull_failed = false;
+            while let Some(result) = stream.next().await {
+                match result {
+                    Ok(info) => {
+                        if let Some(status) = info.status {
+                            info!("Pull progress: {status}");
+                        }
+                    }
+                    Err(e) => {
+                        warn!("Image pull failed on attempt {}: {:?}", attempt + 1, e);
+                        last_error = Some(e);
+                        pull_failed = true;
+                        break;
                     }
                 }
-                Err(e) => {
-                    return Err(InfraError::Docker(e.into()).into());
-                }
+            }
+
+            if !pull_failed {
+                info!("Image pulled successfully");
+                break;
+            }
+
+            if attempt == MAX_RETRIES {
+                // All retries exhausted, return the last error.
+                // last_error should always be Some here as we only reach this when pull_failed is true
+                return Err(InfraError::Docker(
+                    last_error
+                        .expect("last_error should be set when all retries are exhausted")
+                        .into(),
+                )
+                .into());
             }
         }
 
