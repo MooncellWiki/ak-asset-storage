@@ -103,7 +103,7 @@ impl ak_asset_storage_application::DockerService for BollardDockerClient {
                 let delay_secs = RETRY_DELAYS_SECS[attempt - 1];
                 warn!(
                     "Retrying image pull (attempt {}/{}) after {}s delay",
-                    attempt, MAX_RETRIES, delay_secs
+                    attempt + 1, MAX_RETRIES, delay_secs
                 );
                 sleep(Duration::from_secs(delay_secs)).await;
             }
