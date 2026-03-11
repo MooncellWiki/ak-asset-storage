@@ -2,9 +2,32 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.18.1] - 2026-03-11
+
+[810d2ab](810d2ab9b915019347e1eea1e9e4d58a1164f937)...[a717e0e](a717e0e86938e75fcf3ffd2e434b1dcb1f5be195)
+
+### 🚀 Features
+
+- Add retry logic to Docker image pull with exponential backoff (#156) ([3b7c0a4](https://github.com/MooncellWiki/ak-asset-storage/commit/3b7c0a41e536d2508988b5b70d1c3fd364e120ec)), Co-authored-by:daflyinbed <21363956+daflyinbed@users.noreply.github.com>
+
+* Improve retry logic with named constants and better error handling, Co-authored-by:daflyinbed <21363956+daflyinbed@users.noreply.github.com>
+
+* Fix inconsistent attempt numbering in retry logs, Co-authored-by:daflyinbed <21363956+daflyinbed@users.noreply.github.com>
+
+---------, Co-authored-by:copilot-swe-agent[bot] <198982749+Copilot@users.noreply.github.com>, Co-authored-by:daflyinbed <21363956+daflyinbed@users.noreply.github.com>
+
+### 🐛 Bug Fixes
+
+- Fmt and clippy ([d825106](https://github.com/MooncellWiki/ak-asset-storage/commit/d8251061901c06a68521fad1a3ef0406647bb479))
+
+### ⚙️ Miscellaneous Tasks
+
+- Migrate workflows to Blacksmith (#157) ([0c33320](https://github.com/MooncellWiki/ak-asset-storage/commit/0c3332032c646e82f9ee339cbe54c3f02707bdab)), Co-authored-by:blacksmith-sh[bot] <157653362+blacksmith-sh[bot]@users.noreply.github.com>
+- Enable blacksmith docker cache ([a717e0e](https://github.com/MooncellWiki/ak-asset-storage/commit/a717e0e86938e75fcf3ffd2e434b1dcb1f5be195))
+
 ## [0.18.0] - 2026-01-06
 
-[37957cc](37957ccfa8a4afdaac2a0d38d625543cd86ea917)...[593195e](593195ef01a29641436267a87df32eef82735840)
+[37957cc](37957ccfa8a4afdaac2a0d38d625543cd86ea917)...[810d2ab](810d2ab9b915019347e1eea1e9e4d58a1164f937)
 
 ### 🐛 Bug Fixes
 
@@ -14,6 +37,7 @@ All notable changes to this project will be documented in this file.
 
 - Update dependencies ([0cdcd4b](https://github.com/MooncellWiki/ak-asset-storage/commit/0cdcd4b0a2f035003143d3d19a4b57e1d368ff67))
 - Update dependencies ([593195e](https://github.com/MooncellWiki/ak-asset-storage/commit/593195ef01a29641436267a87df32eef82735840))
+- Release 0.18.0 ([810d2ab](https://github.com/MooncellWiki/ak-asset-storage/commit/810d2ab9b915019347e1eea1e9e4d58a1164f937))
 
 ## [0.17.0] - 2025-12-01
 
