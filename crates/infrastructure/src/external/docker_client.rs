@@ -17,8 +17,12 @@ use bollard::{
     },
 };
 use futures::stream::StreamExt;
-use tokio::time::{sleep, Duration};
+use tokio::time::{Duration, sleep};
 use tracing::{info, warn};
+
+// 拉取镜像，支持重试 (最多3次，间隔1s, 4s, 8s)
+const MAX_IMAGE_PULL_RETRIES: usize = 3;
+const IMAGE_PULL_RETRY_DELAYS_SECS: [u64; MAX_IMAGE_PULL_RETRIES] = [1, 4, 8];
 
 // DockerService trait is defined in ak_asset_storage_application
 
@@ -93,17 +97,16 @@ impl ak_asset_storage_application::DockerService for BollardDockerClient {
         }
 
         info!("Pulling Docker image: {image_url}");
-        // 拉取镜像，支持重试 (最多3次，间隔1s, 4s, 8s)
-        const MAX_RETRIES: usize = 3;
-        const RETRY_DELAYS_SECS: [u64; MAX_RETRIES] = [1, 4, 8]; // 重试间隔(秒)
         let mut last_error = None;
 
-        for attempt in 0..=MAX_RETRIES {
+        for attempt in 0..=MAX_IMAGE_PULL_RETRIES {
             if attempt > 0 {
-                let delay_secs = RETRY_DELAYS_SECS[attempt - 1];
+                let delay_secs = IMAGE_PULL_RETRY_DELAYS_SECS[attempt - 1];
                 warn!(
                     "Retrying image pull (attempt {}/{}) after {}s delay",
-                    attempt + 1, MAX_RETRIES, delay_secs
+                    attempt + 1,
+                    MAX_IMAGE_PULL_RETRIES,
+                    delay_secs
                 );
                 sleep(Duration::from_secs(delay_secs)).await;
             }
@@ -144,7 +147,7 @@ impl ak_asset_storage_application::DockerService for BollardDockerClient {
                 break;
             }
 
-            if attempt == MAX_RETRIES {
+            if attempt == MAX_IMAGE_PULL_RETRIES {
                 // All retries exhausted, return the last error.
                 // last_error should always be Some here as we only reach this when pull_failed is true
                 return Err(InfraError::Docker(
