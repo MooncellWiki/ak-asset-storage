@@ -10,12 +10,12 @@ fn build_version(
     res: String,
     client: String,
     is_ready: bool,
-    hot_update_list: String,
-    asset_mapping_status: String,
+    hot_update_list: &str,
+    asset_mapping_status: &str,
 ) -> AppResult<Version> {
     Ok(Version {
-        asset_mapping_status: AssetMappingStatus::from_str_lossy(&asset_mapping_status),
-        ..Version::with_id(id, res, client, is_ready, &hot_update_list)?
+        asset_mapping_status: AssetMappingStatus::from_str_lossy(asset_mapping_status),
+        ..Version::with_id(id, res, client, is_ready, hot_update_list)?
     })
 }
 
@@ -51,7 +51,18 @@ impl VersionRepository for PostgresRepository {
             message: "Failed to get version by id".to_string(),
             source: e,
         })?;
-        result.map(|r| build_version(r.id, r.res, r.client, r.is_ready, r.hot_update_list, r.asset_mapping_status)).transpose()
+        result
+            .map(|r| {
+                build_version(
+                    r.id,
+                    r.res,
+                    r.client,
+                    r.is_ready,
+                    &r.hot_update_list,
+                    &r.asset_mapping_status,
+                )
+            })
+            .transpose()
     }
 
     async fn get_version_by_res(&self, res: &str) -> AppResult<Option<Version>> {
@@ -66,7 +77,18 @@ impl VersionRepository for PostgresRepository {
             source: e,
         })?;
 
-        result.map(|r| build_version(r.id, r.res, r.client, r.is_ready, r.hot_update_list, r.asset_mapping_status)).transpose()
+        result
+            .map(|r| {
+                build_version(
+                    r.id,
+                    r.res,
+                    r.client,
+                    r.is_ready,
+                    &r.hot_update_list,
+                    &r.asset_mapping_status,
+                )
+            })
+            .transpose()
     }
 
     async fn get_latest_version(&self) -> AppResult<Option<Version>> {
@@ -80,7 +102,18 @@ impl VersionRepository for PostgresRepository {
             source: e
         })?;
 
-        result.map(|r| build_version(r.id, r.res, r.client, r.is_ready, r.hot_update_list, r.asset_mapping_status)).transpose()
+        result
+            .map(|r| {
+                build_version(
+                    r.id,
+                    r.res,
+                    r.client,
+                    r.is_ready,
+                    &r.hot_update_list,
+                    &r.asset_mapping_status,
+                )
+            })
+            .transpose()
     }
     async fn is_client_and_res_exist(&self, client: &str, res: &str) -> AppResult<bool> {
         let result = sqlx::query!(
@@ -109,7 +142,18 @@ impl VersionRepository for PostgresRepository {
             source: e,
         })?;
 
-        result.map(|r| build_version(r.id, r.res, r.client, r.is_ready, r.hot_update_list, r.asset_mapping_status)).transpose()
+        result
+            .map(|r| {
+                build_version(
+                    r.id,
+                    r.res,
+                    r.client,
+                    r.is_ready,
+                    &r.hot_update_list,
+                    &r.asset_mapping_status,
+                )
+            })
+            .transpose()
     }
 
     async fn mark_version_ready(&self, id: i32) -> AppResult<()> {

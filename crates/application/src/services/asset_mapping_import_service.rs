@@ -19,7 +19,7 @@ impl<R> AssetMappingImportService<R>
 where
     R: VersionRepository + AssetMappingRepository,
 {
-    pub fn new(repo: R, gamedata_root: PathBuf) -> Self {
+    pub const fn new(repo: R, gamedata_root: PathBuf) -> Self {
         Self {
             repo,
             gamedata_root,
@@ -57,7 +57,11 @@ where
             })
             .collect::<Vec<_>>();
 
-        if !self.repo.import_asset_mappings(version_id, &mappings).await? {
+        if !self
+            .repo
+            .import_asset_mappings(version_id, &mappings)
+            .await?
+        {
             return Err(anyhow!("Asset mapping import already running for {res_version}").into());
         }
 

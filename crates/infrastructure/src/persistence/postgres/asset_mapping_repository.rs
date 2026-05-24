@@ -7,6 +7,7 @@ use sqlx::Acquire;
 
 const INSERT_BATCH_SIZE: usize = 5000;
 
+#[allow(clippy::too_many_lines)]
 #[async_trait]
 impl AssetMappingRepository for PostgresRepository {
     async fn import_asset_mappings(
@@ -14,10 +15,14 @@ impl AssetMappingRepository for PostgresRepository {
         version_id: i32,
         mappings: &[AssetMapping],
     ) -> AppResult<bool> {
-        let mut conn = self.pool.acquire().await.map_err(|e| InfraError::Database {
-            message: "Failed to acquire connection for asset mapping import".to_string(),
-            source: e,
-        })?;
+        let mut conn = self
+            .pool
+            .acquire()
+            .await
+            .map_err(|e| InfraError::Database {
+                message: "Failed to acquire connection for asset mapping import".to_string(),
+                source: e,
+            })?;
 
         let locked = sqlx::query_scalar!("SELECT pg_try_advisory_lock($1)", i64::from(version_id))
             .fetch_one(&mut *conn)

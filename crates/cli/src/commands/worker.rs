@@ -60,7 +60,7 @@ pub async fn execute(config: &impl ConfigProvider, concurrent: usize) -> Result<
     let gamedata_root =
         std::path::PathBuf::from(&config.torappu_config().asset_base_path).join("gamedata");
     let import_service = AssetMappingImportService::new(repository.clone(), gamedata_root.clone());
-    let mut manifest_watcher = ManifestWatcher::new(import_service, gamedata_root)?;
+    let mut manifest_watcher = ManifestWatcher::new(import_service, &gamedata_root)?;
     scheduler.start()?;
     // Wait for shutdown signal
     info!("Worker is running. Press Ctrl+C to stop.");

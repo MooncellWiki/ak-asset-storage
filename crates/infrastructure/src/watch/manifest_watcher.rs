@@ -57,9 +57,9 @@ where
 {
     pub fn new(
         service: AssetMappingImportService<R>,
-        gamedata_root: PathBuf,
+        gamedata_root: &Path,
     ) -> anyhow::Result<Self> {
-        let gamedata_root = fs::canonicalize(&gamedata_root)?;
+        let gamedata_root = fs::canonicalize(gamedata_root)?;
         let (event_tx, event_rx) = unbounded_channel();
         let scan_handle = Some(spawn_scan_loop(event_tx.clone(), gamedata_root.clone()));
         let import_handle = Some(spawn_import_loop(event_rx, service));

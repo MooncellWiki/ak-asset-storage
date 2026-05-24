@@ -39,9 +39,9 @@ impl AssetMappingStatus {
         }
     }
 
+    #[must_use]
     pub fn from_str_lossy(s: &str) -> Self {
         match s {
-            "pending" => Self::Pending,
             "importing" => Self::Importing,
             "ready" => Self::Ready,
             _ => Self::Pending,
