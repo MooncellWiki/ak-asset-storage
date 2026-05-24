@@ -1,6 +1,6 @@
 use crate::{
-    AkApiClient, AppResult, DockerService, GithubService, HotUpdateList, NotificationService,
-    RemoteVersion, Version, repositories::VersionRepository,
+    AkApiClient, AppResult, AssetMappingStatus, DockerService, GithubService, HotUpdateList,
+    NotificationService, RemoteVersion, Version, repositories::VersionRepository,
 };
 use tracing::{error, info, instrument};
 
@@ -108,6 +108,7 @@ where
             client: client_version.clone(),
             hot_update_list: HotUpdateList::new(&hot_update_list)?,
             is_ready: false,
+            asset_mapping_status: AssetMappingStatus::Pending,
         };
 
         self.version_repo.create_version(version).await?;

@@ -1,0 +1,18 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\nINSERT INTO asset_to_bundle_mappings\n    (version_id, asset_name, bundle_path, asset_path, short_name)\nVALUES\n    ($1, $2, $3, $4, $5)\n                        ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Int4",
+        "Varchar",
+        "Varchar",
+        "Varchar",
+        "Varchar"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "08f5de0664d8f6cbdee9d1fa472769f3f3c9947e8cb35ed463b267d8979bb3ba"
+}

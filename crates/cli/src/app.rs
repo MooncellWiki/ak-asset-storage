@@ -1,4 +1,4 @@
-use crate::commands::{seed, worker};
+use crate::commands::{import_manifest, seed, worker};
 use ak_asset_storage_application::ConfigProvider;
 use ak_asset_storage_infrastructure::{AppSettings, InfraConfigProvider, init_tracing};
 use anyhow::Result;
@@ -29,6 +29,13 @@ pub enum Commands {
         csv_path: PathBuf,
         #[arg(long, default_value = "5")]
         concurrent: usize,
+    },
+    /// Import asset mapping manifest for a specific res version
+    ImportManifest {
+        #[arg(short, long, default_value = "config.toml")]
+        config: String,
+        #[arg(long)]
+        res_version: String,
     },
     /// Show version information
     Version,
@@ -61,6 +68,14 @@ pub async fn run() -> Result<()> {
         } => {
             let (config, _sentry) = init(&config)?;
             seed::execute(&config, &csv_path, concurrent).await?;
+            Ok(())
+        }
+        Commands::ImportManifest {
+            config,
+            res_version,
+        } => {
+            let (config, _sentry) = init(&config)?;
+            import_manifest::execute(&config, &res_version).await?;
             Ok(())
         }
         Commands::Version => {

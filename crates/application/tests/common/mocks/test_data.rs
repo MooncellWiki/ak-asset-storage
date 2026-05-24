@@ -1,6 +1,6 @@
 use std::path::Path;
 // Test data generators and fixtures
-use ak_asset_storage_application::{Bundle, File, HotUpdateList, Version};
+use ak_asset_storage_application::{AssetMappingStatus, Bundle, File, HotUpdateList, Version};
 
 /// Test data generators
 pub struct TestData;
@@ -12,6 +12,7 @@ impl TestData {
             res: res.to_string(),
             client: client.to_string(),
             is_ready,
+            asset_mapping_status: AssetMappingStatus::Pending,
             hot_update_list: Self::default_hot_update_list(),
         }
     }

@@ -1,10 +1,10 @@
 use crate::utils::NotificationClient;
 use ak_asset_storage_application::{
-    AssetDownloadService, ConfigProvider, SyncTask, VersionCheckService,
+    AssetDownloadService, AssetMappingImportService, ConfigProvider, SyncTask, VersionCheckService,
 };
 use ak_asset_storage_infrastructure::{
-    BollardDockerClient, GithubClient, HttpAkApiClient, PostgresRepository, S3StorageClient,
-    SimpleScheduler, shutdown_signal,
+    BollardDockerClient, GithubClient, HttpAkApiClient, ManifestWatcher, PostgresRepository,
+    S3StorageClient, SimpleScheduler, shutdown_signal,
 };
 use anyhow::Result;
 use sqlx::postgres::PgPoolOptions;
@@ -57,12 +57,17 @@ pub async fn execute(config: &impl ConfigProvider, concurrent: usize) -> Result<
         ),
         Duration::from_secs(2 * 60),
     ));
+    let gamedata_root =
+        std::path::PathBuf::from(&config.torappu_config().asset_base_path).join("gamedata");
+    let import_service = AssetMappingImportService::new(repository.clone(), gamedata_root.clone());
+    let mut manifest_watcher = ManifestWatcher::new(import_service, gamedata_root)?;
     scheduler.start()?;
     // Wait for shutdown signal
     info!("Worker is running. Press Ctrl+C to stop.");
     shutdown_signal().await;
     info!("Shutdown signal received, stopping worker...");
     scheduler.stop();
+    manifest_watcher.stop();
     info!("Worker has stopped.");
     Ok(())
 }

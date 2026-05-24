@@ -1,7 +1,7 @@
 // Repository Mock implementations using Vec for storage
 use ak_asset_storage_application::{
-    AppResult, Bundle, BundleDetailsDto, BundleFilterDto, File, Version, VersionDetailDto,
-    VersionDto,
+    AppResult, AssetMapping, AssetMappingRepository, AssetMappingStatus, Bundle, BundleDetailsDto,
+    BundleFilterDto, File, Version, VersionDetailDto, VersionDto,
 };
 use ak_asset_storage_application::{BundleRepository, FileRepository, VersionRepository};
 use async_trait::async_trait;
@@ -48,6 +48,11 @@ impl VersionRepository for MockVersionRepository {
         Ok(versions.iter().max_by_key(|v| v.id).cloned())
     }
 
+    async fn get_version_by_res(&self, res: &str) -> AppResult<Option<Version>> {
+        let versions = self.versions.lock().unwrap();
+        Ok(versions.iter().find(|v| v.res == res).cloned())
+    }
+
     async fn is_client_and_res_exist(&self, client: &str, res: &str) -> AppResult<bool> {
         let versions = self.versions.lock().unwrap();
         Ok(versions.iter().any(|v| v.client == client && v.res == res))
@@ -68,6 +73,14 @@ impl VersionRepository for MockVersionRepository {
             version.is_ready = true;
         }
         drop(versions);
+        Ok(())
+    }
+
+    async fn set_asset_mapping_status(&self, id: i32, status: AssetMappingStatus) -> AppResult<()> {
+        let mut versions = self.versions.lock().unwrap();
+        if let Some(version) = versions.iter_mut().find(|v| v.id == Some(id)) {
+            version.asset_mapping_status = status;
+        }
         Ok(())
     }
 
@@ -188,6 +201,8 @@ pub struct MockRepository {
     pub version: MockVersionRepository,
     pub file: MockFileRepository,
     pub bundle: MockBundleRepository,
+    pub asset_mappings: Arc<Mutex<Vec<AssetMapping>>>,
+    pub locked_versions: Arc<Mutex<std::collections::HashSet<i32>>>,
 }
 
 impl MockRepository {
@@ -196,6 +211,8 @@ impl MockRepository {
             version: MockVersionRepository::new(),
             file: MockFileRepository::new(),
             bundle: MockBundleRepository::new(),
+            asset_mappings: Arc::new(Mutex::new(Vec::new())),
+            locked_versions: Arc::new(Mutex::new(std::collections::HashSet::new())),
         }
     }
 }
@@ -214,6 +231,10 @@ impl VersionRepository for MockRepository {
         self.version.get_latest_version().await
     }
 
+    async fn get_version_by_res(&self, res: &str) -> AppResult<Option<Version>> {
+        self.version.get_version_by_res(res).await
+    }
+
     async fn is_client_and_res_exist(&self, client: &str, res: &str) -> AppResult<bool> {
         self.version.is_client_and_res_exist(client, res).await
     }
@@ -224,6 +245,10 @@ impl VersionRepository for MockRepository {
 
     async fn mark_version_ready(&self, id: i32) -> AppResult<()> {
         self.version.mark_version_ready(id).await
+    }
+
+    async fn set_asset_mapping_status(&self, id: i32, status: AssetMappingStatus) -> AppResult<()> {
+        self.version.set_asset_mapping_status(id, status).await
     }
 
     async fn query_versions(&self) -> AppResult<Vec<VersionDto>> {
@@ -281,5 +306,36 @@ impl BundleRepository for MockRepository {
         _version_id: i32,
     ) -> AppResult<Vec<BundleDetailsDto>> {
         unimplemented!("Not used in service tests")
+    }
+}
+
+#[async_trait]
+impl AssetMappingRepository for MockRepository {
+    async fn import_asset_mappings(
+        &self,
+        version_id: i32,
+        mappings: &[AssetMapping],
+    ) -> AppResult<bool> {
+        {
+            let mut locked = self.locked_versions.lock().unwrap();
+            if locked.contains(&version_id) {
+                return Ok(false);
+            }
+            locked.insert(version_id);
+        }
+
+        self.version
+            .set_asset_mapping_status(version_id, AssetMappingStatus::Importing)
+            .await?;
+        {
+            let mut storage = self.asset_mappings.lock().unwrap();
+            storage.retain(|mapping| mapping.version_id != version_id);
+            storage.extend_from_slice(mappings);
+        }
+        self.version
+            .set_asset_mapping_status(version_id, AssetMappingStatus::Ready)
+            .await?;
+        self.locked_versions.lock().unwrap().remove(&version_id);
+        Ok(true)
     }
 }

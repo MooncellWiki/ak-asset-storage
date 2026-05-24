@@ -1,0 +1,26 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO versions (res, client, is_ready, hot_update_list, asset_mapping_status) VALUES ($1, $2, $3, $4, $5) RETURNING id",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Int4"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Varchar",
+        "Varchar",
+        "Bool",
+        "Text",
+        "Varchar"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "d2804ed3ac00b634fdd5136a5b5d4c46d9f0168831e04de7a8d54615e5bbc0d7"
+}

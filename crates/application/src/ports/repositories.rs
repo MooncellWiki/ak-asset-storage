@@ -1,6 +1,6 @@
 use crate::{
-    AppResult, Bundle, BundleDetailsDto, BundleFilterDto, File, Version, VersionDetailDto,
-    VersionDto,
+    AppResult, AssetMapping, AssetMappingStatus, Bundle, BundleDetailsDto, BundleFilterDto, File,
+    Version, VersionDetailDto, VersionDto,
 };
 use async_trait::async_trait;
 
@@ -14,13 +14,24 @@ pub trait Repository: Send + Sync + Clone + 'static {
 pub trait VersionRepository: Send + Sync + Clone + 'static {
     async fn create_version(&self, version: Version) -> AppResult<i32>;
     async fn get_version_by_id(&self, id: i32) -> AppResult<Option<Version>>;
+    async fn get_version_by_res(&self, res: &str) -> AppResult<Option<Version>>;
     async fn get_latest_version(&self) -> AppResult<Option<Version>>;
     async fn is_client_and_res_exist(&self, client: &str, res: &str) -> AppResult<bool>;
     async fn get_oldest_unready_version(&self) -> AppResult<Option<Version>>;
     async fn mark_version_ready(&self, id: i32) -> AppResult<()>;
+    async fn set_asset_mapping_status(&self, id: i32, status: AssetMappingStatus) -> AppResult<()>;
 
     async fn query_versions(&self) -> AppResult<Vec<VersionDto>>;
     async fn query_version_detail_by_id(&self, id: i32) -> AppResult<Option<VersionDetailDto>>;
+}
+
+#[async_trait]
+pub trait AssetMappingRepository: Send + Sync + Clone + 'static {
+    async fn import_asset_mappings(
+        &self,
+        version_id: i32,
+        mappings: &[AssetMapping],
+    ) -> AppResult<bool>;
 }
 
 #[async_trait]
