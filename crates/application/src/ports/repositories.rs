@@ -1,6 +1,6 @@
 use crate::{
-    AppResult, AssetMapping, AssetMappingStatus, Bundle, BundleDetailsDto, BundleFilterDto, File,
-    Version, VersionDetailDto, VersionDto,
+    AppResult, AssetMapping, AssetMappingDetailDto, AssetMappingStatus, Bundle, BundleDetailsDto,
+    BundleFilterDto, File, ManifestNodeDto, Version, VersionDetailDto, VersionDto,
 };
 use async_trait::async_trait;
 
@@ -32,6 +32,24 @@ pub trait AssetMappingRepository: Send + Sync + Clone + 'static {
         version_id: i32,
         mappings: &[AssetMapping],
     ) -> AppResult<bool>;
+
+    async fn list_manifest_children(
+        &self,
+        version_id: i32,
+        dir_name: &str,
+    ) -> AppResult<Vec<ManifestNodeDto>>;
+
+    async fn get_asset_mapping_detail(
+        &self,
+        version_id: i32,
+        asset_name: &str,
+    ) -> AppResult<Option<AssetMappingDetailDto>>;
+
+    async fn search_manifest(
+        &self,
+        version_id: i32,
+        query: &str,
+    ) -> AppResult<Vec<ManifestNodeDto>>;
 }
 
 #[async_trait]

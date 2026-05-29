@@ -1,8 +1,8 @@
 #![allow(clippy::needless_for_each)]
 use crate::{
     handlers::{
-        bundle_handlers, docker_handlers, item_demand_handlers, misc_handlers, torappu_handlers,
-        version_handlers,
+        bundle_handlers, docker_handlers, item_demand_handlers, manifest_handlers, misc_handlers,
+        torappu_handlers, version_handlers,
     },
     middleware::{apply_axum_middleware, serve_dir_with_charset},
     state::AppState,
@@ -23,6 +23,7 @@ use utoipa_scalar::{Scalar, Servable};
         (name = "health", description = "Health check endpoints"),
         (name = "fs", description = "File system endpoints"),
         (name = "docker", description = "Docker container management endpoints"),
+        (name = "manifest", description = "Manifest browser endpoints"),
     ),
 )]
 pub struct ApiDoc;
@@ -43,6 +44,10 @@ pub fn build_router(state: AppState) -> Router {
         // Bundle endpoints
         .routes(routes!(bundle_handlers::get_one))
         .routes(routes!(bundle_handlers::filter))
+        // Manifest endpoints
+        .routes(routes!(manifest_handlers::list_children))
+        .routes(routes!(manifest_handlers::get_detail))
+        .routes(routes!(manifest_handlers::search))
         // Item endpoints
         .routes(routes!(item_demand_handlers::get_item_demand))
         .routes(routes!(item_demand_handlers::update_item_demands))

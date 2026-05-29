@@ -20,6 +20,31 @@ pub struct AssetMapping {
     pub bundle_path: String,
     pub asset_path: Option<String>,
     pub short_name: Option<String>,
+    pub dir_name: String,
+    pub node_type: NodeType,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum NodeType {
+    File,
+    Directory,
+    Both,
+}
+
+impl NodeType {
+    #[must_use]
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::File => "file",
+            Self::Directory => "directory",
+            Self::Both => "both",
+        }
+    }
+
+    #[must_use]
+    pub const fn is_directory(self) -> bool {
+        matches!(self, Self::Directory | Self::Both)
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

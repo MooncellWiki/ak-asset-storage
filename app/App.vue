@@ -67,6 +67,19 @@ const opts = [
         RouterLink,
         {
           to: {
+            path: "/manifest",
+          },
+        },
+        () => "manifest",
+      ),
+    key: "manifest",
+  },
+  {
+    label: () =>
+      h(
+        RouterLink,
+        {
+          to: {
             path: "/asset",
           },
         },

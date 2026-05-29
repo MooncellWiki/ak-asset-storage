@@ -39,11 +39,28 @@ where
     R: ak_asset_storage_application::VersionRepository
         + ak_asset_storage_application::AssetMappingRepository,
 {
-    event_tx: UnboundedSender<ManifestSignal>,
+    event_tx: Option<UnboundedSender<ManifestSignal>>,
     scan_handle: Option<JoinHandle<()>>,
     import_handle: Option<JoinHandle<()>>,
     gamedata_root: PathBuf,
     _marker: std::marker::PhantomData<R>,
+}
+
+impl<R> Drop for ManifestWatcher<R>
+where
+    R: ak_asset_storage_application::VersionRepository
+        + ak_asset_storage_application::AssetMappingRepository,
+{
+    fn drop(&mut self) {
+        if let Some(handle) = self.scan_handle.take() {
+            handle.abort();
+        }
+        let _ = self.event_tx.take();
+        if let Some(handle) = self.import_handle.take() {
+            handle.abort();
+        }
+        info!("manifest watcher stopped: {}", self.gamedata_root.display());
+    }
 }
 
 impl<R> ManifestWatcher<R>
@@ -67,23 +84,12 @@ where
         info!("polling gamedata root: {}", gamedata_root.display());
 
         Ok(Self {
-            event_tx,
+            event_tx: Some(event_tx),
             scan_handle,
             import_handle,
             gamedata_root,
             _marker: std::marker::PhantomData,
         })
-    }
-
-    pub fn stop(&mut self) {
-        if let Some(handle) = self.scan_handle.take() {
-            handle.abort();
-        }
-        if let Some(handle) = self.import_handle.take() {
-            handle.abort();
-        }
-        let _ = &self.event_tx;
-        info!("manifest watcher stopped: {}", self.gamedata_root.display());
     }
 }
 

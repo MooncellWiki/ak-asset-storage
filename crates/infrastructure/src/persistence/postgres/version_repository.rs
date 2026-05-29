@@ -186,7 +186,7 @@ impl VersionRepository for PostgresRepository {
     async fn query_versions(&self) -> AppResult<Vec<VersionDto>> {
         let result = query_as!(
             VersionDto,
-            r#"SELECT id, client as "client_version", res as "res_version", is_ready FROM versions ORDER BY id ASC"#
+            r#"SELECT id, client as "client_version", res as "res_version", is_ready, asset_mapping_status FROM versions ORDER BY id ASC"#
         )
         .fetch_all(&self.pool)
         .await

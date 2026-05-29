@@ -5,9 +5,29 @@ use anyhow::Result;
 use clap::Parser;
 use std::path::{Path, PathBuf};
 
+fn parse_worker_threads(value: &str) -> Result<usize, String> {
+    let value = value
+        .parse::<usize>()
+        .map_err(|_| String::from("worker-threads must be a positive integer"))?;
+
+    if value == 0 {
+        return Err(String::from("worker-threads must be greater than 0"));
+    }
+
+    Ok(value)
+}
+
 #[derive(Parser, Debug)]
 #[command(author, version, about, long_about = None)]
 #[command(propagate_version = true)]
+pub struct Cli {
+    #[arg(long, global = true, default_value_t = 4, value_parser = parse_worker_threads)]
+    pub worker_threads: usize,
+    #[command(subcommand)]
+    pub command: Commands,
+}
+
+#[derive(Parser, Debug)]
 pub enum Commands {
     /// Start the web server
     Server {
@@ -48,9 +68,8 @@ fn init(config: &str) -> Result<(InfraConfigProvider, sentry::ClientInitGuard)> 
     Ok((config, sentry))
 }
 
-pub async fn run() -> Result<()> {
-    let cli = Commands::parse();
-    match cli {
+pub async fn run(cli: Cli) -> Result<()> {
+    match cli.command {
         Commands::Server { config } => {
             let (config, _sentry) = init(&config)?;
             ak_asset_storage_web::start(&config).await?;

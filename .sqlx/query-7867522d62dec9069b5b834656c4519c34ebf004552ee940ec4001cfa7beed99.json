@@ -1,0 +1,41 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\nSELECT\n    asset_name AS \"asset_name!\",\n    bundle_path AS \"bundle_path!\",\n    asset_path,\n    short_name\nFROM asset_to_bundle_mappings\nWHERE version_id = $1 AND asset_name = $2 AND node_type IN ('file', 'both')\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "asset_name!",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 1,
+        "name": "bundle_path!",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 2,
+        "name": "asset_path",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 3,
+        "name": "short_name",
+        "type_info": "Varchar"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int4",
+        "Text"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      true,
+      true
+    ]
+  },
+  "hash": "7867522d62dec9069b5b834656c4519c34ebf004552ee940ec4001cfa7beed99"
+}

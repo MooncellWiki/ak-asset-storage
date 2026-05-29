@@ -1,5 +1,5 @@
 use crate::common::*;
-use ak_asset_storage_application::{AssetMappingImportService, AssetMappingStatus};
+use ak_asset_storage_application::{AssetMappingImportService, AssetMappingStatus, NodeType};
 use std::{
     fs,
     path::PathBuf,
@@ -44,9 +44,21 @@ async fn test_import_manifest_success() {
     service.import_from_version_dir(&version_dir).await.unwrap();
 
     let mappings = repository.asset_mappings.lock().unwrap();
-    assert_eq!(mappings.len(), 1);
-    assert_eq!(mappings[0].version_id, 1);
-    assert_eq!(mappings[0].bundle_path, "bundle/test.ab");
+    assert_eq!(mappings.len(), 2);
+
+    let file_mapping = mappings
+        .iter()
+        .find(|m| m.node_type == NodeType::File)
+        .unwrap();
+    assert_eq!(file_mapping.version_id, 1);
+    assert_eq!(file_mapping.bundle_path, "bundle/test.ab");
+
+    let dir_mapping = mappings
+        .iter()
+        .find(|m| m.node_type.is_directory())
+        .unwrap();
+    assert_eq!(dir_mapping.asset_name, "arts");
+    assert_eq!(dir_mapping.dir_name, "");
     drop(mappings);
 
     assert_eq!(

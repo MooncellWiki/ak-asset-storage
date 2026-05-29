@@ -1,7 +1,8 @@
 // Repository Mock implementations using Vec for storage
 use ak_asset_storage_application::{
-    AppResult, AssetMapping, AssetMappingRepository, AssetMappingStatus, Bundle, BundleDetailsDto,
-    BundleFilterDto, File, Version, VersionDetailDto, VersionDto,
+    AppResult, AssetMapping, AssetMappingDetailDto, AssetMappingRepository, AssetMappingStatus,
+    Bundle, BundleDetailsDto, BundleFilterDto, File, ManifestNodeDto, Version, VersionDetailDto,
+    VersionDto,
 };
 use ak_asset_storage_application::{BundleRepository, FileRepository, VersionRepository};
 use async_trait::async_trait;
@@ -337,5 +338,29 @@ impl AssetMappingRepository for MockRepository {
             .await?;
         self.locked_versions.lock().unwrap().remove(&version_id);
         Ok(true)
+    }
+
+    async fn list_manifest_children(
+        &self,
+        _version_id: i32,
+        _dir_name: &str,
+    ) -> AppResult<Vec<ManifestNodeDto>> {
+        unimplemented!("Not used in service tests")
+    }
+
+    async fn get_asset_mapping_detail(
+        &self,
+        _version_id: i32,
+        _asset_name: &str,
+    ) -> AppResult<Option<AssetMappingDetailDto>> {
+        unimplemented!("Not used in service tests")
+    }
+
+    async fn search_manifest(
+        &self,
+        _version_id: i32,
+        _query: &str,
+    ) -> AppResult<Vec<ManifestNodeDto>> {
+        unimplemented!("Not used in service tests")
     }
 }
