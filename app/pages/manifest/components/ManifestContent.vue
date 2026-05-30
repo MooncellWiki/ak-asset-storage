@@ -23,7 +23,16 @@
         <NDescriptionsItem label="Short Name">
           {{ detail.shortName ?? "-" }}
         </NDescriptionsItem>
+        <NDescriptionsItem label="Bundle Size">
+          {{ fmtSize(detail.bundleSize) }}
+        </NDescriptionsItem>
+        <NDescriptionsItem label="Bundle Hash">
+          {{ detail.bundleHash ?? "-" }}
+        </NDescriptionsItem>
       </NDescriptions>
+      <div class="mt-2">
+        <NButton @click="download">下载</NButton>
+      </div>
     </NCard>
 
     <template v-if="children.length > 0">
@@ -84,6 +93,29 @@ function dirRowProps(row: DirRow) {
       path.value = row.path;
     },
   };
+}
+
+function download() {
+  if (!detail.value?.bundleHash) return;
+  const hash = detail.value.bundleHash;
+  const path = `/storage/${hash.slice(0, 2)}/${hash.slice(2, 4)}/${hash.slice(4)}`;
+  const a = document.createElement("a");
+  a.href = path;
+  a.download = `${detail.value.bundlePath}.zip`;
+  a.click();
+}
+
+function fmtSize(size?: number) {
+  if (!size) {
+    return "-";
+  }
+  if (size > 1024 * 1024) {
+    return `${(size / 1024 / 1024).toFixed(2)}MiB`;
+  }
+  if (size > 1024) {
+    return `${(size / 1024).toFixed(2)}KiB`;
+  }
+  return `${size}B`;
 }
 
 async function loadDetail() {

@@ -16,6 +16,8 @@ pub struct AssetMappingDetailDto {
     pub bundle_path: String,
     pub asset_path: Option<String>,
     pub short_name: Option<String>,
+    pub bundle_size: Option<i32>,
+    pub bundle_hash: Option<String>,
 }
 
 #[derive(Debug, Deserialize, IntoParams)]

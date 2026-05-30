@@ -283,7 +283,10 @@ export interface components {
         AssetMappingDetailDto: {
             assetName: string;
             assetPath?: string | null;
+            bundleHash?: string | null;
             bundlePath: string;
+            /** Format: int32 */
+            bundleSize?: number | null;
             shortName?: string | null;
         };
         BundleDetailsDto: {

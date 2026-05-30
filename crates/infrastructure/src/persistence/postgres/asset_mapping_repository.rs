@@ -196,12 +196,16 @@ ORDER BY (node_type IN ('directory', 'both')) DESC, name ASC
             AssetMappingDetailDto,
             r#"
 SELECT
-    asset_name AS "asset_name!",
-    bundle_path AS "bundle_path!",
-    asset_path,
-    short_name
-FROM asset_to_bundle_mappings
-WHERE version_id = $1 AND asset_name = $2 AND node_type IN ('file', 'both')
+    m.asset_name AS "asset_name!",
+    m.bundle_path AS "bundle_path!",
+    m.asset_path,
+    m.short_name,
+    f.size AS "bundle_size",
+    f.hash AS "bundle_hash"
+FROM asset_to_bundle_mappings m
+LEFT JOIN bundles b ON m.bundle_path = b.path AND m.version_id = b.version
+LEFT JOIN files f ON b.file = f.id
+WHERE m.version_id = $1 AND m.asset_name = $2 AND m.node_type IN ('file', 'both')
             "#,
             version_id,
             asset_name
