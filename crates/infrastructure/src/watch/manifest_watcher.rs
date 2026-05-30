@@ -105,7 +105,26 @@ fn spawn_scan_loop(
         loop {
             ticker.tick().await;
 
-            let signals = match scan_manifests(&gamedata_root, &mut known) {
+            let root = gamedata_root.clone();
+            let mut known_snapshot = std::mem::take(&mut known);
+            let (scan_result, updated_known) = match tokio::task::spawn_blocking(move || {
+                let result = scan_manifests(&root, &mut known_snapshot);
+                (result, known_snapshot)
+            })
+            .await
+            {
+                Ok(result) => result,
+                Err(err) => {
+                    error!(
+                        "manifest scan task failed for {}: {err}",
+                        gamedata_root.display()
+                    );
+                    continue;
+                }
+            };
+            known = updated_known;
+
+            let signals = match scan_result {
                 Ok(signals) => signals,
                 Err(err) => {
                     error!(
