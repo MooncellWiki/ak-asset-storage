@@ -21,7 +21,7 @@
         v-model:expanded-keys="expandedKeys"
         block-line
         :data="treeData"
-        :on-load="handleLoad"
+        :on-load="props.onLoad"
         :pattern="searchText"
       />
       <NList v-else bordered class="m-2">
@@ -54,7 +54,6 @@ import { computed, ref, watch } from "vue";
 import { client } from "~/common/client";
 import type { components } from "~/common/schema";
 import type { TreeNode } from "../types";
-import type { TreeOption } from "naive-ui";
 
 type AssetEntry = components["schemas"]["AssetEntry"];
 
@@ -76,12 +75,6 @@ const selectedKeys = computed<string[]>({
 });
 const expandedKeys = ref<string[]>([]);
 
-// Load children for a directory
-async function handleLoad(node: TreeOption) {
-  await props.onLoad(node as TreeNode);
-}
-
-// Search files
 const onSearch = useDebounceFn(async () => {
   if (!searchText.value) {
     isSearching.value = false;
@@ -97,28 +90,25 @@ const onSearch = useDebounceFn(async () => {
   searchResults.value = data ?? [];
 }, 500);
 
-// Handle search result selection
-async function handleSearchSelect(item: AssetEntry) {
+function handleSearchSelect(item: AssetEntry) {
   selectedKeys.value = [item.path];
 }
 
-// Watch for prop changes and load path if needed
+function getParentPaths(path: string): string[] {
+  const parts = path.split("/");
+  const paths: string[] = [];
+  let current = "";
+  for (let i = 0; i < parts.length - 1; i++) {
+    current = current ? `${current}/${parts[i]}` : parts[i]!;
+    paths.push(current);
+  }
+  return paths;
+}
+
 watch(
   selectedPath,
-  async (newPath) => {
-    const result = [];
-    let cur = "";
-    const parts = newPath.split("/");
-    // 选到最顶级的了
-    if (parts.length === 1) {
-      expandedKeys.value = [];
-      return;
-    }
-    for (let i = 0; i < parts.length - 1; i++) {
-      cur = cur ? `${cur}/${parts[i]}` : parts[i]!;
-      result.push(cur);
-    }
-    expandedKeys.value = result;
+  (newPath) => {
+    expandedKeys.value = newPath ? getParentPaths(newPath) : [];
   },
   { immediate: true },
 );

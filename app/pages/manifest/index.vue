@@ -42,7 +42,6 @@
               <ManifestContent
                 v-model="selectedPath"
                 :version-id="selectedVersion"
-                :node-type="selectedNodeType"
               />
             </div>
           </template>
@@ -66,7 +65,6 @@ type ManifestNodeDto = components["schemas"]["ManifestNodeDto"];
 const { versionOpts, load: loadVersions } = useVersionSelect();
 const selectedVersion = ref<number>();
 const selectedPath = ref("");
-const selectedNodeType = ref("");
 const treeData = ref<TreeOption[]>([]);
 const loadingRoot = ref(false);
 
@@ -84,27 +82,10 @@ function toTreeOption(node: ManifestNodeDto): TreeOption {
   };
 }
 
-function findNodeInTree(
-  nodes: TreeOption[],
-  targetKey: string,
-): TreeOption | undefined {
-  for (const node of nodes) {
-    if (node.key === targetKey) return node;
-    if (node.children) {
-      const found = findNodeInTree(node.children, targetKey);
-      if (found) return found;
-    }
-  }
-  return undefined;
-}
-
-onBeforeMount(async () => {
-  await loadVersions();
-});
+onBeforeMount(loadVersions);
 
 watch(selectedVersion, async (versionId) => {
   selectedPath.value = "";
-  selectedNodeType.value = "";
   if (versionId == null) {
     treeData.value = [];
     return;
@@ -115,14 +96,5 @@ watch(selectedVersion, async (versionId) => {
   });
   treeData.value = (data ?? []).map(toTreeOption);
   loadingRoot.value = false;
-});
-
-watch(selectedPath, (newPath) => {
-  if (!newPath) {
-    selectedNodeType.value = "";
-    return;
-  }
-  const node = findNodeInTree(treeData.value, newPath);
-  selectedNodeType.value = (node?.nodeType as string) ?? "";
 });
 </script>

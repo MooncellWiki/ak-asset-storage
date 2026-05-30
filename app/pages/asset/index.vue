@@ -118,85 +118,89 @@ const pathParts = computed(() => {
   return selectedPath.value.split("/").filter(Boolean);
 });
 
-// Unified function to load directory data
 async function loadDirectory(path: string): Promise<TreeNode[]> {
   try {
-    const { data, error } = await client.GET("/api/v1/files/{path}", {
+    const { data } = await client.GET("/api/v1/files/{path}", {
       params: { path: { path } },
     });
 
-    if (error) {
-      console.error(`Failed to load directory ${path}:`, error);
-      return [];
-    }
+    if (!data?.children) return [];
 
-    if (data?.children) {
-      return data.children.map((item) => ({
-        key: item.path,
-        label: item.name,
-        path: item.path,
-        is_dir: item.is_dir,
-        size: item.size,
-        isLeaf: !item.is_dir,
-        children: undefined,
-        create_at: item.create_at,
-        modified_at: item.modified_at,
-      }));
-    }
-    return [];
+    return data.children.map((item) => ({
+      key: item.path,
+      label: item.name,
+      path: item.path,
+      is_dir: item.is_dir,
+      size: item.size,
+      isLeaf: !item.is_dir,
+      children: undefined,
+      create_at: item.create_at,
+      modified_at: item.modified_at,
+    }));
   } catch (error) {
     console.error(`Error loading directory ${path}:`, error);
     return [];
   }
 }
 
-// Load children for a directory (for tree lazy loading)
 async function handleTreeLoad(node: TreeNode) {
   node.children = await loadDirectory(node.path);
 }
 
-// Unified function to handle navigation with tree validation
-async function handleNavigation(path: string) {
+function handleNavigation(path: string) {
   selectedPath.value = path;
-  await ensurePathInTree(path);
 }
 
-// Ensure the path exists in the tree by loading necessary parent directories
 async function ensurePathInTree(targetPath: string) {
   contentLoading.value = true;
-  if (treeData.value.length === 0) {
-    treeData.value = await loadDirectory("");
-  }
-  if (!targetPath) {
-    contentLoading.value = false;
-    return;
-  }
-  let list = treeData.value;
-  const parts = targetPath.split("/");
-  let cur = "";
-  for (const part of parts) {
-    cur = cur ? `${cur}/${part}` : part;
-    const node = list.find((v) => v.path === cur);
-    if (!node) {
-      throw new Error(`Path not found in tree: ${cur}`);
+  try {
+    if (treeData.value.length === 0) {
+      treeData.value = await loadDirectory("");
     }
-    if (targetPath === cur) {
-      if (node.is_dir) {
-        node.children = await loadDirectory(cur);
-      }
-      selectedNode.value = node;
-      contentLoading.value = false;
+    if (!targetPath) {
+      selectedNode.value = undefined;
       return;
     }
-    if (!node.is_dir) {
-      throw new Error(`${cur} is not a directory`);
+
+    let list = treeData.value;
+    const parts = targetPath.split("/");
+    let currentPath = "";
+
+    for (const part of parts) {
+      currentPath = currentPath ? `${currentPath}/${part}` : part;
+      const node = list.find((v) => v.path === currentPath);
+
+      if (!node) {
+        console.error(`Path not found in tree: ${currentPath}`);
+        selectedNode.value = undefined;
+        return;
+      }
+
+      if (targetPath === currentPath) {
+        if (node.is_dir) {
+          node.children = await loadDirectory(currentPath);
+        }
+        selectedNode.value = node;
+        return;
+      }
+
+      if (!node.is_dir) {
+        console.error(`${currentPath} is not a directory`);
+        selectedNode.value = undefined;
+        return;
+      }
+
+      if (!Array.isArray(node.children)) {
+        node.children = await loadDirectory(currentPath);
+      }
+      list = node.children;
     }
-    if (!Array.isArray(node.children)) {
-      node.children = await loadDirectory(cur);
-    }
-    list = node.children;
+  } catch (error) {
+    console.error("Error ensuring path in tree:", error);
+    selectedNode.value = undefined;
+  } finally {
+    contentLoading.value = false;
   }
-  contentLoading.value = false;
 }
 
 function handleTreeSelectMobile() {

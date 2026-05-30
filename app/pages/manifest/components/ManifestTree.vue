@@ -21,7 +21,7 @@
         v-model:expanded-keys="expandedKeys"
         block-line
         :data="treeData"
-        :on-load="handleLoad"
+        :on-load="handleTreeLoad"
         :render-prefix="renderPrefix"
       />
       <NList v-else bordered class="m-2">
@@ -92,7 +92,7 @@ function renderPrefix({ option }: TreeRenderProps) {
   return h(CarbonFolder, { class: "text-blue-500" });
 }
 
-async function handleLoad(node: TreeOption) {
+async function handleTreeLoad(node: TreeOption) {
   if (props.versionId == null) return;
   const { data } = await client.GET("/api/v1/manifest/{version_id}/children", {
     params: {
@@ -135,19 +135,21 @@ function handleSearchSelect(item: ManifestNodeDto) {
   searchText.value = "";
 }
 
+function getParentPaths(path: string): string[] {
+  const parts = path.split("/");
+  const paths: string[] = [];
+  let current = "";
+  for (let i = 0; i < parts.length - 1; i++) {
+    current = current ? `${current}/${parts[i]}` : parts[i]!;
+    paths.push(current);
+  }
+  return paths;
+}
+
 watch(
   selectedPath,
   (newPath) => {
-    if (!newPath) return;
-    const parts = newPath.split("/");
-    if (parts.length <= 1) return;
-    const result: string[] = [];
-    let cur = "";
-    for (let i = 0; i < parts.length - 1; i++) {
-      cur = cur ? `${cur}/${parts[i]}` : parts[i]!;
-      result.push(cur);
-    }
-    expandedKeys.value = result;
+    expandedKeys.value = newPath ? getParentPaths(newPath) : [];
   },
   { immediate: true },
 );
