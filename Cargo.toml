@@ -45,7 +45,11 @@ tracing-subscriber = { version = "0.3.22", features = [
   "env-filter",
   "json"
 ] }
-reqwest = { version = "0.13.1", features = [ "json" ] }
+reqwest = { version = "0.13.1", default-features = false, features = [
+  "json",
+  "rustls-no-provider",
+  "http2",
+] }
 anyhow = "1.0.100"
 tower-http = { version = "0.6.8", features = [
   "timeout",
@@ -102,4 +106,3 @@ pre-release-hook = [
   "pre-release",
   "{{version}}"
 ]
-
