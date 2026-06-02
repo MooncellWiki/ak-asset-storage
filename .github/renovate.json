@@ -1,8 +1,5 @@
 {
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
-  "extends": [
-    "github>daflyinbed/renovate-config",
-    "github>Turbo87/renovate-config"
-  ],
+  "extends": ["github>daflyinbed/renovate-config"],
   "ignoreDeps": ["postgres"]
 }
