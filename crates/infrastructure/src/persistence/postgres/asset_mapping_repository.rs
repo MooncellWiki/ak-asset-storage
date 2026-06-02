@@ -6,8 +6,6 @@ use ak_asset_storage_application::{
 use async_trait::async_trait;
 use sqlx::{Acquire, Postgres, pool::PoolConnection, query_as};
 
-const INSERT_BATCH_SIZE: usize = 5000;
-
 impl PostgresRepository {
     async fn import_asset_mappings_with_lock(
         conn: &mut PoolConnection<Postgres>,
@@ -42,30 +40,28 @@ impl PostgresRepository {
             source: e,
         })?;
 
-        for batch in mappings.chunks(INSERT_BATCH_SIZE) {
-            for mapping in batch {
-                sqlx::query!(
-                    r#"
+        for mapping in mappings {
+            sqlx::query!(
+                r#"
 INSERT INTO asset_to_bundle_mappings
     (version_id, asset_name, bundle_path, asset_path, short_name, dir_name, node_type)
 VALUES
     ($1, $2, $3, $4, $5, $6, $7::node_type)
-                    "#,
-                    mapping.version_id,
-                    &mapping.asset_name,
-                    &mapping.bundle_path,
-                    mapping.asset_path.as_deref(),
-                    mapping.short_name.as_deref(),
-                    &mapping.dir_name,
-                    mapping.node_type.as_str() as &str
-                )
-                .execute(&mut *tx)
-                .await
-                .map_err(|e| InfraError::Database {
-                    message: "Failed to insert asset mapping".to_string(),
-                    source: e,
-                })?;
-            }
+                "#,
+                mapping.version_id,
+                &mapping.asset_name,
+                &mapping.bundle_path,
+                mapping.asset_path.as_deref(),
+                mapping.short_name.as_deref(),
+                &mapping.dir_name,
+                mapping.node_type.as_str() as &str
+            )
+            .execute(&mut *tx)
+            .await
+            .map_err(|e| InfraError::Database {
+                message: "Failed to insert asset mapping".to_string(),
+                source: e,
+            })?;
         }
 
         tx.commit().await.map_err(|e| InfraError::Database {
