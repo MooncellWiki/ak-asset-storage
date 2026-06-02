@@ -94,6 +94,30 @@ struct ManifestAsset {
     path: Option<String>,
 }
 
+fn parent_dir_name(path: &str) -> String {
+    path.rsplit_once('/')
+        .map_or_else(String::new, |(dir, _)| dir.to_string())
+}
+
+fn new_asset_mapping(
+    asset_name: String,
+    bundle_path: String,
+    asset_path: Option<String>,
+    short_name: Option<String>,
+    node_type: NodeType,
+) -> AssetMapping {
+    AssetMapping {
+        id: None,
+        version_id: 0,
+        dir_name: parent_dir_name(&asset_name),
+        asset_name,
+        bundle_path,
+        asset_path,
+        short_name,
+        node_type,
+    }
+}
+
 fn parse_manifest(path: &Path, res_version: &str) -> AppResult<Vec<AssetMapping>> {
     let content = fs::read_to_string(path)
         .with_context(|| format!("Failed to read manifest: {}", path.display()))?;
@@ -117,53 +141,44 @@ fn parse_manifest(path: &Path, res_version: &str) -> AppResult<Vec<AssetMapping>
     let mut mappings: Vec<AssetMapping> = Vec::new();
 
     for asset in manifest.asset_to_bundle_list {
-        let bundle = bundles.get(asset.bundle_index).ok_or_else(|| {
-            anyhow!(
-                "Invalid bundleIndex {} for {res_version}",
-                asset.bundle_index
-            )
-        })?;
+        let ManifestAsset {
+            asset_name,
+            bundle_index,
+            name,
+            path,
+        } = asset;
 
-        let dir_name = asset
-            .asset_name
-            .rfind('/')
-            .map_or(String::new(), |pos| asset.asset_name[..pos].to_string());
+        let bundle = bundles
+            .get(bundle_index)
+            .ok_or_else(|| anyhow!("Invalid bundleIndex {bundle_index} for {res_version}"))?;
 
-        let node_type = if seen_dirs.contains(&asset.asset_name) {
+        let node_type = if seen_dirs.contains(&asset_name) {
             NodeType::Both
         } else {
             NodeType::File
         };
 
-        mappings.push(AssetMapping {
-            id: None,
-            version_id: 0,
-            asset_name: asset.asset_name,
-            bundle_path: bundle.name.clone(),
-            asset_path: asset.path,
-            short_name: asset.name,
-            dir_name,
+        mappings.push(new_asset_mapping(
+            asset_name,
+            bundle.name.clone(),
+            path,
+            name,
             node_type,
-        });
+        ));
     }
 
     for dir_path in seen_dirs {
         if asset_names.contains(&dir_path) {
             continue;
         }
-        let dir_name = dir_path
-            .rfind('/')
-            .map_or(String::new(), |pos| dir_path[..pos].to_string());
-        mappings.push(AssetMapping {
-            id: None,
-            version_id: 0,
-            asset_name: dir_path,
-            bundle_path: String::new(),
-            asset_path: None,
-            short_name: None,
-            dir_name,
-            node_type: NodeType::Directory,
-        });
+
+        mappings.push(new_asset_mapping(
+            dir_path,
+            String::new(),
+            None,
+            None,
+            NodeType::Directory,
+        ));
     }
 
     Ok(mappings)

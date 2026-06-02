@@ -1,9 +1,7 @@
 <template>
   <div class="h-[calc(100vh-4.5rem)] flex flex-col overflow-auto">
-    <!-- Header with Breadcrumb and Mobile Menu Button -->
     <div class="border-b border-gray-200 p-3">
       <div class="flex items-center gap-2 overflow-auto">
-        <!-- Mobile Menu Button -->
         <NButton v-if="isMobile" quaternary @click="toggleMobileMenu">
           <template #icon>
             <CarbonMenu v-if="!showMobileMenu" />
@@ -11,7 +9,6 @@
           </template>
         </NButton>
 
-        <!-- Breadcrumb Navigation -->
         <NBreadcrumb v-if="selectedPath">
           <NBreadcrumbItem @click="handleNavigation('')">
             <NIcon>
@@ -31,7 +28,6 @@
       </div>
     </div>
 
-    <!-- Main Content Area -->
     <div class="flex-1 overflow-hidden">
       <NSplit
         v-if="!isMobile"
@@ -62,7 +58,6 @@
         </template>
       </NSplit>
 
-      <!-- Mobile: Content Only -->
       <div v-else class="relative h-full overflow-auto px-4">
         <div
           v-if="contentLoading"
@@ -74,7 +69,6 @@
       </div>
     </div>
 
-    <!-- Mobile Drawer -->
     <NDrawer v-model:show="showMobileMenu" :width="300" placement="left">
       <NDrawerContent title="文件浏览">
         <AssetTree
@@ -100,19 +94,15 @@ import AssetContent from "./components/AssetContent.vue";
 import AssetTree from "./components/AssetTree.vue";
 import type { TreeNode } from "./types";
 
-// Responsive design
 const breakpoints = useBreakpoints({ mobile: 768 });
 const isMobile = breakpoints.smaller("mobile");
 
-// Use route query for path synchronization
 const selectedPath = useRouteQuery<string>("path", "");
 const selectedNode = ref<TreeNode>();
-// State
 const showMobileMenu = ref(false);
 const treeData = ref<TreeNode[]>([]);
 const contentLoading = ref(false);
 
-// Computed
 const pathParts = computed(() => {
   if (!selectedPath.value) return [];
   return selectedPath.value.split("/").filter(Boolean);
@@ -211,7 +201,6 @@ function toggleMobileMenu() {
   showMobileMenu.value = !showMobileMenu.value;
 }
 
-// Watch for URL query changes
 watch(
   selectedPath,
   (newPath) => {

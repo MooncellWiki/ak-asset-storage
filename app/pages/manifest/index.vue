@@ -34,6 +34,7 @@
                 v-model="selectedPath"
                 :version-id="selectedVersion"
                 :tree-data="treeData"
+                @select="selectedNodeType = $event"
               />
             </div>
           </template>
@@ -42,6 +43,7 @@
               <ManifestContent
                 v-model="selectedPath"
                 :version-id="selectedVersion"
+                :node-type="selectedNodeType"
               />
             </div>
           </template>
@@ -55,37 +57,23 @@
 import { onBeforeMount, ref, watch } from "vue";
 import { client } from "~/common/client";
 import { useVersionSelect } from "~/common/useVersionSelect";
-import type { components } from "~/common/schema";
 import ManifestContent from "./components/ManifestContent.vue";
 import ManifestTree from "./components/ManifestTree.vue";
+import { toManifestTreeOption } from "./utils";
 import type { TreeOption } from "naive-ui";
-
-type ManifestNodeDto = components["schemas"]["ManifestNodeDto"];
 
 const { versionOpts, load: loadVersions } = useVersionSelect();
 const selectedVersion = ref<number>();
 const selectedPath = ref("");
+const selectedNodeType = ref<string>();
 const treeData = ref<TreeOption[]>([]);
 const loadingRoot = ref(false);
-
-function isDir(nodeType: string) {
-  return nodeType === "directory" || nodeType === "both";
-}
-
-function toTreeOption(node: ManifestNodeDto): TreeOption {
-  const dir = isDir(node.nodeType);
-  return {
-    key: node.path,
-    label: node.name,
-    isLeaf: !dir,
-    nodeType: node.nodeType,
-  };
-}
 
 onBeforeMount(loadVersions);
 
 watch(selectedVersion, async (versionId) => {
   selectedPath.value = "";
+  selectedNodeType.value = undefined;
   if (versionId == null) {
     treeData.value = [];
     return;
@@ -94,7 +82,7 @@ watch(selectedVersion, async (versionId) => {
   const { data } = await client.GET("/api/v1/manifest/{version_id}/children", {
     params: { path: { version_id: versionId }, query: {} },
   });
-  treeData.value = (data ?? []).map(toTreeOption);
+  treeData.value = (data ?? []).map(toManifestTreeOption);
   loadingRoot.value = false;
 });
 </script>

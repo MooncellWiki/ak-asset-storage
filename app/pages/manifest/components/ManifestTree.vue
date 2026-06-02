@@ -57,6 +57,7 @@ import { computed, h, ref, watch } from "vue";
 import { client } from "~/common/client";
 import { getParentPaths } from "~/common/utils";
 import type { components } from "~/common/schema";
+import { toManifestTreeOption } from "../utils";
 import type { TreeOption, TreeRenderProps } from "naive-ui";
 
 type ManifestNodeDto = components["schemas"]["ManifestNodeDto"];
@@ -66,6 +67,10 @@ const props = defineProps<{
   treeData: TreeOption[];
 }>();
 
+const emit = defineEmits<{
+  select: [nodeType: string];
+}>();
+
 const selectedPath = defineModel<string>({ required: true });
 
 const searchText = ref("");
@@ -73,18 +78,31 @@ const isSearching = ref(false);
 const searchResults = ref<ManifestNodeDto[]>([]);
 const expandedKeys = ref<string[]>([]);
 
+function findNodeType(path: string, nodes: TreeOption[]): string | undefined {
+  for (const node of nodes) {
+    if (node.key === path) {
+      return node.nodeType as string;
+    }
+    if (node.children) {
+      const found = findNodeType(path, node.children);
+      if (found) return found;
+    }
+  }
+}
+
 const selectedKeys = computed<string[]>({
   get() {
     return selectedPath.value ? [selectedPath.value] : [];
   },
   set(v) {
-    selectedPath.value = v[0] || "";
+    const newPath = v[0] || "";
+    selectedPath.value = newPath;
+    if (newPath) {
+      const type = findNodeType(newPath, props.treeData);
+      if (type) emit("select", type);
+    }
   },
 });
-
-function isDir(nodeType: string) {
-  return nodeType === "directory" || nodeType === "both";
-}
 
 function renderPrefix({ option }: TreeRenderProps) {
   if (option.isLeaf) {
@@ -101,17 +119,7 @@ async function handleTreeLoad(node: TreeOption) {
       query: { dir: node.key as string },
     },
   });
-  node.children = (data ?? []).map(toTreeOption);
-}
-
-function toTreeOption(node: ManifestNodeDto): TreeOption {
-  const dir = isDir(node.nodeType);
-  return {
-    key: node.path,
-    label: node.name,
-    isLeaf: !dir,
-    nodeType: node.nodeType,
-  };
+  node.children = (data ?? []).map(toManifestTreeOption);
 }
 
 const onSearch = useDebounceFn(async () => {
@@ -131,7 +139,8 @@ const onSearch = useDebounceFn(async () => {
 }, 500);
 
 function handleSearchSelect(item: ManifestNodeDto) {
-  selectedKeys.value = [item.path];
+  selectedPath.value = item.path;
+  emit("select", item.nodeType);
   isSearching.value = false;
   searchText.value = "";
 }

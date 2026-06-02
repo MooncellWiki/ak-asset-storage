@@ -51,10 +51,12 @@ import CarbonDocumentBlank from "~icons/carbon/document-blank";
 import { ref, watch } from "vue";
 import { client } from "~/common/client";
 import type { components } from "~/common/schema";
+import { isManifestDirectory } from "../utils";
 import type { DataTableColumns } from "naive-ui";
 
 const props = defineProps<{
   versionId?: number;
+  nodeType?: string;
 }>();
 
 const path = defineModel<string>({ required: true });
@@ -63,14 +65,11 @@ const loading = ref(false);
 const detail = ref<components["schemas"]["AssetMappingDetailDto"]>();
 const children = ref<DirRow[]>([]);
 
-function isDir(nodeType: string) {
-  return nodeType === "directory" || nodeType === "both";
-}
-
 interface DirRow {
   name: string;
   path: string;
   isDir: boolean;
+  nodeType: string;
 }
 
 const dirColumns: DataTableColumns<DirRow> = [
@@ -146,20 +145,42 @@ async function loadChildren() {
   children.value = (data ?? []).map((n) => ({
     name: n.name,
     path: n.path,
-    isDir: isDir(n.nodeType),
+    isDir: isManifestDirectory(n.nodeType),
+    nodeType: n.nodeType,
   }));
 }
 
 watch(
-  [path, () => props.versionId],
+  [path, () => props.versionId, () => props.nodeType],
   async () => {
     if (!path.value || props.versionId == null) {
       detail.value = undefined;
       children.value = [];
       return;
     }
+
+    let nodeType: string | undefined;
+    const child = children.value.find((c) => c.path === path.value);
+    if (child) {
+      nodeType = child.nodeType;
+    } else {
+      nodeType = props.nodeType;
+    }
+
     loading.value = true;
-    await Promise.all([loadDetail(), loadChildren()]);
+
+    if (nodeType === "both") {
+      await Promise.all([loadDetail(), loadChildren()]);
+    } else if (nodeType && !isManifestDirectory(nodeType)) {
+      children.value = [];
+      await loadDetail();
+    } else if (nodeType && isManifestDirectory(nodeType)) {
+      detail.value = undefined;
+      await loadChildren();
+    } else {
+      await Promise.all([loadDetail(), loadChildren()]);
+    }
+
     loading.value = false;
   },
   { immediate: true },

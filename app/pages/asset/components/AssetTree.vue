@@ -92,7 +92,7 @@ const onSearch = useDebounceFn(async () => {
 }, 500);
 
 function handleSearchSelect(item: AssetEntry) {
-  selectedKeys.value = [item.path];
+  selectedPath.value = item.path;
 }
 
 watch(
