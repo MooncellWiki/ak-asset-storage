@@ -72,7 +72,7 @@ Start the frontend development server:
 pnpm dev
 ```
 
-The frontend will be available at `http://localhost:5173` and the API at `http://localhost:3000`.
+The frontend will be available at `http://localhost:25173` and the API at `http://localhost:5150`.
 
 ### Testing
 
@@ -102,9 +102,9 @@ sqlx migrate add <migration_name>
 After running `docker compose up -d`, the following services will be available:
 
 - **PostgreSQL**: `localhost:25432`
-- **MinIO (S3)**: `localhost:29000` (API), `localhost:29001` (Console)
-- **Frontend**: `localhost:5173` (after `pnpm dev`)
-- **Backend API**: `localhost:25150` (after `cargo run --bin ak-asset-storage server`)
+- **MinIO (S3)**: `localhost:9000` (API), `localhost:9001` (Console)
+- **Frontend**: `localhost:25173` (after `pnpm dev`)
+- **Backend API**: `localhost:5150` (after `cargo run --bin ak-asset-storage server`)
 
 ## Project Structure
 

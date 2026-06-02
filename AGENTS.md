@@ -40,7 +40,7 @@ Vue 3 + TypeScript + Naive UI. Lives in `app/` at repo root (not `src/`).
 - File-based routing: `app/pages/` → routes via `unplugin-vue-router`
 - Path alias: `~/` → `app/`
 - UnoCSS, unplugin-icons, auto-imported Naive UI components
-- Dev server on port 25173, proxies `/api` → `localhost:25150`
+- Dev server on port 25173, proxies `/api` → `localhost:5150`
 - `pnpm api` regenerates `app/common/schema.d.ts` from OpenAPI endpoint (requires running backend)
 
 ## Build & Deploy
