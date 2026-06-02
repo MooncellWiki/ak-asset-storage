@@ -2,9 +2,17 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.19.1] - 2026-06-02
+
+[b009566](b009566b46a12e90a218a2f0781f256b2cd51237)...[ad4163d](ad4163d6de22042ddfa4cc197ae7a7b9109b45e7)
+
+### 🐛 Bug Fixes
+
+- Rustls CryptoProvider feature panic ([ad4163d](https://github.com/MooncellWiki/ak-asset-storage/commit/ad4163d6de22042ddfa4cc197ae7a7b9109b45e7))
+
 ## [0.19.0] - 2026-06-02
 
-[7a76cef](7a76cef4921e0fd4dd2eaddf10052b0da0e8d956)...[25f8565](25f856515d17546993401feded1f1cd573321431)
+[7a76cef](7a76cef4921e0fd4dd2eaddf10052b0da0e8d956)...[b009566](b009566b46a12e90a218a2f0781f256b2cd51237)
 
 ### 🚀 Features
 
@@ -22,6 +30,7 @@ All notable changes to this project will be documented in this file.
 - Revert: Migrate workflows to Blacksmith (#157) ([6352edf](https://github.com/MooncellWiki/ak-asset-storage/commit/6352edf7876357ca4a12dd009eaa9ace02167bd9))
 - Change renovate ([564c48b](https://github.com/MooncellWiki/ak-asset-storage/commit/564c48b37eda8a69aee283eff2975ad1d5da4c9b))
 - Update dependences ([301d59c](https://github.com/MooncellWiki/ak-asset-storage/commit/301d59cebb634f4c122aecf7d8a10a76b482781b))
+- Release 0.19.0 ([b009566](https://github.com/MooncellWiki/ak-asset-storage/commit/b009566b46a12e90a218a2f0781f256b2cd51237))
 
 ## [0.18.1] - 2026-03-11
 
