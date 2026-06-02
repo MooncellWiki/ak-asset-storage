@@ -8,6 +8,7 @@ pub mod persistence;
 pub mod scheduling;
 pub mod shutdown;
 pub mod tracing;
+pub mod watch;
 // Re-exports
 pub use config::*;
 pub use error::*;
@@ -16,3 +17,4 @@ pub use persistence::*;
 pub use scheduling::*;
 pub use shutdown::*;
 pub use tracing::*;
+pub use watch::*;

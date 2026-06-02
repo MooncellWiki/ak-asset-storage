@@ -161,6 +161,57 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/manifest/{version_id}/children": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** /manifest/{version_id}/children */
+        get: operations["list_children"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/manifest/{version_id}/detail": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** /manifest/{version_id}/detail */
+        get: operations["get_detail"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/manifest/{version_id}/search": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** /manifest/{version_id}/search */
+        get: operations["search"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/version": {
         parameters: {
             query?: never;
@@ -229,6 +280,15 @@ export interface components {
             /** Format: int64 */
             size: number;
         };
+        AssetMappingDetailDto: {
+            assetName: string;
+            assetPath?: string | null;
+            bundleHash?: string | null;
+            bundlePath: string;
+            /** Format: int32 */
+            bundleSize?: number | null;
+            shortName?: string | null;
+        };
         BundleDetailsDto: {
             fileHash: string;
             /** Format: int32 */
@@ -257,6 +317,11 @@ export interface components {
         Health: {
             ok: boolean;
         };
+        ManifestNodeDto: {
+            name: string;
+            nodeType: string;
+            path: string;
+        };
         VersionDetailDto: {
             clientVersion: string;
             hotUpdateList: string;
@@ -266,6 +331,7 @@ export interface components {
             resVersion: string;
         };
         VersionDto: {
+            assetMappingStatus: string;
             clientVersion: string;
             /** Format: int32 */
             id: number;
@@ -547,6 +613,75 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+        };
+    };
+    list_children: {
+        parameters: {
+            query?: {
+                dir?: string | null;
+            };
+            header?: never;
+            path: {
+                version_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ManifestNodeDto"][];
+                };
+            };
+        };
+    };
+    get_detail: {
+        parameters: {
+            query: {
+                asset_name: string;
+            };
+            header?: never;
+            path: {
+                version_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AssetMappingDetailDto"];
+                };
+            };
+        };
+    };
+    search: {
+        parameters: {
+            query: {
+                q: string;
+            };
+            header?: never;
+            path: {
+                version_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ManifestNodeDto"][];
+                };
             };
         };
     };

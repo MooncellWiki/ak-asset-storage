@@ -12,7 +12,10 @@ pub struct PostgresRepository {
 #[async_trait]
 impl Repository for PostgresRepository {
     async fn health_check(&self) -> bool {
-        sqlx::query("SELECT 1").execute(&self.pool).await.is_ok()
+        sqlx::query_scalar!("SELECT 1")
+            .fetch_one(&self.pool)
+            .await
+            .is_ok()
     }
 
     async fn migrate(&self) -> AppResult<()> {

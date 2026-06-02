@@ -1,4 +1,4 @@
-use crate::{AppResult, HotUpdateList};
+use crate::{AppResult, AssetMappingStatus, HotUpdateList};
 
 /// Version entity represents a game client version with resource updates
 #[derive(Debug, Clone)]
@@ -7,6 +7,7 @@ pub struct Version {
     pub res: String,
     pub client: String,
     pub is_ready: bool,
+    pub asset_mapping_status: AssetMappingStatus,
     pub hot_update_list: HotUpdateList,
 }
 impl Version {
@@ -21,6 +22,7 @@ impl Version {
             res,
             client,
             is_ready,
+            asset_mapping_status: AssetMappingStatus::Pending,
             hot_update_list: HotUpdateList::new(hot_update_list)?,
         })
     }
@@ -36,6 +38,7 @@ impl Version {
             res,
             client,
             is_ready,
+            asset_mapping_status: AssetMappingStatus::Pending,
             hot_update_list: HotUpdateList::new(hot_update_list)?,
         })
     }

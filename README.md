@@ -32,7 +32,7 @@ Configures the web server settings.
 
 ```toml
 [server]
-port = 25150
+port = 5150
 host = "http://localhost"
 ```
 
@@ -101,7 +101,7 @@ Amazon S3 compatible storage configuration.
 
 ```toml
 [s3]
-endpoint = "http://127.0.0.1:29000"
+endpoint = "http://127.0.0.1:9000"
 bucket_name = "bucket-name"
 access_key_id = "access-key"
 secret_access_key = "secret-key"

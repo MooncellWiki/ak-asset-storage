@@ -7,7 +7,7 @@ format = "compact"
 
 # Web server configuration
 [server]
-port = 25150
+port = 5150
 host = "http://localhost"
 
 # Mailer Configuration
@@ -16,7 +16,7 @@ host = "smtp.example.com"
 port = 465
 from_email = "sender@example.com"
 to_email = "receiver@example.com"
-frontend_url = "http://localhost:25150/"
+frontend_url = "http://localhost:5150/"
 
 auth.user = "user@example.com"  # Uncomment and add SMTP user
 auth.password = "password"  # Uncomment and add SMTP password
@@ -30,7 +30,7 @@ asset_url = "https://ak.hycdn.cn/assetbundle/official/Android/assets"
 conf_url = "https://ak-conf.hypergryph.com/config/prod/official/Android"
 
 [s3]
-endpoint = "http://127.0.0.1:29000"
+endpoint = "http://127.0.0.1:9000"
 bucket_name = "arknights-assets"
 access_key_id = "access_key_id"
 secret_access_key = "secret_access_key"

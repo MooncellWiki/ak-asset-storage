@@ -9,18 +9,29 @@ services:
     env_file:
       - .env
 
-  minio:
-    image: minio/minio:latest
-    command: server /data --console-address ":9001"
+  rustfs:
+    image: rustfs/rustfs:latest
     restart: unless-stopped
     env_file:
       - .env
+    environment:
+      RUSTFS_ADDRESS: "0.0.0.0:9000"
+      RUSTFS_CONSOLE_ADDRESS: "0.0.0.0:9001"
+      RUSTFS_CONSOLE_ENABLE: "true"
+      RUSTFS_ACCESS_KEY: torappu
+      RUSTFS_SECRET_KEY: torappu123
     volumes:
-      - minio_data:/data
+      - rustfs_data:/data
+    command: [/data]
     ports:
-      - 29000:9000
-      - 29001:9001
+      - 9000:9000
+      - 9001:9001
+    healthcheck:
+      test: [CMD, curl, -f, "http://localhost:9000/health"]
+      interval: 3s
+      timeout: 5s
+      retries: 30
 
 volumes:
   postgres-data:
-  minio_data:
+  rustfs_data:

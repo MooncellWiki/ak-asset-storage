@@ -1,0 +1,188 @@
+<template>
+  <div
+    v-if="!path"
+    class="h-full flex flex-col items-center justify-center text-gray-400"
+  >
+    <CarbonDocumentBlank class="mb-4 text-6xl" />
+    <p>选择一个文件或目录查看内容</p>
+  </div>
+
+  <NSpin v-else-if="loading" class="mt-8 w-full" />
+
+  <template v-else>
+    <h3 class="mb-4 text-lg font-semibold">{{ path || "根目录" }}</h3>
+
+    <NCard v-if="detail" hoverable class="mb-4">
+      <NDescriptions bordered :column="1" label-placement="left">
+        <NDescriptionsItem label="Bundle Path">
+          {{ detail.bundlePath }}
+        </NDescriptionsItem>
+        <NDescriptionsItem label="Asset Path">
+          {{ detail.assetPath ?? "-" }}
+        </NDescriptionsItem>
+        <NDescriptionsItem label="Short Name">
+          {{ detail.shortName ?? "-" }}
+        </NDescriptionsItem>
+        <NDescriptionsItem label="Bundle Size">
+          {{ fmtSize(detail.bundleSize) }}
+        </NDescriptionsItem>
+        <NDescriptionsItem label="Bundle Hash">
+          {{ detail.bundleHash ?? "-" }}
+        </NDescriptionsItem>
+      </NDescriptions>
+      <div class="mt-2">
+        <NButton @click="download">下载</NButton>
+      </div>
+    </NCard>
+
+    <template v-if="children.length > 0">
+      <NDataTable
+        :columns="dirColumns"
+        :data="children"
+        :row-props="dirRowProps"
+      />
+    </template>
+    <NEmpty v-else-if="!detail" description="空目录" />
+  </template>
+</template>
+
+<script setup lang="ts">
+import CarbonDocumentBlank from "~icons/carbon/document-blank";
+import { ref, watch } from "vue";
+import { client } from "~/common/client";
+import type { components } from "~/common/schema";
+import { isManifestDirectory } from "../utils";
+import type { DataTableColumns } from "naive-ui";
+
+const props = defineProps<{
+  versionId?: number;
+  nodeType?: string;
+}>();
+
+const path = defineModel<string>({ required: true });
+
+const loading = ref(false);
+const detail = ref<components["schemas"]["AssetMappingDetailDto"]>();
+const children = ref<DirRow[]>([]);
+
+interface DirRow {
+  name: string;
+  path: string;
+  isDir: boolean;
+  nodeType: string;
+}
+
+const dirColumns: DataTableColumns<DirRow> = [
+  {
+    key: "name",
+    title: "名称",
+    render: (row) => (row.isDir ? `📁 ${row.name}` : `📄 ${row.name}`),
+  },
+  {
+    key: "type",
+    title: "类型",
+    render: (row) => (row.isDir ? "目录" : "文件"),
+  },
+];
+
+function dirRowProps(row: DirRow) {
+  return {
+    style: "cursor: pointer;",
+    onClick: () => {
+      path.value = row.path;
+    },
+  };
+}
+
+function download() {
+  if (!detail.value?.bundleHash) return;
+  const hash = detail.value.bundleHash;
+  const path = `/storage/${hash.slice(0, 2)}/${hash.slice(2, 4)}/${hash.slice(4)}`;
+  const a = document.createElement("a");
+  a.href = path;
+  a.download = `${detail.value.bundlePath}.zip`;
+  a.click();
+}
+
+function fmtSize(size?: number) {
+  if (!size) {
+    return "-";
+  }
+  if (size > 1024 * 1024) {
+    return `${(size / 1024 / 1024).toFixed(2)}MiB`;
+  }
+  if (size > 1024) {
+    return `${(size / 1024).toFixed(2)}KiB`;
+  }
+  return `${size}B`;
+}
+
+async function loadDetail() {
+  if (!path.value || props.versionId == null) {
+    detail.value = undefined;
+    return;
+  }
+  const { data } = await client.GET("/api/v1/manifest/{version_id}/detail", {
+    params: {
+      path: { version_id: props.versionId },
+      query: { asset_name: path.value },
+    },
+  });
+  detail.value = data ?? undefined;
+}
+
+async function loadChildren() {
+  if (!path.value || props.versionId == null) {
+    children.value = [];
+    return;
+  }
+  const { data } = await client.GET("/api/v1/manifest/{version_id}/children", {
+    params: {
+      path: { version_id: props.versionId },
+      query: { dir: path.value },
+    },
+  });
+  children.value = (data ?? []).map((n) => ({
+    name: n.name,
+    path: n.path,
+    isDir: isManifestDirectory(n.nodeType),
+    nodeType: n.nodeType,
+  }));
+}
+
+watch(
+  [path, () => props.versionId, () => props.nodeType],
+  async () => {
+    if (!path.value || props.versionId == null) {
+      detail.value = undefined;
+      children.value = [];
+      return;
+    }
+
+    let nodeType: string | undefined;
+    const child = children.value.find((c) => c.path === path.value);
+    if (child) {
+      nodeType = child.nodeType;
+    } else {
+      nodeType = props.nodeType;
+    }
+
+    loading.value = true;
+
+    if (nodeType === "both") {
+      await Promise.all([loadDetail(), loadChildren()]);
+    } else if (nodeType && !isManifestDirectory(nodeType)) {
+      children.value = [];
+      await loadDetail();
+    } else if (nodeType && isManifestDirectory(nodeType)) {
+      detail.value = undefined;
+      await loadChildren();
+    } else {
+      await Promise.all([loadDetail(), loadChildren()]);
+    }
+
+    loading.value = false;
+  },
+  { immediate: true },
+);
+</script>

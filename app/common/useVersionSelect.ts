@@ -24,14 +24,20 @@ export function useVersionSelect() {
           key: prev,
           children: [
             {
-              label: version.resVersion + (version.isReady ? "" : " (未完成)"),
+              label:
+                version.resVersion +
+                (version.isReady ? "" : " (未完成)") +
+                (version.assetMappingStatus === "ready" ? "" : " (无manifest)"),
               value: version.id,
             },
           ],
         };
       } else {
         group!.children!.push({
-          label: version.resVersion + (version.isReady ? "" : " (未完成)"),
+          label:
+            version.resVersion +
+            (version.isReady ? "" : " (未完成)") +
+            (version.assetMappingStatus === "ready" ? "" : " (无manifest)"),
           value: version.id,
         });
       }

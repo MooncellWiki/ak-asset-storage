@@ -10,7 +10,7 @@
     "dev": "vite --open",
     "typecheck": "vue-tsc --noEmit",
     "preview": "vite preview",
-    "api": "openapi-typescript http://localhost:25150/api/v1/openapi.json -o ./app/common/schema.d.ts"
+    "api": "openapi-typescript http://localhost:5150/api/v1/openapi.json -o ./app/common/schema.d.ts"
   },
   "dependencies": {
     "@vueuse/core": "^14.1.0",

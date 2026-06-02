@@ -139,56 +139,53 @@ const fileUrl = computed(() => {
 });
 
 const fileExtension = computed(() => {
-  return path.value.slice(path.value.lastIndexOf(".") + 1).toLowerCase();
+  const dotIndex = path.value.lastIndexOf(".");
+  return dotIndex === -1 ? "" : path.value.slice(dotIndex + 1).toLowerCase();
 });
 
-const isImage = computed(() =>
-  ["png", "jpg", "jpeg", "webp", "gif", "svg"].includes(fileExtension.value),
-);
-const isAudio = computed(() =>
-  ["mp3", "wav", "ogg"].includes(fileExtension.value),
-);
-const isMarkdown = computed(() =>
-  ["md", "markdown"].includes(fileExtension.value),
-);
-const isText = computed(() =>
-  ["txt", "log", "atlas"].includes(fileExtension.value),
-);
-const isCode = computed(() => {
-  return [
-    "js",
-    "ts",
-    "jsx",
-    "tsx",
-    "vue",
-    "json",
-    "xml",
-    "html",
-    "css",
-    "scss",
-    "py",
-    "java",
-    "c",
-    "cpp",
-    "rs",
-    "go",
-    "sh",
-    "yaml",
-    "yml",
-    "toml",
-  ].includes(fileExtension.value);
-});
+const IMAGE_EXTENSIONS = new Set(["png", "jpg", "jpeg", "webp", "gif", "svg"]);
+const AUDIO_EXTENSIONS = new Set(["mp3", "wav", "ogg"]);
+const MARKDOWN_EXTENSIONS = new Set(["md", "markdown"]);
+const TEXT_EXTENSIONS = new Set(["txt", "log", "atlas"]);
+const CODE_EXTENSIONS = new Set([
+  "js",
+  "ts",
+  "jsx",
+  "tsx",
+  "vue",
+  "json",
+  "xml",
+  "html",
+  "css",
+  "scss",
+  "py",
+  "java",
+  "c",
+  "cpp",
+  "rs",
+  "go",
+  "sh",
+  "yaml",
+  "yml",
+  "toml",
+]);
+
+const isImage = computed(() => IMAGE_EXTENSIONS.has(fileExtension.value));
+const isAudio = computed(() => AUDIO_EXTENSIONS.has(fileExtension.value));
+const isMarkdown = computed(() => MARKDOWN_EXTENSIONS.has(fileExtension.value));
+const isText = computed(() => TEXT_EXTENSIONS.has(fileExtension.value));
+const isCode = computed(() => CODE_EXTENSIONS.has(fileExtension.value));
 
 const canCopy = computed(
   () => isText.value || isCode.value || isMarkdown.value,
 );
 
-// Check if file is too large (>1MB) for text/code/markdown rendering
-const MAX_PREVIEW_SIZE = 1024 * 1024; // 1MB in bytes
+const MAX_PREVIEW_SIZE = 1024 * 1024;
+
 const isLargeTextFile = computed(() => {
   if (!props.node || props.node.is_dir) return false;
-  const isTextType = isText.value || isCode.value || isMarkdown.value;
-  return isTextType && props.node.size > MAX_PREVIEW_SIZE;
+  const isPreviewable = isText.value || isCode.value || isMarkdown.value;
+  return isPreviewable && props.node.size > MAX_PREVIEW_SIZE;
 });
 
 // Columns for directory listing
@@ -227,36 +224,29 @@ function rowProps(row: AssetEntry) {
   };
 }
 
-// Load file content for preview
 async function loadFileContent() {
   highlightedCode.value = "";
   renderedMarkdown.value = "";
   fileContent.value = "";
 
   if (!path.value || props.node!.is_dir) return;
-
-  // Skip loading content for large files
-  if (isLargeTextFile.value) {
-    return;
-  }
+  if (isLargeTextFile.value) return;
+  if (!isText.value && !isCode.value && !isMarkdown.value) return;
 
   try {
-    // Load file content for preview
-    if (isText.value || isCode.value || isMarkdown.value) {
-      const response = await fetch(fileUrl.value);
-      let text = await response.text();
-      fileContent.value = text;
+    const response = await fetch(fileUrl.value);
+    let text = await response.text();
+    fileContent.value = text;
 
-      if (isMarkdown.value) {
-        renderedMarkdown.value = md.render(text);
-      } else if (isCode.value) {
-        if (fileExtension.value === "json") {
-          try {
-            text = JSON.stringify(JSON.parse(text), undefined, "  ");
-          } catch {}
-        }
-        await highlightCode(text, fileExtension.value);
+    if (isMarkdown.value) {
+      renderedMarkdown.value = md.render(text);
+    } else if (isCode.value) {
+      if (fileExtension.value === "json") {
+        try {
+          text = JSON.stringify(JSON.parse(text), undefined, "  ");
+        } catch {}
       }
+      await highlightCode(text, fileExtension.value);
     }
   } catch (error) {
     console.error("Error loading content:", error);

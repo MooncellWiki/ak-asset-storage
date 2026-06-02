@@ -18,10 +18,10 @@ export default defineConfig({
   },
   server: {
     proxy: {
-      "/api": "http://localhost:25150",
-      "/storage": "http://localhost:29000/arknights-assets/",
-      "/gamedata": "http://localhost:25150",
-      "/assets": "http://localhost:25150",
+      "/api": "http://localhost:5150",
+      "/storage": "http://localhost:9000/arknights-assets/",
+      "/gamedata": "http://localhost:5150",
+      "/assets": "http://localhost:5150",
     },
     port: 25173,
   },

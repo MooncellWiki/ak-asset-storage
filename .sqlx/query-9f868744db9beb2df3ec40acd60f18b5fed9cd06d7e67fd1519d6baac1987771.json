@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "INSERT INTO versions (res, client, is_ready, hot_update_list) VALUES ($1, $2, $3, $4) RETURNING id",
+  "query": "SELECT id FROM versions WHERE client = $1 AND res = $2",
   "describe": {
     "columns": [
       {
@@ -11,9 +11,7 @@
     ],
     "parameters": {
       "Left": [
-        "Varchar",
-        "Varchar",
-        "Bool",
+        "Text",
         "Text"
       ]
     },
@@ -21,5 +19,5 @@
       false
     ]
   },
-  "hash": "5e14b5c88acbf217d5616f984f00e5ae9f52cbd0fbe09bb927020803025dd566"
+  "hash": "9f868744db9beb2df3ec40acd60f18b5fed9cd06d7e67fd1519d6baac1987771"
 }

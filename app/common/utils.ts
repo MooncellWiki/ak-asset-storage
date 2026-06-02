@@ -11,3 +11,14 @@ export function toReadableSize(size: number): string {
   }
   return `${size}B`;
 }
+
+export function getParentPaths(path: string): string[] {
+  const parts = path.split("/");
+  const paths: string[] = [];
+  let current = "";
+  for (let i = 0; i < parts.length - 1; i++) {
+    current = current ? `${current}/${parts[i]}` : parts[i]!;
+    paths.push(current);
+  }
+  return paths;
+}

@@ -58,6 +58,13 @@ declare module 'vue-router/auto-routes' {
       Record<never, never>,
       | never
     >,
+    '/components/AssetMappingDetailModal': RouteRecordInfo<
+      '/components/AssetMappingDetailModal',
+      '/components/AssetMappingDetailModal',
+      Record<never, never>,
+      Record<never, never>,
+      | never
+    >,
     '/components/FileDetail': RouteRecordInfo<
       '/components/FileDetail',
       '/components/FileDetail',
@@ -82,6 +89,27 @@ declare module 'vue-router/auto-routes' {
     '/file/': RouteRecordInfo<
       '/file/',
       '/file',
+      Record<never, never>,
+      Record<never, never>,
+      | never
+    >,
+    '/manifest/': RouteRecordInfo<
+      '/manifest/',
+      '/manifest',
+      Record<never, never>,
+      Record<never, never>,
+      | never
+    >,
+    '/manifest/components/ManifestContent': RouteRecordInfo<
+      '/manifest/components/ManifestContent',
+      '/manifest/components/ManifestContent',
+      Record<never, never>,
+      Record<never, never>,
+      | never
+    >,
+    '/manifest/components/ManifestTree': RouteRecordInfo<
+      '/manifest/components/ManifestTree',
+      '/manifest/components/ManifestTree',
       Record<never, never>,
       Record<never, never>,
       | never
@@ -129,6 +157,12 @@ declare module 'vue-router/auto-routes' {
       views:
         | never
     }
+    'app/pages/components/AssetMappingDetailModal.vue': {
+      routes:
+        | '/components/AssetMappingDetailModal'
+      views:
+        | never
+    }
     'app/pages/components/FileDetail.vue': {
       routes:
         | '/components/FileDetail'
@@ -150,6 +184,24 @@ declare module 'vue-router/auto-routes' {
     'app/pages/file/index.vue': {
       routes:
         | '/file/'
+      views:
+        | never
+    }
+    'app/pages/manifest/index.vue': {
+      routes:
+        | '/manifest/'
+      views:
+        | never
+    }
+    'app/pages/manifest/components/ManifestContent.vue': {
+      routes:
+        | '/manifest/components/ManifestContent'
+      views:
+        | never
+    }
+    'app/pages/manifest/components/ManifestTree.vue': {
+      routes:
+        | '/manifest/components/ManifestTree'
       views:
         | never
     }

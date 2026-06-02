@@ -8,6 +8,7 @@ pub struct VersionDto {
     pub client_version: String,
     pub res_version: String,
     pub is_ready: bool,
+    pub asset_mapping_status: String,
 }
 
 #[derive(Debug, Serialize, Deserialize, ToSchema)]
