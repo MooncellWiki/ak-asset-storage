@@ -52,6 +52,7 @@ import CarbonFolder from "~icons/carbon/folder";
 import CarbonSearch from "~icons/carbon/search";
 import { computed, ref, watch } from "vue";
 import { client } from "~/common/client";
+import { getParentPaths } from "~/common/utils";
 import type { components } from "~/common/schema";
 import type { TreeNode } from "../types";
 
@@ -92,17 +93,6 @@ const onSearch = useDebounceFn(async () => {
 
 function handleSearchSelect(item: AssetEntry) {
   selectedKeys.value = [item.path];
-}
-
-function getParentPaths(path: string): string[] {
-  const parts = path.split("/");
-  const paths: string[] = [];
-  let current = "";
-  for (let i = 0; i < parts.length - 1; i++) {
-    current = current ? `${current}/${parts[i]}` : parts[i]!;
-    paths.push(current);
-  }
-  return paths;
 }
 
 watch(
