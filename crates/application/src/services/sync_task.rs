@@ -70,7 +70,7 @@ where
                     }
                     Err(e) => {
                         error!("Download failed: {:?}", e);
-                        sleep(Duration::from_secs(60)).await; // Wait before retrying
+                        sleep(Duration::from_mins(1)).await; // Wait before retrying
                     }
                 }
             }

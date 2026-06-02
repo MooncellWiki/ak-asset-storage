@@ -55,7 +55,7 @@ pub async fn execute(config: &impl ConfigProvider, concurrent: usize) -> Result<
             s3,
             concurrent,
         ),
-        Duration::from_secs(2 * 60),
+        Duration::from_mins(2),
     ));
     let gamedata_root =
         std::path::PathBuf::from(&config.torappu_config().asset_base_path).join("gamedata");
