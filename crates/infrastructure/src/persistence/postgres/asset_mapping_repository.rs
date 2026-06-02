@@ -12,11 +12,11 @@ impl PostgresRepository {
         version_id: i32,
         mappings: &[AssetMapping],
     ) -> AppResult<()> {
-        sqlx::query!(
-            "UPDATE versions SET asset_mapping_status = $2 WHERE id = $1",
-            version_id,
-            AssetMappingStatus::Importing.as_str()
+        sqlx::query(
+            "UPDATE versions SET asset_mapping_status = $2::asset_mapping_status WHERE id = $1",
         )
+        .bind(version_id)
+        .bind(AssetMappingStatus::Importing.as_str())
         .execute(&mut **conn)
         .await
         .map_err(|e| InfraError::Database {
@@ -69,11 +69,11 @@ VALUES
             source: e,
         })?;
 
-        sqlx::query!(
-            "UPDATE versions SET asset_mapping_status = $2 WHERE id = $1",
-            version_id,
-            AssetMappingStatus::Ready.as_str()
+        sqlx::query(
+            "UPDATE versions SET asset_mapping_status = $2::asset_mapping_status WHERE id = $1",
         )
+        .bind(version_id)
+        .bind(AssetMappingStatus::Ready.as_str())
         .execute(&mut **conn)
         .await
         .map_err(|e| InfraError::Database {
@@ -120,11 +120,11 @@ impl AssetMappingRepository for PostgresRepository {
 
         let reset_result = if import_result.is_err() {
             Some(
-                sqlx::query!(
-                    "UPDATE versions SET asset_mapping_status = $2 WHERE id = $1",
-                    version_id,
-                    AssetMappingStatus::Pending.as_str()
+                sqlx::query(
+                    "UPDATE versions SET asset_mapping_status = $2::asset_mapping_status WHERE id = $1"
                 )
+                .bind(version_id)
+                .bind(AssetMappingStatus::Pending.as_str())
                 .execute(&mut *conn)
                 .await
                 .map_err(|e| InfraError::Database {

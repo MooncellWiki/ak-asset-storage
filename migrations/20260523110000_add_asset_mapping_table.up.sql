@@ -1,5 +1,7 @@
+CREATE TYPE asset_mapping_status AS ENUM ('pending', 'importing', 'ready');
+
 ALTER TABLE versions
-ADD COLUMN asset_mapping_status VARCHAR(16) NOT NULL DEFAULT 'pending';
+ADD COLUMN asset_mapping_status asset_mapping_status NOT NULL DEFAULT 'pending';
 
 ALTER TABLE versions
 ADD CONSTRAINT versions_res_unique UNIQUE (res);

@@ -10,3 +10,5 @@ DROP CONSTRAINT IF EXISTS versions_res_unique;
 
 ALTER TABLE versions
 DROP COLUMN IF EXISTS asset_mapping_status;
+
+DROP TYPE IF EXISTS asset_mapping_status;

@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "SELECT id, res, client, is_ready, hot_update_list, asset_mapping_status FROM versions ORDER BY id DESC LIMIT 1",
+  "query": "SELECT id, client as \"client_version\", res as \"res_version\", is_ready, asset_mapping_status::text AS \"asset_mapping_status!\" FROM versions ORDER BY id ASC",
   "describe": {
     "columns": [
       {
@@ -10,12 +10,12 @@
       },
       {
         "ordinal": 1,
-        "name": "res",
+        "name": "client_version",
         "type_info": "Varchar"
       },
       {
         "ordinal": 2,
-        "name": "client",
+        "name": "res_version",
         "type_info": "Varchar"
       },
       {
@@ -25,13 +25,8 @@
       },
       {
         "ordinal": 4,
-        "name": "hot_update_list",
+        "name": "asset_mapping_status!",
         "type_info": "Text"
-      },
-      {
-        "ordinal": 5,
-        "name": "asset_mapping_status",
-        "type_info": "Varchar"
       }
     ],
     "parameters": {
@@ -42,9 +37,8 @@
       false,
       false,
       false,
-      false,
-      false
+      null
     ]
   },
-  "hash": "096b48cd30d1a0d222ed4937bf61dfd63079cc0a6fe1766ae3a3f455e42afb52"
+  "hash": "bf806b9d91d4e49cdcd8a84f192d07ed6ef075854f26de9f4e155c63cc27de1f"
 }

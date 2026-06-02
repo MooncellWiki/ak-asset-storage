@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "SELECT id, res, client, is_ready, hot_update_list, asset_mapping_status FROM versions WHERE res = $1",
+  "query": "SELECT id, res, client, is_ready, hot_update_list, asset_mapping_status::text AS \"asset_mapping_status!\" FROM versions WHERE res = $1",
   "describe": {
     "columns": [
       {
@@ -30,8 +30,8 @@
       },
       {
         "ordinal": 5,
-        "name": "asset_mapping_status",
-        "type_info": "Varchar"
+        "name": "asset_mapping_status!",
+        "type_info": "Text"
       }
     ],
     "parameters": {
@@ -45,8 +45,8 @@
       false,
       false,
       false,
-      false
+      null
     ]
   },
-  "hash": "1c2cc0cb1b4ea3a2876e9532d757ce5ed420d81282e1956691f8fdb4bab85a31"
+  "hash": "71bc5799038e6ef11c0c6b232c60c62d2fe5f037b0ecd59b537ca435ed25f74c"
 }
