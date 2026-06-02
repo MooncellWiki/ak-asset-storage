@@ -12,20 +12,20 @@ impl PostgresRepository {
         version_id: i32,
         mappings: &[AssetMapping],
     ) -> AppResult<()> {
+        let mut tx = conn.begin().await.map_err(|e| InfraError::Database {
+            message: "Failed to start asset mapping transaction".to_string(),
+            source: e,
+        })?;
+
         sqlx::query(
             "UPDATE versions SET asset_mapping_status = $2::asset_mapping_status WHERE id = $1",
         )
         .bind(version_id)
         .bind(AssetMappingStatus::Importing.as_str())
-        .execute(&mut **conn)
+        .execute(&mut *tx)
         .await
         .map_err(|e| InfraError::Database {
             message: "Failed to update asset mapping status".to_string(),
-            source: e,
-        })?;
-
-        let mut tx = conn.begin().await.map_err(|e| InfraError::Database {
-            message: "Failed to start asset mapping transaction".to_string(),
             source: e,
         })?;
 
@@ -64,20 +64,20 @@ VALUES
             })?;
         }
 
-        tx.commit().await.map_err(|e| InfraError::Database {
-            message: "Failed to commit asset mapping transaction".to_string(),
-            source: e,
-        })?;
-
         sqlx::query(
             "UPDATE versions SET asset_mapping_status = $2::asset_mapping_status WHERE id = $1",
         )
         .bind(version_id)
         .bind(AssetMappingStatus::Ready.as_str())
-        .execute(&mut **conn)
+        .execute(&mut *tx)
         .await
         .map_err(|e| InfraError::Database {
             message: "Failed to update asset mapping status".to_string(),
+            source: e,
+        })?;
+
+        tx.commit().await.map_err(|e| InfraError::Database {
+            message: "Failed to commit asset mapping transaction".to_string(),
             source: e,
         })?;
 
@@ -118,24 +118,6 @@ impl AssetMappingRepository for PostgresRepository {
         let import_result =
             Self::import_asset_mappings_with_lock(&mut conn, version_id, mappings).await;
 
-        let reset_result = if import_result.is_err() {
-            Some(
-                sqlx::query(
-                    "UPDATE versions SET asset_mapping_status = $2::asset_mapping_status WHERE id = $1"
-                )
-                .bind(version_id)
-                .bind(AssetMappingStatus::Pending.as_str())
-                .execute(&mut *conn)
-                .await
-                .map_err(|e| InfraError::Database {
-                    message: "Failed to reset asset mapping status".to_string(),
-                    source: e,
-                }),
-            )
-        } else {
-            None
-        };
-
         sqlx::query!("SELECT pg_advisory_unlock($1)", i64::from(version_id))
             .fetch_one(&mut *conn)
             .await
@@ -143,10 +125,6 @@ impl AssetMappingRepository for PostgresRepository {
                 message: "Failed to release asset mapping lock".to_string(),
                 source: e,
             })?;
-
-        if let Some(reset_result) = reset_result {
-            reset_result?;
-        }
 
         import_result?;
         Ok(true)
