@@ -1,0 +1,120 @@
+use crate::config::{LogFormat, LogLevel, LoggerConfig, SentryConfig};
+use anyhow::Result;
+use sentry::{integrations::tracing::EventFilter, types::Dsn};
+use std::str::FromStr;
+use tracing::{Level, Metadata, level_filters::LevelFilter};
+use tracing_subscriber::{
+    EnvFilter, Layer, Registry,
+    fmt::{self, MakeWriter},
+    layer::SubscriberExt,
+    util::SubscriberInitExt,
+};
+
+const MODULE_WHITELIST: &[&str] = &["tower_http", "sqlx::query", "ak_asset_storage"];
+
+fn init_env_filter(override_filter: Option<&String>, level: &LogLevel) -> EnvFilter {
+    EnvFilter::try_from_default_env()
+        .or_else(|_| {
+            override_filter.map_or_else(
+                || {
+                    EnvFilter::try_new(
+                        MODULE_WHITELIST
+                            .iter()
+                            .map(|module| format!("{module}={level}"))
+                            .collect::<Vec<_>>()
+                            .join(","),
+                    )
+                },
+                EnvFilter::try_new,
+            )
+        })
+        .expect("logger initialization failed")
+}
+
+fn init_layer<W>(
+    make_writer: W,
+    format: &LogFormat,
+    ansi: bool,
+) -> Box<dyn Layer<Registry> + Sync + Send>
+where
+    W: for<'writer> MakeWriter<'writer> + Sync + Send + 'static,
+{
+    match format {
+        LogFormat::Compact => fmt::Layer::default()
+            .with_ansi(ansi)
+            .with_writer(make_writer)
+            .compact()
+            .boxed(),
+        LogFormat::Pretty => fmt::Layer::default()
+            .with_ansi(ansi)
+            .with_writer(make_writer)
+            .pretty()
+            .boxed(),
+        LogFormat::Json => fmt::Layer::default()
+            .with_ansi(ansi)
+            .with_writer(make_writer)
+            .json()
+            .boxed(),
+    }
+}
+
+fn event_filter(metadata: &Metadata<'_>) -> EventFilter {
+    match metadata.level() {
+        &Level::ERROR | &Level::WARN => EventFilter::Event,
+        _ => EventFilter::Ignore,
+    }
+}
+
+pub fn init_tracing(
+    config: &LoggerConfig,
+    sentry_cfg: &SentryConfig,
+) -> Result<sentry::ClientInitGuard> {
+    let mut layers: Vec<Box<dyn Layer<Registry> + Sync + Send>> = Vec::new();
+    if config.enable {
+        layers.push(init_layer(std::io::stdout, &config.format, true));
+    }
+
+    if !layers.is_empty() {
+        let env_filter = init_env_filter(config.override_filter.as_ref(), &config.level);
+        let sentry_layer = sentry::integrations::tracing::layer()
+            .event_filter(event_filter)
+            .with_filter(LevelFilter::INFO);
+
+        tracing_subscriber::registry()
+            .with(layers)
+            .with(env_filter)
+            .with(sentry_layer)
+            .init();
+    }
+
+    Ok(sentry::init(sentry::ClientOptions {
+        dsn: Some(Dsn::from_str(&sentry_cfg.dsn)?),
+        release: sentry::release_name!(),
+        traces_sample_rate: sentry_cfg.traces_sample_rate,
+        ..Default::default()
+    }))
+}
+
+pub async fn shutdown_signal() {
+    let ctrl_c = async {
+        tokio::signal::ctrl_c()
+            .await
+            .expect("failed to install Ctrl+C handler");
+    };
+
+    #[cfg(unix)]
+    let terminate = async {
+        tokio::signal::unix::signal(tokio::signal::unix::SignalKind::terminate())
+            .expect("failed to install signal handler")
+            .recv()
+            .await;
+    };
+
+    #[cfg(not(unix))]
+    let terminate = std::future::pending::<()>();
+
+    tokio::select! {
+        () = ctrl_c => {},
+        () = terminate => {},
+    }
+}

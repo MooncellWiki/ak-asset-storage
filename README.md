@@ -1,88 +1,101 @@
-# Configuration Documentation
+# Arknights Asset Storage
 
-This document describes the configuration options for the application. The configuration is stored in TOML format.
+AK asset monitoring, storage, and torappu orchestration service.
 
-## Configuration Structure
+## Rust Layout
 
-The configuration is divided into several main sections:
+Rust backend is a single crate organized by module:
 
-- Logger
-- Server
-- Database
-- Mailer (SMTP)
-- AK (Arknights)
-- S3 Storage
-- Sentry (Optional)
-- Torappu (Optional)
+- `src/api/` - Axum HTTP handlers, router, and API request/response types
+- `src/database/` - PostgreSQL-only SQLx access behind `Database { pool: PgPool }`
+- `src/external/` - concrete integrations for AK API, S3, SMTP, Docker, GitHub, and torappu assets
+- `src/service/` - shared workflows reused by server and worker
+- `src/worker/` - polling loop and manifest watcher
+- `src/commands/` - CLI entrypoints for `server`, `worker`, `seed`, and `import-manifest`
 
-## Logger Configuration
+The frontend lives in `app/`.
 
-Controls the application's logging behavior.
+## Development
 
-| Field             | Description                     | Options                                   |
-| ----------------- | ------------------------------- | ----------------------------------------- |
-| `enable`          | Enable log writing to stdout    | `true`/`false`                            |
-| `level`           | Set logging level               | `trace`, `debug`, `info`, `warn`, `error` |
-| `format`          | Set logger format               | `compact`, `pretty`, `json`               |
-| `override_filter` | Override default tracing filter | Any valid tracing filter string           |
+### Prerequisites
 
-## Server Configuration
+- Rust stable
+- Node.js 20+
+- pnpm
+- Docker / Docker Compose
 
-Configures the web server settings.
+### Setup
+
+```bash
+pnpm install
+docker compose up -d
+sqlx migrate run
+```
+
+### Run
+
+Backend server:
+
+```bash
+cargo run --bin ak-asset-storage -- server -c config.toml
+```
+
+Worker:
+
+```bash
+cargo run --bin ak-asset-storage -- worker -c config.toml
+```
+
+Frontend dev server:
+
+```bash
+pnpm dev
+```
+
+## Verification
+
+```bash
+cargo fmt --all -- --check
+cargo clippy --all-features -- -D warnings
+cargo test --all-features -- --nocapture
+pnpm typecheck
+pnpm lint
+```
+
+## Configuration
+
+Configuration is TOML-based. See `example.toml` for a complete example.
+
+Main sections:
+
+- `logger`
+- `server`
+- `database`
+- `mailer`
+- `ak`
+- `s3`
+- `sentry`
+- `torappu`
+
+### Server
 
 ```toml
 [server]
+binding = "localhost"
 port = 5150
 host = "http://localhost"
 ```
 
-| Field     | Description                                      |
-| --------- | ------------------------------------------------ |
-| `binding` | Server binding address (defaults to "localhost") |
-| `port`    | Port number for the server                       |
-| `host`    | Web server host URL                              |
-
-## Database Configuration
-
-Database connection and pool settings.
+### Database
 
 ```toml
 [database]
 uri = "postgres://user:password@localhost:5432/dbname"
+max_connections = 10
+connection_timeout_seconds = 30
 ```
 
-| Field                        | Description                   | Default |
-| ---------------------------- | ----------------------------- | ------- |
-| `uri`                        | Database connection URI       | -       |
-| `max_connections`            | Maximum database connections  | `None`  |
-| `connection_timeout_seconds` | Connection timeout in seconds | `None`  |
-
-## Mailer Configuration
-
-Email sending configuration using SMTP.
-
-```toml
-[mailer.smtp]
-host = "smtp.example.com"
-port = 465
-
-auth.user = "user@example.com"
-auth.password = "password"
-```
-
-| Field           | Description                     |
-| --------------- | ------------------------------- |
-| `host`          | SMTP server host                |
-| `port`          | SMTP server port                |
-| `from_email`    | Email address to send from      |
-| `to_email`      | Email address to send to        |
-| `frontend_url`  | URL of the frontend application |
-| `auth.user`     | SMTP authentication username    |
-| `auth.password` | SMTP authentication password    |
-
-## AK Configuration
-
-Arknights-specific configuration.
+### AK
 
 ```toml
 [ak]
@@ -90,14 +103,7 @@ asset_url = "https://ak.hycdn.cn/assetbundle/official/Android/assets"
 conf_url = "https://ak-conf.hypergryph.com/config/prod/official/Android"
 ```
 
-| Field       | Description                 |
-| ----------- | --------------------------- |
-| `asset_url` | URL for asset bundles       |
-| `conf_url`  | URL for configuration files |
-
-## S3 Storage Configuration
-
-Amazon S3 compatible storage configuration.
+### S3
 
 ```toml
 [s3]
@@ -108,32 +114,7 @@ secret_access_key = "secret-key"
 with_virtual_hosted_style_request = false
 ```
 
-| Field                               | Description                          |
-| ----------------------------------- | ------------------------------------ |
-| `endpoint`                          | S3 endpoint URL                      |
-| `bucket_name`                       | S3 bucket name                       |
-| `access_key_id`                     | S3 access key ID                     |
-| `secret_access_key`                 | S3 secret access key                 |
-| `with_virtual_hosted_style_request` | Enable virtual hosted style requests |
-
-## Sentry Configuration (Optional)
-
-Optional configuration for Sentry error tracking and monitoring.
-
-```toml
-[sentry]
-dsn = "https://your-sentry-dsn@sentry.io/project-id"
-traces_sample_rate = 1.0
-```
-
-| Field                | Description                                    | Required |
-| -------------------- | ---------------------------------------------- | -------- |
-| `dsn`                | Sentry DSN for error reporting                 | No       |
-| `traces_sample_rate` | Sampling rate for performance traces (0.0-1.0) | No       |
-
-## Torappu Configuration (Optional)
-
-Optional configuration for Torappu service integration.
+### Torappu
 
 ```toml
 [torappu]
@@ -144,8 +125,9 @@ asset_base_path = "/assets"
 image_url = "your-docker-image:latest"
 container_name = "ak-asset-container"
 env_vars = [ "TZ=Asia/Shanghai" ]
-volume_mapping = "./data:/app/data"
+volume_mapping = [ "./data:/app/data" ]
 docker_host = "/var/run/docker.sock"
+network = "boot_default"
 
 [torappu.github]
 owner = "your-username"
@@ -155,21 +137,9 @@ ref = "main"
 token = "github-token"
 ```
 
-| Field                   | Description                  | Required |
-| ----------------------- | ---------------------------- | -------- |
-| `token`                 | Torappu authentication token | No       |
-| `asset_base_path`       | Base path for assets         | No       |
-| `docker.image_url`      | Docker image to deploy       | No       |
-| `docker.container_name` | Container name               | No       |
-| `docker.env_vars`       | Environment variables        | No       |
-| `docker.volume_mapping` | Volume mappings              | No       |
-| `docker.docker_host`    | Docker daemon host           | No       |
-| `github.owner`          | GitHub repository owner      | No       |
-| `github.repo`           | GitHub repository name       | No       |
-| `github.workflow_id`    | GitHub Actions workflow ID   | No       |
-| `github.ref`            | Git branch or tag            | No       |
-| `github.token`          | GitHub personal access token | No       |
+## Database Notes
 
-## Example Configuration
-
-See the `example.toml` file for a complete example configuration.
+- Migrations live in `migrations/`
+- Do not edit `.sqlx/`
+- Do not use `SQLX_OFFLINE=true` for local `cargo check` / `cargo build`
+- If sqlx cannot connect to the database, fix the database first instead of falling back to offline mode

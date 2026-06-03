@@ -1,10 +1,17 @@
+[package]
+name = "ak-asset-storage"
+
+version.workspace = true
+
+edition.workspace = true
+
+license.workspace = true
+
+description.workspace = true
+
+homepage.workspace = true
+
 [workspace]
-members = [
-  "crates/application",
-  "crates/infrastructure",
-  "crates/web",
-  "crates/cli",
-]
 resolver = "2"
 
 [workspace.package]
@@ -93,6 +100,48 @@ walkdir = "2.5.0"
 bollard = "0.19.4"
 octocrab = "0.49.5"
 mimalloc = "0.1.48"
+
+[dependencies]
+serde = { workspace = true }
+serde_json = { workspace = true }
+tokio = { workspace = true }
+tracing = { workspace = true }
+chrono = { workspace = true }
+clap = { workspace = true }
+axum = { workspace = true }
+bytes = { workspace = true }
+rust-embed = { workspace = true }
+tracing-subscriber = { workspace = true }
+reqwest = { workspace = true }
+anyhow = { workspace = true }
+tower-http = { workspace = true }
+thiserror = { workspace = true }
+toml = { workspace = true }
+lettre = { workspace = true }
+serde_variant = { workspace = true }
+object_store = { workspace = true }
+sha256 = { workspace = true }
+utoipa = { workspace = true }
+utoipa-axum = { workspace = true }
+utoipa-scalar = { workspace = true }
+mime_guess = { workspace = true }
+sqlx = { workspace = true }
+sentry = { workspace = true }
+tower = { workspace = true }
+futures = { workspace = true }
+zip = { workspace = true }
+itertools = { workspace = true }
+walkdir = { workspace = true }
+bollard = { workspace = true }
+octocrab = { workspace = true }
+mimalloc = { workspace = true }
+rustls = { version = "0.23.40", default-features = false, features = [
+  "std",
+  "ring" 
+] }
+
+[lints]
+workspace = true
 
 [workspace.metadata.release]
 publish = false
