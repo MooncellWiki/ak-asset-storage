@@ -7,7 +7,7 @@ use crate::{
     external::{
         ak_api::AkApi, docker::DockerClient, github::GithubClient, notification::NotificationClient,
     },
-    service::types::RemoteVersion,
+    service::types::{HotUpdateList, RemoteVersion},
 };
 use tracing::{error, info, instrument};
 
@@ -70,6 +70,7 @@ impl VersionCheckService {
         }
 
         let hot_update_list = self.ak_api.get_hot_update_list(&remote.res_version).await?;
+        HotUpdateList::new(&hot_update_list)?;
         let RemoteVersion {
             res_version,
             client_version,
