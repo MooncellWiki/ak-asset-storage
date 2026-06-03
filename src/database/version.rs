@@ -6,7 +6,7 @@ use crate::{
         row::{AssetMappingStatus, VersionRow},
     },
 };
-use sqlx::{Row, query_as};
+use sqlx::query_as;
 
 fn build_version(
     id: i32,
@@ -14,38 +14,38 @@ fn build_version(
     client: String,
     is_ready: bool,
     hot_update_list: &str,
-    asset_mapping_status: &str,
+    asset_mapping_status: AssetMappingStatus,
 ) -> VersionRow {
     VersionRow {
         id: Some(id),
         res,
         client,
         is_ready,
-        asset_mapping_status: AssetMappingStatus::from_str_lossy(asset_mapping_status),
+        asset_mapping_status,
         hot_update_list: hot_update_list.to_string(),
     }
 }
 
 impl Database {
     pub async fn create_version(&self, version: VersionRow) -> AppResult<i32> {
-        let row = sqlx::query(
+        let row = sqlx::query!(
             "INSERT INTO versions (res, client, is_ready, hot_update_list, asset_mapping_status) VALUES ($1, $2, $3, $4, $5::asset_mapping_status) RETURNING id",
+            version.res,
+            version.client,
+            version.is_ready,
+            version.hot_update_list,
+            version.asset_mapping_status as AssetMappingStatus
         )
-        .bind(version.res.as_str())
-        .bind(version.client.as_str())
-        .bind(version.is_ready)
-        .bind(version.hot_update_list.as_str())
-        .bind(version.asset_mapping_status.as_str())
         .fetch_one(self.pool())
         .await
         .map_err(|err| AppError::ExternalService(err.into()))?;
 
-        Ok(row.get("id"))
+        Ok(row.id)
     }
 
     pub async fn get_version_by_id(&self, id: i32) -> AppResult<Option<VersionRow>> {
         let result = sqlx::query!(
-            "SELECT id, res, client, is_ready, hot_update_list, asset_mapping_status::text AS \"asset_mapping_status!\" FROM versions WHERE id = $1",
+            "SELECT id, res, client, is_ready, hot_update_list, asset_mapping_status AS \"asset_mapping_status!: AssetMappingStatus\" FROM versions WHERE id = $1",
             id
         )
         .fetch_optional(self.pool())
@@ -59,14 +59,14 @@ impl Database {
                 row.client,
                 row.is_ready,
                 &row.hot_update_list,
-                &row.asset_mapping_status,
+                row.asset_mapping_status,
             )
         }))
     }
 
     pub async fn get_version_by_res(&self, res: &str) -> AppResult<Option<VersionRow>> {
         let result = sqlx::query!(
-            "SELECT id, res, client, is_ready, hot_update_list, asset_mapping_status::text AS \"asset_mapping_status!\" FROM versions WHERE res = $1",
+            "SELECT id, res, client, is_ready, hot_update_list, asset_mapping_status AS \"asset_mapping_status!: AssetMappingStatus\" FROM versions WHERE res = $1",
             res
         )
         .fetch_optional(self.pool())
@@ -80,14 +80,14 @@ impl Database {
                 row.client,
                 row.is_ready,
                 &row.hot_update_list,
-                &row.asset_mapping_status,
+                row.asset_mapping_status,
             )
         }))
     }
 
     pub async fn get_latest_version(&self) -> AppResult<Option<VersionRow>> {
         let result = sqlx::query!(
-            "SELECT id, res, client, is_ready, hot_update_list, asset_mapping_status::text AS \"asset_mapping_status!\" FROM versions ORDER BY id DESC LIMIT 1"
+            "SELECT id, res, client, is_ready, hot_update_list, asset_mapping_status AS \"asset_mapping_status!: AssetMappingStatus\" FROM versions ORDER BY id DESC LIMIT 1"
         )
         .fetch_optional(self.pool())
         .await
@@ -100,7 +100,7 @@ impl Database {
                 row.client,
                 row.is_ready,
                 &row.hot_update_list,
-                &row.asset_mapping_status,
+                row.asset_mapping_status,
             )
         }))
     }
@@ -120,7 +120,7 @@ impl Database {
 
     pub async fn get_oldest_unready_version(&self) -> AppResult<Option<VersionRow>> {
         let result = sqlx::query!(
-            "SELECT id, res, client, is_ready, hot_update_list, asset_mapping_status::text AS \"asset_mapping_status!\" FROM versions WHERE is_ready = false ORDER BY id ASC LIMIT 1"
+            "SELECT id, res, client, is_ready, hot_update_list, asset_mapping_status AS \"asset_mapping_status!: AssetMappingStatus\" FROM versions WHERE is_ready = false ORDER BY id ASC LIMIT 1"
         )
         .fetch_optional(self.pool())
         .await
@@ -133,7 +133,7 @@ impl Database {
                 row.client,
                 row.is_ready,
                 &row.hot_update_list,
-                &row.asset_mapping_status,
+                row.asset_mapping_status,
             )
         }))
     }
@@ -151,11 +151,11 @@ impl Database {
         id: i32,
         status: AssetMappingStatus,
     ) -> AppResult<()> {
-        sqlx::query(
+        sqlx::query!(
             "UPDATE versions SET asset_mapping_status = $2::asset_mapping_status WHERE id = $1",
+            id,
+            status as AssetMappingStatus
         )
-        .bind(id)
-        .bind(status.as_str())
         .execute(self.pool())
         .await
         .map_err(|err| AppError::ExternalService(err.into()))?;

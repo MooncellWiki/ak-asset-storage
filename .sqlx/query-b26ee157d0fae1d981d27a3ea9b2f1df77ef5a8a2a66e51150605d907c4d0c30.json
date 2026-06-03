@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "SELECT id, res, client, is_ready, hot_update_list, asset_mapping_status::text AS \"asset_mapping_status!\" FROM versions WHERE res = $1",
+  "query": "SELECT id, res, client, is_ready, hot_update_list, asset_mapping_status AS \"asset_mapping_status!: AssetMappingStatus\" FROM versions ORDER BY id DESC LIMIT 1",
   "describe": {
     "columns": [
       {
@@ -30,14 +30,23 @@
       },
       {
         "ordinal": 5,
-        "name": "asset_mapping_status!",
-        "type_info": "Text"
+        "name": "asset_mapping_status!: AssetMappingStatus",
+        "type_info": {
+          "Custom": {
+            "name": "asset_mapping_status",
+            "kind": {
+              "Enum": [
+                "pending",
+                "importing",
+                "ready"
+              ]
+            }
+          }
+        }
       }
     ],
     "parameters": {
-      "Left": [
-        "Text"
-      ]
+      "Left": []
     },
     "nullable": [
       false,
@@ -45,8 +54,8 @@
       false,
       false,
       false,
-      null
+      false
     ]
   },
-  "hash": "71bc5799038e6ef11c0c6b232c60c62d2fe5f037b0ecd59b537ca435ed25f74c"
+  "hash": "b26ee157d0fae1d981d27a3ea9b2f1df77ef5a8a2a66e51150605d907c4d0c30"
 }

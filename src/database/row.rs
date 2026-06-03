@@ -35,47 +35,18 @@ pub struct AssetMappingRow {
     pub node_type: NodeType,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(sqlx::Type, Debug, Clone, Copy, PartialEq, Eq)]
+#[sqlx(type_name = "node_type")]
 pub enum NodeType {
     File,
     Directory,
     Both,
 }
 
-impl NodeType {
-    #[must_use]
-    pub const fn as_str(self) -> &'static str {
-        match self {
-            Self::File => "file",
-            Self::Directory => "directory",
-            Self::Both => "both",
-        }
-    }
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(sqlx::Type, Debug, Clone, Copy, PartialEq, Eq)]
+#[sqlx(type_name = "asset_mapping_status")]
 pub enum AssetMappingStatus {
     Pending,
     Importing,
     Ready,
-}
-
-impl AssetMappingStatus {
-    #[must_use]
-    pub const fn as_str(self) -> &'static str {
-        match self {
-            Self::Pending => "pending",
-            Self::Importing => "importing",
-            Self::Ready => "ready",
-        }
-    }
-
-    #[must_use]
-    pub fn from_str_lossy(s: &str) -> Self {
-        match s {
-            "importing" => Self::Importing,
-            "ready" => Self::Ready,
-            _ => Self::Pending,
-        }
-    }
 }

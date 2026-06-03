@@ -3,7 +3,7 @@ use crate::{
     database::{
         Database,
         model::{AssetMappingDetails, ManifestNode},
-        row::{AssetMappingRow, AssetMappingStatus},
+        row::{AssetMappingRow, AssetMappingStatus, NodeType},
     },
 };
 use sqlx::{Acquire, Postgres, pool::PoolConnection, query_as};
@@ -19,11 +19,11 @@ impl Database {
             .await
             .map_err(|err| AppError::ExternalService(err.into()))?;
 
-        sqlx::query(
+        sqlx::query!(
             "UPDATE versions SET asset_mapping_status = $2::asset_mapping_status WHERE id = $1",
+            version_id,
+            AssetMappingStatus::Importing as AssetMappingStatus
         )
-        .bind(version_id)
-        .bind(AssetMappingStatus::Importing.as_str())
         .execute(&mut *tx)
         .await
         .map_err(|err| AppError::ExternalService(err.into()))?;
@@ -50,18 +50,18 @@ VALUES
                 mapping.asset_path.as_deref(),
                 mapping.short_name.as_deref(),
                 &mapping.dir_name,
-                mapping.node_type.as_str() as &str
+                mapping.node_type as NodeType
             )
             .execute(&mut *tx)
             .await
             .map_err(|err| AppError::ExternalService(err.into()))?;
         }
 
-        sqlx::query(
+        sqlx::query!(
             "UPDATE versions SET asset_mapping_status = $2::asset_mapping_status WHERE id = $1",
+            version_id,
+            AssetMappingStatus::Ready as AssetMappingStatus
         )
-        .bind(version_id)
-        .bind(AssetMappingStatus::Ready.as_str())
         .execute(&mut *tx)
         .await
         .map_err(|err| AppError::ExternalService(err.into()))?;

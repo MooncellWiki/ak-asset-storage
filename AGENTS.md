@@ -81,6 +81,7 @@ docker exec -i ak-asset-storage-db-1 psql -U ak -d ak_asset_storage_next -c "SEL
 
 **Important rules:**
 
+- **Always use `sqlx::query!` / `query_as!` / `query_scalar!` macros**, never the non-macro `sqlx::query` / `query_as` functions. The macros provide compile-time query verification.
 - **Never edit the `.sqlx/` directory.** Leave it as-is.
 - **Do not use `SQLX_OFFLINE=true`** when running `cargo check` or `cargo build`. Instead, run `sqlx migrate run` first to ensure migrations are applied to the running database, then run `cargo check` or `cargo build` directly so sqlx can verify queries against the live database.
 - If `cargo check` or `cargo build` fails with a database connection error, **stop and ask the user to resolve it** — do not fall back to `SQLX_OFFLINE=true`.
