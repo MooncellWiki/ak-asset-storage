@@ -19,7 +19,7 @@ use tracing::info;
 pub async fn execute(settings: &AppSettings, concurrent: usize) -> AppResult<()> {
     info!("Starting worker...");
     let database = Database::connect(&settings.database).await?;
-    let ak_api = AkApi::new(&settings.ak);
+    let ak_api = AkApi::new(&settings.ak)?;
     let notification = NotificationClient::new(&settings.mailer)?;
     let s3 = S3Storage::new(&settings.s3)?;
 
@@ -65,17 +65,17 @@ pub async fn execute(settings: &AppSettings, concurrent: usize) -> AppResult<()>
     let manifest_watcher = ManifestWatcher::new(import_service, &gamedata_root)
         .map_err(crate::AppError::Application)?;
 
-    let worker_handle = tokio::spawn(async move {
-        sync_worker.run().await;
-        sync_worker
-    });
-
     info!("Worker is running. Press Ctrl+C to stop.");
-    runtime::shutdown_signal().await;
-    info!("Shutdown signal received, stopping worker...");
+    tokio::select! {
+        () = sync_worker.run() => {
+            info!("Worker loop exited.");
+        }
+        () = runtime::shutdown_signal() => {
+            info!("Shutdown signal received, stopping worker...");
+            sync_worker.stop();
+        }
+    }
 
-    let sync_worker = worker_handle.abort_handle();
-    sync_worker.abort();
     drop(manifest_watcher);
     info!("Worker has stopped.");
     Ok(())

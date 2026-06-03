@@ -11,18 +11,17 @@ pub struct AkApi {
 }
 
 impl AkApi {
-    #[must_use]
-    pub fn new(config: &AkApiConfig) -> Self {
+    pub fn new(config: &AkApiConfig) -> AppResult<Self> {
         let client = reqwest::ClientBuilder::new()
             .timeout(Duration::from_secs(30))
             .build()
-            .expect("Failed to create HTTP client");
+            .map_err(|err| AppError::ExternalService(err.into()))?;
 
-        Self {
+        Ok(Self {
             client,
             conf_url: config.conf_url.clone(),
             asset_url: config.asset_url.clone(),
-        }
+        })
     }
 
     #[instrument(name = "ak_api.get_version", skip(self))]

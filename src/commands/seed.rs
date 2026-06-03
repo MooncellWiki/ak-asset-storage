@@ -32,7 +32,7 @@ pub async fn execute(
 
     info!("Seeding database from CSV file: {:?}", csv_path);
     let database = Database::connect(&settings.database).await?;
-    let ak_api = AkApi::new(&settings.ak);
+    let ak_api = AkApi::new(&settings.ak)?;
     let storage = S3Storage::new(&settings.s3)?;
     let notification = NotificationClient::new(&settings.mailer)?;
     let version_check = VersionCheckService {
