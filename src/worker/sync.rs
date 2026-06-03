@@ -68,7 +68,7 @@ impl SyncWorker {
                 if has_update {
                     info!("New version detected, starting download...");
                     let mut task = self.download_task.lock().unwrap();
-                    if task.is_none() {
+                    if task.as_ref().is_none_or(JoinHandle::is_finished) {
                         *task = Some(self.start_download_task());
                     } else {
                         info!("Download task is already running");
