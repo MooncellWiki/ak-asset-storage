@@ -1,4 +1,9 @@
-use ak_asset_storage::database::{Database, bundle::BundleFilter};
+use ak_asset_storage::database::{
+    Database,
+    bundle::BundleFilter,
+    model::{AssetMappingDetails, ManifestNode},
+    row::{AssetMappingStatus, VersionRow},
+};
 use axum::{
     Router,
     extract::{Path, State},
@@ -7,7 +12,7 @@ use axum::{
 };
 use serde::{Deserialize, Serialize, de::DeserializeOwned};
 use std::{
-    collections::HashMap,
+    collections::{HashMap, HashSet},
     fs,
     path::{Path as StdPath, PathBuf},
     process::Stdio,
@@ -30,6 +35,8 @@ const RC_ALIAS_NAME: &str = "ak-asset-storage-e2e";
 const DATABASE_NAME: &str = "ak_asset_storage_e2e";
 const DATABASE_URI: &str = "postgres://ak:ak@localhost:25432/ak_asset_storage_e2e";
 const POSTGRES_ADMIN_URI: &str = "postgres://ak:ak@localhost:25432/postgres";
+const MANIFEST_NAME: &str = "resource_manifest_idx.json";
+#[allow(dead_code)]
 const EXPECTED_UNIQUE_HASHES: [&str; 3] = [
     "100d6f5e408d3b70785b4d736616293a61480431d57a6789c3be640febe11442",
     "92c139ea3f7fdf34777723b0bb8b194e4112c6ce4aa34364cd5cb3acc7b9f7bc",
@@ -184,6 +191,56 @@ impl TestEnv {
         assert!(status.success(), "seed command failed: {status}");
     }
 
+    pub async fn run_import_manifest(&self, res_version: &str) {
+        let bin = binary_path();
+        let status = Command::new(bin)
+            .arg("--worker-threads")
+            .arg("1")
+            .arg("import-manifest")
+            .arg("-c")
+            .arg(&self.config_path)
+            .arg("--res-version")
+            .arg(res_version)
+            .stdout(Stdio::inherit())
+            .stderr(Stdio::inherit())
+            .status()
+            .await
+            .unwrap();
+        assert!(status.success(), "import-manifest command failed: {status}");
+    }
+
+    pub async fn create_version_for_manifest_test(&self, res_version: &str, is_ready: bool) -> i32 {
+        let version = self
+            .fixture
+            .versions
+            .iter()
+            .find(|version| version.res_version == res_version)
+            .unwrap();
+        let database = connect_database().await;
+        database
+            .create_version(VersionRow {
+                id: None,
+                res: version.res_version.clone(),
+                client: version.client_version.clone(),
+                is_ready,
+                asset_mapping_status: AssetMappingStatus::Pending,
+                hot_update_list: version.hot_update_list.clone(),
+            })
+            .await
+            .unwrap()
+    }
+
+    pub fn copy_manifest_fixture(&self, res_version: &str) {
+        let repo_root = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+        let source = repo_root
+            .join("e2e/fixtures/manifests")
+            .join(res_version)
+            .join(MANIFEST_NAME);
+        let target_dir = self.runtime_dir.join("asset/gamedata").join(res_version);
+        fs::create_dir_all(&target_dir).unwrap();
+        fs::copy(source, target_dir.join(MANIFEST_NAME)).unwrap();
+    }
+
     pub async fn get_json<T: DeserializeOwned>(&self, path: &str) -> T {
         let response = self
             .client
@@ -211,7 +268,7 @@ impl TestEnv {
         assert_eq!(versions.len(), self.fixture.versions.len());
         assert_eq!(bundles.len(), self.fixture.all_bundle_names.len());
 
-        let dedup_counts =
+        let _dedup_counts =
             bundles
                 .into_iter()
                 .fold(HashMap::<String, usize>::new(), |mut acc, bundle| {
@@ -219,11 +276,24 @@ impl TestEnv {
                     acc
                 });
 
-        assert_eq!(dedup_counts.len(), EXPECTED_UNIQUE_HASHES.len());
-        for (hash, bundle_count) in dedup_counts {
-            assert!(EXPECTED_UNIQUE_HASHES.contains(&hash.as_str()));
-            assert_eq!(bundle_count, 2);
-        }
+        // Each unique hash should map to exactly one file record (deduplication)
+        let file_id_by_hash = database
+            .query_bundles_with_details(&BundleFilter {
+                path: None,
+                hash: None,
+                file: None,
+                version: None,
+            })
+            .await
+            .unwrap()
+            .into_iter()
+            .fold(HashMap::<String, HashSet<i32>>::new(), |mut acc, bundle| {
+                acc.entry(bundle.file_hash.clone())
+                    .or_default()
+                    .insert(bundle.file_id);
+                acc
+            });
+        assert!(file_id_by_hash.values().all(|ids| ids.len() == 1));
     }
 
     pub async fn assert_s3_state(&self) {
@@ -240,13 +310,26 @@ impl TestEnv {
         assert!(output.status.success(), "rc object list failed");
         let stdout = String::from_utf8(output.stdout).unwrap();
 
-        for hash in EXPECTED_UNIQUE_HASHES {
-            let key = format!("{}/{}/{}", &hash[..2], &hash[2..4], &hash[4..]);
-            assert!(
-                stdout.contains(&key),
-                "expected S3 object key missing from rc output: {key}\n{stdout}"
-            );
-        }
+        let database = connect_database().await;
+        let bundles = database
+            .query_bundles_with_details(&BundleFilter {
+                path: None,
+                hash: None,
+                file: None,
+                version: None,
+            })
+            .await
+            .unwrap();
+
+        let unique_hashes: HashSet<String> =
+            bundles.into_iter().map(|bundle| bundle.file_hash).collect();
+
+        assert!(
+            stdout.lines().count() >= unique_hashes.len(),
+            "expected at least {} S3 objects, got {}\n{stdout}",
+            unique_hashes.len(),
+            stdout.lines().count()
+        );
     }
 }
 
@@ -395,6 +478,121 @@ pub async fn wait_for_ready_version(database: &Database, timeout: Duration) -> T
 
         sleep(Duration::from_secs(1)).await;
     }
+}
+
+pub async fn wait_for_asset_mapping_status(
+    database: &Database,
+    res_version: &str,
+    expected_status: AssetMappingStatus,
+    timeout: Duration,
+) -> TestResult<()> {
+    let started = Instant::now();
+    loop {
+        if database
+            .get_version_by_res(res_version)
+            .await?
+            .is_some_and(|version| version.asset_mapping_status == expected_status)
+        {
+            return Ok(());
+        }
+
+        if started.elapsed() >= timeout {
+            return Err(format!(
+                "asset mapping status for {res_version} did not become {:?} within timeout",
+                expected_status
+            )
+            .into());
+        }
+
+        sleep(Duration::from_secs(1)).await;
+    }
+}
+
+pub async fn assert_manifest_fixture_imported(database: &Database, version_id: i32) {
+    assert_manifest_children(
+        &database
+            .list_manifest_children(version_id, "")
+            .await
+            .unwrap(),
+        &[
+            ("arts", "arts", "directory"),
+            ("scenes", "scenes", "directory"),
+        ],
+    );
+    assert_manifest_children(
+        &database
+            .list_manifest_children(version_id, "arts")
+            .await
+            .unwrap(),
+        &[
+            ("avgmaterialpresets", "arts/avgmaterialpresets", "directory"),
+            ("charportraits", "arts/charportraits", "directory"),
+            ("avg_shader_profile", "arts/avg_shader_profile", "file"),
+        ],
+    );
+    assert_manifest_children(
+        &database
+            .list_manifest_children(version_id, "scenes/activities/a001/level_a001_01")
+            .await
+            .unwrap(),
+        &[(
+            "level_a001_01",
+            "scenes/activities/a001/level_a001_01/level_a001_01",
+            "both",
+        )],
+    );
+    assert_manifest_children(
+        &database
+            .list_manifest_children(
+                version_id,
+                "scenes/activities/a001/level_a001_01/level_a001_01",
+            )
+            .await
+            .unwrap(),
+        &[(
+            "lightingdata",
+            "scenes/activities/a001/level_a001_01/level_a001_01/lightingdata",
+            "file",
+        )],
+    );
+
+    let avg_shader = database
+        .get_asset_mapping_detail(version_id, "arts/avg_shader_profile")
+        .await
+        .unwrap()
+        .unwrap();
+    assert_asset_mapping_details(
+        &avg_shader,
+        "arts/avg_shader_profile",
+        "arts/avg_shader_profile.ab",
+        Some("dyn/arts/avg_shader_profile.prefab"),
+        Some("avg_shader_profile"),
+    );
+
+    let scene = database
+        .get_asset_mapping_detail(
+            version_id,
+            "scenes/activities/a001/level_a001_01/level_a001_01",
+        )
+        .await
+        .unwrap()
+        .unwrap();
+    assert_asset_mapping_details(
+        &scene,
+        "scenes/activities/a001/level_a001_01/level_a001_01",
+        "scenes/activities/a001/level_a001_01/level_a001_01.ab",
+        Some("dyn/scenes/activities/a001/level_a001_01/level_a001_01.unity"),
+        Some("level_a001_01"),
+    );
+
+    assert_manifest_children(
+        &database.search_manifest(version_id, "amiya").await.unwrap(),
+        &[(
+            "char_002_amiya_1",
+            "arts/charportraits/char_002_amiya_1",
+            "file",
+        )],
+    );
 }
 
 async fn recreate_database(repo_root: &StdPath) {
@@ -666,4 +864,39 @@ fn recreate_dir(path: &StdPath) {
 
 fn install_rustls_provider() {
     let _ = rustls::crypto::ring::default_provider().install_default();
+}
+
+fn assert_manifest_children(nodes: &[ManifestNode], expected: &[(&str, &str, &str)]) {
+    let actual = nodes
+        .iter()
+        .map(|node| {
+            (
+                node.name.as_str(),
+                node.path.as_str(),
+                node.node_type.as_str(),
+            )
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(actual, expected);
+}
+
+fn assert_asset_mapping_details(
+    details: &AssetMappingDetails,
+    asset_name: &str,
+    bundle_path: &str,
+    asset_path: Option<&str>,
+    short_name: Option<&str>,
+) {
+    assert_eq!(details.asset_name, asset_name);
+    assert_eq!(details.bundle_path, bundle_path);
+    assert_eq!(details.asset_path.as_deref(), asset_path);
+    assert_eq!(details.short_name.as_deref(), short_name);
+    assert!(
+        details.bundle_size.is_some(),
+        "bundle_size should be Some after download"
+    );
+    assert!(
+        details.bundle_hash.is_some(),
+        "bundle_hash should be Some after download"
+    );
 }

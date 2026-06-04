@@ -10,3 +10,6 @@ up:
 
 pre-release version:
     git cliff -o CHANGELOG.md --tag {{version}} && git add CHANGELOG.md
+
+e2e:
+    cargo test --test e2e -- --ignored --nocapture --test-threads=1

@@ -21,14 +21,14 @@ async fn worker_polls_new_version_and_downloads_assets() {
         .query_bundles_by_version_id(versions.first().unwrap().id)
         .await
         .unwrap();
-    assert_eq!(bundles.len(), 3);
+    assert_eq!(bundles.len(), 5);
     assert_eq!(
         bundles
             .iter()
             .map(|bundle| bundle.file_hash.as_str())
             .collect::<std::collections::HashSet<_>>()
             .len(),
-        3
+        5
     );
 
     env.assert_s3_state().await;
