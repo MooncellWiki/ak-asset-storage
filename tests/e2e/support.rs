@@ -1,4 +1,4 @@
-use ak_asset_storage::database::Database;
+use ak_asset_storage::database::{Database, bundle::BundleFilter};
 use axum::{
     Router,
     extract::{Path, State},
@@ -20,6 +20,8 @@ use tokio::{
     task::JoinHandle,
     time::sleep,
 };
+
+type TestResult<T> = Result<T, Box<dyn std::error::Error + Send + Sync>>;
 
 const SERVER_PORT: u16 = 25150;
 const FAKE_AK_PORT: u16 = 25151;
@@ -56,7 +58,7 @@ pub struct TestEnv {
     config_path: PathBuf,
     client: reqwest::Client,
     fake_ak_task: JoinHandle<()>,
-    server: Child,
+    server: Option<Child>,
 }
 
 #[derive(Debug, Clone)]
@@ -107,6 +109,8 @@ impl TestEnv {
 
         let asset_dir = runtime_dir.join("asset");
         fs::create_dir_all(&asset_dir).unwrap();
+        let gamedata_dir = asset_dir.join("gamedata");
+        fs::create_dir_all(&gamedata_dir).unwrap();
 
         let fixture = load_fixture(&repo_root);
         ensure_dependencies_ready(&repo_root).await;
@@ -123,8 +127,41 @@ impl TestEnv {
             config_path,
             client: reqwest::Client::new(),
             fake_ak_task,
-            server,
+            server: Some(server),
         }
+    }
+
+    #[allow(dead_code)]
+    pub async fn bootstrap_worker() -> Self {
+        install_rustls_provider();
+        let repo_root = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+        let runtime_dir = repo_root.join("e2e/runtime");
+        recreate_dir(&runtime_dir);
+
+        let asset_dir = runtime_dir.join("asset");
+        fs::create_dir_all(&asset_dir).unwrap();
+        let gamedata_dir = asset_dir.join("gamedata");
+        fs::create_dir_all(&gamedata_dir).unwrap();
+
+        let fixture = load_fixture(&repo_root);
+        ensure_dependencies_ready(&repo_root).await;
+        recreate_bucket(&repo_root).await;
+
+        let fake_ak_task = spawn_fake_ak_server(fixture.clone()).await;
+        let config_path = write_config(&runtime_dir, &asset_dir).unwrap();
+
+        Self {
+            fixture,
+            runtime_dir,
+            config_path,
+            client: reqwest::Client::new(),
+            fake_ak_task,
+            server: None,
+        }
+    }
+
+    pub fn config_path(&self) -> &StdPath {
+        &self.config_path
     }
 
     pub async fn run_seed(&self) {
@@ -160,52 +197,32 @@ impl TestEnv {
 
     pub async fn assert_database_state(&self) {
         let database = connect_database().await;
-        let version_count = sqlx::query_scalar!("SELECT COUNT(*) FROM versions")
-            .fetch_one(database.pool())
+        let versions = database.query_versions().await.unwrap();
+        let bundles = database
+            .query_bundles_with_details(&BundleFilter {
+                path: None,
+                hash: None,
+                file: None,
+                version: None,
+            })
             .await
-            .unwrap()
-            .unwrap_or_default();
-        let file_count = sqlx::query_scalar!("SELECT COUNT(*) FROM files")
-            .fetch_one(database.pool())
-            .await
-            .unwrap()
-            .unwrap_or_default();
-        let bundle_count = sqlx::query_scalar!("SELECT COUNT(*) FROM bundles")
-            .fetch_one(database.pool())
-            .await
-            .unwrap()
-            .unwrap_or_default();
+            .unwrap();
 
-        assert_eq!(
-            version_count,
-            i64::try_from(self.fixture.versions.len()).unwrap()
-        );
-        assert_eq!(
-            file_count,
-            i64::try_from(EXPECTED_UNIQUE_HASHES.len()).unwrap()
-        );
-        assert_eq!(
-            bundle_count,
-            i64::try_from(self.fixture.all_bundle_names.len()).unwrap()
-        );
+        assert_eq!(versions.len(), self.fixture.versions.len());
+        assert_eq!(bundles.len(), self.fixture.all_bundle_names.len());
 
-        let dedup_counts = sqlx::query!(
-            r#"
-SELECT f.hash, COUNT(b.id) AS "bundle_count!"
-FROM files f
-INNER JOIN bundles b ON b.file = f.id
-GROUP BY f.hash
-ORDER BY f.hash
-            "#
-        )
-        .fetch_all(database.pool())
-        .await
-        .unwrap();
+        let dedup_counts =
+            bundles
+                .into_iter()
+                .fold(HashMap::<String, usize>::new(), |mut acc, bundle| {
+                    *acc.entry(bundle.file_hash).or_default() += 1;
+                    acc
+                });
 
         assert_eq!(dedup_counts.len(), EXPECTED_UNIQUE_HASHES.len());
-        for row in dedup_counts {
-            assert!(EXPECTED_UNIQUE_HASHES.contains(&row.hash.as_str()));
-            assert_eq!(row.bundle_count, 2);
+        for (hash, bundle_count) in dedup_counts {
+            assert!(EXPECTED_UNIQUE_HASHES.contains(&hash.as_str()));
+            assert_eq!(bundle_count, 2);
         }
     }
 
@@ -235,7 +252,9 @@ ORDER BY f.hash
 
 impl Drop for TestEnv {
     fn drop(&mut self) {
-        let _ = self.server.start_kill();
+        if let Some(ref mut server) = self.server {
+            let _ = server.start_kill();
+        }
         self.fake_ak_task.abort();
         let _ = fs::remove_dir_all(&self.runtime_dir);
     }
@@ -348,7 +367,7 @@ async fn recreate_bucket(repo_root: &StdPath) {
     assert!(create_status.success(), "rc bucket create failed");
 }
 
-async fn connect_database() -> Database {
+pub async fn connect_database() -> Database {
     Database::connect(&ak_asset_storage::config::DatabaseConfig {
         uri: DATABASE_URI.to_string(),
         max_connections: Some(5),
@@ -356,6 +375,26 @@ async fn connect_database() -> Database {
     })
     .await
     .unwrap()
+}
+
+pub async fn wait_for_ready_version(database: &Database, timeout: Duration) -> TestResult<()> {
+    let started = Instant::now();
+    loop {
+        if database
+            .query_versions()
+            .await?
+            .into_iter()
+            .any(|version| version.is_ready)
+        {
+            return Ok(());
+        }
+
+        if started.elapsed() >= timeout {
+            return Err("worker did not finish downloading within timeout".into());
+        }
+
+        sleep(Duration::from_secs(1)).await;
+    }
 }
 
 async fn recreate_database(repo_root: &StdPath) {
@@ -409,7 +448,7 @@ fn write_config(runtime_dir: &StdPath, asset_dir: &StdPath) -> std::io::Result<P
     let config = format!(
         r#"[logger]
 enable = true
-level = "debug"
+level = "warn"
 format = "compact"
 
 [server]
@@ -529,6 +568,25 @@ async fn spawn_server(config_path: &StdPath) -> Child {
         .arg("server")
         .arg("-c")
         .arg(config_path)
+        .stdout(Stdio::inherit())
+        .stderr(Stdio::inherit())
+        .spawn()
+        .unwrap()
+}
+
+#[allow(dead_code)]
+pub async fn spawn_worker(config_path: &StdPath, poll_interval_seconds: u64) -> Child {
+    let bin = binary_path();
+    Command::new(bin)
+        .arg("--worker-threads")
+        .arg("1")
+        .arg("worker")
+        .arg("-c")
+        .arg(config_path)
+        .arg("--concurrent")
+        .arg("1")
+        .arg("--poll-interval-seconds")
+        .arg(poll_interval_seconds.to_string())
         .stdout(Stdio::inherit())
         .stderr(Stdio::inherit())
         .spawn()

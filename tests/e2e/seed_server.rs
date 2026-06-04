@@ -1,14 +1,10 @@
-#![allow(clippy::unwrap_used)]
-
-mod e2e_support;
-
-use e2e_support::{BundleDetails, VersionDetails, VersionSummary};
+use crate::support::{BundleDetails, TestEnv, VersionDetails, VersionSummary};
 use std::collections::{HashMap, HashSet};
 
 #[tokio::test]
 #[ignore = "manual e2e test requiring docker, rc, and fixture assets"]
 async fn seed_two_versions_then_query_real_server() {
-    let env = e2e_support::TestEnv::bootstrap().await;
+    let env = TestEnv::bootstrap().await;
 
     env.run_seed().await;
 

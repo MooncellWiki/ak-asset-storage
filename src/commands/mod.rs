@@ -42,6 +42,8 @@ pub enum Commands {
         config: String,
         #[arg(long, default_value = "5")]
         concurrent: usize,
+        #[arg(long, default_value = "120")]
+        poll_interval_seconds: u64,
     },
     Seed {
         #[arg(short, long, default_value = "config.toml")]
@@ -79,9 +81,13 @@ pub async fn run(cli: Cli) -> Result<()> {
                 .await?;
             Ok(())
         }
-        Commands::Worker { config, concurrent } => {
+        Commands::Worker {
+            config,
+            concurrent,
+            poll_interval_seconds,
+        } => {
             let (settings, _sentry) = init(&config)?;
-            worker::execute(settings.as_ref(), concurrent)
+            worker::execute(settings.as_ref(), concurrent, poll_interval_seconds)
                 .await
                 .map_err(anyhow::Error::from)
         }

@@ -16,7 +16,11 @@ use crate::{
 use std::{path::PathBuf, time::Duration};
 use tracing::info;
 
-pub async fn execute(settings: &AppSettings, concurrent: usize) -> AppResult<()> {
+pub async fn execute(
+    settings: &AppSettings,
+    concurrent: usize,
+    poll_interval_seconds: u64,
+) -> AppResult<()> {
     info!("Starting worker...");
     let database = Database::connect(&settings.database).await?;
     let ak_api = AkApi::new(&settings.ak)?;
@@ -54,7 +58,7 @@ pub async fn execute(settings: &AppSettings, concurrent: usize) -> AppResult<()>
             storage: s3,
             concurrent,
         },
-        Duration::from_mins(2),
+        Duration::from_secs(poll_interval_seconds),
     );
 
     let gamedata_root = PathBuf::from(&settings.torappu.asset_base_path).join("gamedata");
