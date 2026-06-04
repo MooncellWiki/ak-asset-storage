@@ -1,0 +1,25 @@
+{
+  "abInfos": [
+    {
+      "abSize": 24063,
+      "hash": "fixture-refs-char-1037",
+      "md5": "fixture-refs-char-1037",
+      "name": "refs/fx/texture/overseas/char_1037_amiya3_sale#13.ab",
+      "totalSize": 18816
+    },
+    {
+      "abSize": 145709,
+      "hash": "fixture-live2d-char-1037",
+      "md5": "fixture-live2d-char-1037",
+      "name": "refs/fx/texture/overseas/live2d/dyn_char_1037_amiya3_sale#13.ab",
+      "totalSize": 116989
+    },
+    {
+      "abSize": 4856,
+      "hash": "fixture-avg-shader-profile",
+      "md5": "fixture-avg-shader-profile",
+      "name": "arts/avg_shader_profile.ab",
+      "totalSize": 3860
+    }
+  ]
+}

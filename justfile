@@ -3,7 +3,7 @@ _default:
 
 init:
     cargo binstall cargo-release git-cliff
-    cargo install sqlx-cli
+    cargo install sqlx-cli rustfs-cli
 
 up:
     sqlx migrate run
