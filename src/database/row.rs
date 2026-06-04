@@ -36,7 +36,7 @@ pub struct AssetMappingRow {
 }
 
 #[derive(sqlx::Type, Debug, Clone, Copy, PartialEq, Eq)]
-#[sqlx(type_name = "node_type")]
+#[sqlx(type_name = "node_type", rename_all = "lowercase")]
 pub enum NodeType {
     File,
     Directory,
@@ -44,7 +44,7 @@ pub enum NodeType {
 }
 
 #[derive(sqlx::Type, Debug, Clone, Copy, PartialEq, Eq)]
-#[sqlx(type_name = "asset_mapping_status")]
+#[sqlx(type_name = "asset_mapping_status", rename_all = "lowercase")]
 pub enum AssetMappingStatus {
     Pending,
     Importing,
