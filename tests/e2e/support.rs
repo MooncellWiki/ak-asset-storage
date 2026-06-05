@@ -36,12 +36,6 @@ const DATABASE_NAME: &str = "ak_asset_storage_e2e";
 const DATABASE_URI: &str = "postgres://ak:ak@localhost:25432/ak_asset_storage_e2e";
 const POSTGRES_ADMIN_URI: &str = "postgres://ak:ak@localhost:25432/postgres";
 const MANIFEST_NAME: &str = "resource_manifest_idx.json";
-#[allow(dead_code)]
-const EXPECTED_UNIQUE_HASHES: [&str; 3] = [
-    "100d6f5e408d3b70785b4d736616293a61480431d57a6789c3be640febe11442",
-    "92c139ea3f7fdf34777723b0bb8b194e4112c6ce4aa34364cd5cb3acc7b9f7bc",
-    "e7997e26db3e1957dfbd96b84d11a89d5c484422850fb83e591727a9ebb9e7c4",
-];
 
 #[derive(Debug, Clone)]
 pub struct FixtureVersion {
@@ -109,37 +103,20 @@ pub struct BundleDetails {
 
 impl TestEnv {
     pub async fn bootstrap() -> Self {
-        install_rustls_provider();
-        let repo_root = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
-        let runtime_dir = repo_root.join("e2e/runtime");
-        recreate_dir(&runtime_dir);
-
-        let asset_dir = runtime_dir.join("asset");
-        fs::create_dir_all(&asset_dir).unwrap();
-        let gamedata_dir = asset_dir.join("gamedata");
-        fs::create_dir_all(&gamedata_dir).unwrap();
-
-        let fixture = load_fixture(&repo_root);
-        ensure_dependencies_ready(&repo_root).await;
-        recreate_bucket(&repo_root).await;
-
-        let fake_ak_task = spawn_fake_ak_server(fixture.clone()).await;
-        let config_path = write_config(&runtime_dir, &asset_dir).unwrap();
+        let (mut env, config_path) = Self::bootstrap_common().await;
         let server = spawn_server(&config_path).await;
-        wait_for_http_ok("http://127.0.0.1:25150/api/v1/_health").await;
+        wait_for_http_ok(&format!("http://127.0.0.1:{SERVER_PORT}/api/v1/_health")).await;
 
-        Self {
-            fixture,
-            runtime_dir,
-            config_path,
-            client: reqwest::Client::new(),
-            fake_ak_task,
-            server: Some(server),
-        }
+        env.server = Some(server);
+        env
     }
 
-    #[allow(dead_code)]
     pub async fn bootstrap_worker() -> Self {
+        let (env, _config_path) = Self::bootstrap_common().await;
+        env
+    }
+
+    async fn bootstrap_common() -> (Self, PathBuf) {
         install_rustls_provider();
         let repo_root = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
         let runtime_dir = repo_root.join("e2e/runtime");
@@ -157,14 +134,15 @@ impl TestEnv {
         let fake_ak_task = spawn_fake_ak_server(fixture.clone()).await;
         let config_path = write_config(&runtime_dir, &asset_dir).unwrap();
 
-        Self {
+        let env = Self {
             fixture,
             runtime_dir,
-            config_path,
+            config_path: config_path.clone(),
             client: reqwest::Client::new(),
             fake_ak_task,
             server: None,
-        }
+        };
+        (env, config_path)
     }
 
     pub fn config_path(&self) -> &StdPath {
@@ -172,10 +150,7 @@ impl TestEnv {
     }
 
     pub async fn run_seed(&self) {
-        let bin = binary_path();
-        let status = Command::new(bin)
-            .arg("--worker-threads")
-            .arg("1")
+        let status = build_binary_command()
             .arg("seed")
             .arg("-c")
             .arg(&self.config_path)
@@ -192,10 +167,7 @@ impl TestEnv {
     }
 
     pub async fn run_import_manifest(&self, res_version: &str) {
-        let bin = binary_path();
-        let status = Command::new(bin)
-            .arg("--worker-threads")
-            .arg("1")
+        let status = build_binary_command()
             .arg("import-manifest")
             .arg("-c")
             .arg(&self.config_path)
@@ -298,31 +270,13 @@ impl TestEnv {
         assert_eq!(versions.len(), self.fixture.versions.len());
         assert_eq!(bundles.len(), self.fixture.all_bundle_names.len());
 
-        let _dedup_counts =
-            bundles
-                .into_iter()
-                .fold(HashMap::<String, usize>::new(), |mut acc, bundle| {
-                    *acc.entry(bundle.file_hash).or_default() += 1;
-                    acc
-                });
-
-        // Each unique hash should map to exactly one file record (deduplication)
-        let file_id_by_hash = database
-            .query_bundles_with_details(&BundleFilter {
-                path: None,
-                hash: None,
-                file: None,
-                version: None,
-            })
-            .await
-            .unwrap()
-            .into_iter()
-            .fold(HashMap::<String, HashSet<i32>>::new(), |mut acc, bundle| {
-                acc.entry(bundle.file_hash.clone())
-                    .or_default()
-                    .insert(bundle.file_id);
-                acc
-            });
+        let mut file_id_by_hash: HashMap<String, HashSet<i32>> = HashMap::new();
+        for bundle in bundles {
+            file_id_by_hash
+                .entry(bundle.file_hash)
+                .or_default()
+                .insert(bundle.file_id);
+        }
         assert!(file_id_by_hash.values().all(|ids| ids.len() == 1));
     }
 
@@ -374,7 +328,7 @@ impl Drop for TestEnv {
 }
 
 pub fn load_fixture(repo_root: &StdPath) -> Fixture {
-    let versions = [
+    let versions: Vec<FixtureVersion> = [
         ("26-05-20-12-59-09_e8f456", "2.7.31"),
         ("26-05-27-13-32-37_d44f28", "2.7.41"),
     ]
@@ -383,12 +337,12 @@ pub fn load_fixture(repo_root: &StdPath) -> Fixture {
         let root = repo_root.join("e2e/fixtures/upstream").join(res_version);
         let hot_update_list = fs::read_to_string(root.join("hot_update_list.json")).unwrap();
         let payload: serde_json::Value = serde_json::from_str(&hot_update_list).unwrap();
-        let mut bundle_names = payload["abInfos"]
+        let mut bundle_names: Vec<String> = payload["abInfos"]
             .as_array()
             .unwrap()
             .iter()
             .map(|entry| entry["name"].as_str().unwrap().to_string())
-            .collect::<Vec<_>>();
+            .collect();
         bundle_names.sort();
 
         FixtureVersion {
@@ -399,12 +353,12 @@ pub fn load_fixture(repo_root: &StdPath) -> Fixture {
             bundle_names,
         }
     })
-    .collect::<Vec<_>>();
+    .collect();
 
-    let mut all_bundle_names = versions
+    let mut all_bundle_names: Vec<String> = versions
         .iter()
         .flat_map(|version| version.bundle_names.iter().cloned())
-        .collect::<Vec<_>>();
+        .collect();
     all_bundle_names.sort();
 
     Fixture {
@@ -414,11 +368,10 @@ pub fn load_fixture(repo_root: &StdPath) -> Fixture {
 }
 
 async fn ensure_dependencies_ready(repo_root: &StdPath) {
-    let docker_compose = repo_root.join("docker-compose.yaml");
     let status = Command::new("docker")
         .arg("compose")
         .arg("-f")
-        .arg(&docker_compose)
+        .arg(repo_root.join("docker-compose.yaml"))
         .arg("up")
         .arg("-d")
         .arg("db")
@@ -491,23 +444,14 @@ pub async fn connect_database() -> Database {
 }
 
 pub async fn wait_for_ready_version(database: &Database, timeout: Duration) -> TestResult<()> {
-    let started = Instant::now();
-    loop {
-        if database
-            .query_versions()
-            .await?
-            .into_iter()
-            .any(|version| version.is_ready)
-        {
-            return Ok(());
+    wait_for(timeout, Duration::from_secs(1), || async {
+        match database.query_versions().await {
+            Ok(versions) => versions.into_iter().any(|version| version.is_ready),
+            Err(_) => false,
         }
-
-        if started.elapsed() >= timeout {
-            return Err("worker did not finish downloading within timeout".into());
-        }
-
-        sleep(Duration::from_secs(1)).await;
-    }
+    })
+    .await
+    .map_err(|_| "worker did not finish downloading within timeout".into())
 }
 
 pub async fn wait_for_asset_mapping_status(
@@ -516,26 +460,20 @@ pub async fn wait_for_asset_mapping_status(
     expected_status: AssetMappingStatus,
     timeout: Duration,
 ) -> TestResult<()> {
-    let started = Instant::now();
-    loop {
-        if database
-            .get_version_by_res(res_version)
-            .await?
-            .is_some_and(|version| version.asset_mapping_status == expected_status)
-        {
-            return Ok(());
+    wait_for(timeout, Duration::from_secs(1), || async {
+        match database.get_version_by_res(res_version).await {
+            Ok(Some(version)) => version.asset_mapping_status == expected_status,
+            Ok(None) => false,
+            Err(_) => false,
         }
-
-        if started.elapsed() >= timeout {
-            return Err(format!(
-                "asset mapping status for {res_version} did not become {:?} within timeout",
-                expected_status
-            )
-            .into());
-        }
-
-        sleep(Duration::from_secs(1)).await;
-    }
+    })
+    .await
+    .map_err(|_| {
+        format!(
+            "asset mapping status for {res_version} did not become {expected_status:?} within timeout"
+        )
+        .into()
+    })
 }
 
 pub async fn assert_manifest_fixture_imported(database: &Database, version_id: i32) {
@@ -629,29 +567,18 @@ async fn recreate_database(repo_root: &StdPath) {
     let drop_statement = format!("DROP DATABASE IF EXISTS {DATABASE_NAME} WITH (FORCE);");
     let create_statement = format!("CREATE DATABASE {DATABASE_NAME};");
 
-    let drop_status = Command::new("docker")
-        .arg("compose")
-        .arg("-f")
-        .arg(repo_root.join("docker-compose.yaml"))
-        .arg("exec")
-        .arg("-T")
-        .arg("db")
-        .arg("psql")
-        .arg("-U")
-        .arg("ak")
-        .arg("-d")
-        .arg("postgres")
-        .arg("-c")
-        .arg(&drop_statement)
-        .stdout(Stdio::inherit())
-        .stderr(Stdio::inherit())
-        .status()
-        .await
-        .unwrap();
-    assert!(drop_status.success(), "drop e2e database failed");
+    for statement in [drop_statement, create_statement] {
+        let status = docker_compose_exec_psql(repo_root, &statement)
+            .status()
+            .await
+            .unwrap();
+        assert!(status.success(), "database operation failed");
+    }
+}
 
-    let create_status = Command::new("docker")
-        .arg("compose")
+fn docker_compose_exec_psql(repo_root: &StdPath, statement: &str) -> Command {
+    let mut cmd = Command::new("docker");
+    cmd.arg("compose")
         .arg("-f")
         .arg(repo_root.join("docker-compose.yaml"))
         .arg("exec")
@@ -663,13 +590,10 @@ async fn recreate_database(repo_root: &StdPath) {
         .arg("-d")
         .arg("postgres")
         .arg("-c")
-        .arg(&create_statement)
+        .arg(statement)
         .stdout(Stdio::inherit())
-        .stderr(Stdio::inherit())
-        .status()
-        .await
-        .unwrap();
-    assert!(create_status.success(), "create e2e database failed");
+        .stderr(Stdio::inherit());
+    cmd
 }
 
 fn write_config(runtime_dir: &StdPath, asset_dir: &StdPath) -> std::io::Result<PathBuf> {
@@ -715,12 +639,11 @@ asset_base_path = "{}"
 }
 
 async fn spawn_fake_ak_server(fixture: Fixture) -> JoinHandle<()> {
-    let versions = fixture
+    let versions: HashMap<String, FixtureVersion> = fixture
         .versions
-        .iter()
-        .cloned()
+        .into_iter()
         .map(|version| (version.res_version.clone(), version))
-        .collect::<HashMap<_, _>>();
+        .collect();
 
     let state = Arc::new(FakeAkState { versions });
 
@@ -757,7 +680,7 @@ async fn fake_version(
     let latest = state
         .versions
         .values()
-        .max_by(|left, right| left.res_version.cmp(&right.res_version))
+        .max_by_key(|version| &version.res_version)
         .ok_or(StatusCode::NOT_FOUND)?;
 
     Ok(axum::Json(serde_json::json!({
@@ -789,10 +712,7 @@ async fn fake_asset(
 }
 
 async fn spawn_server(config_path: &StdPath) -> Child {
-    let bin = binary_path();
-    Command::new(bin)
-        .arg("--worker-threads")
-        .arg("1")
+    build_binary_command()
         .arg("server")
         .arg("-c")
         .arg(config_path)
@@ -802,12 +722,8 @@ async fn spawn_server(config_path: &StdPath) -> Child {
         .unwrap()
 }
 
-#[allow(dead_code)]
 pub async fn spawn_worker(config_path: &StdPath, poll_interval_seconds: u64) -> Child {
-    let bin = binary_path();
-    Command::new(bin)
-        .arg("--worker-threads")
-        .arg("1")
+    build_binary_command()
         .arg("worker")
         .arg("-c")
         .arg(config_path)
@@ -821,6 +737,12 @@ pub async fn spawn_worker(config_path: &StdPath, poll_interval_seconds: u64) -> 
         .unwrap()
 }
 
+fn build_binary_command() -> Command {
+    let mut cmd = Command::new(binary_path());
+    cmd.arg("--worker-threads").arg("1");
+    cmd
+}
+
 fn binary_path() -> PathBuf {
     std::env::var_os("CARGO_BIN_EXE_ak-asset-storage")
         .map(PathBuf::from)
@@ -830,60 +752,71 @@ fn binary_path() -> PathBuf {
 }
 
 async fn wait_for_postgres() {
-    let started = Instant::now();
-    loop {
-        if Database::connect(&ak_asset_storage::config::DatabaseConfig {
-            uri: POSTGRES_ADMIN_URI.to_string(),
-            max_connections: Some(1),
-            connection_timeout_seconds: Some(1),
-        })
-        .await
-        .is_ok()
-        {
-            break;
-        }
-
-        assert!(
-            started.elapsed() < Duration::from_secs(30),
-            "postgres did not become ready"
-        );
-        sleep(Duration::from_millis(500)).await;
-    }
+    wait_for(
+        Duration::from_secs(30),
+        Duration::from_millis(500),
+        || async {
+            Database::connect(&ak_asset_storage::config::DatabaseConfig {
+                uri: POSTGRES_ADMIN_URI.to_string(),
+                max_connections: Some(1),
+                connection_timeout_seconds: Some(1),
+            })
+            .await
+            .is_ok()
+        },
+    )
+    .await
+    .expect("postgres did not become ready");
 }
 
 async fn wait_for_rustfs() {
     let client = reqwest::Client::new();
-    let started = Instant::now();
-    loop {
-        if let Ok(response) = client.get("http://127.0.0.1:9000/health").send().await
-            && response.status().is_success()
-        {
-            break;
-        }
-
-        assert!(
-            started.elapsed() < Duration::from_secs(30),
-            "rustfs did not become ready"
-        );
-        sleep(Duration::from_millis(500)).await;
-    }
+    wait_for(
+        Duration::from_secs(30),
+        Duration::from_millis(500),
+        || async {
+            match client.get("http://127.0.0.1:9000/health").send().await {
+                Ok(response) => response.status().is_success(),
+                Err(_) => false,
+            }
+        },
+    )
+    .await
+    .expect("rustfs did not become ready");
 }
 
 async fn wait_for_http_ok(url: &str) {
     let client = reqwest::Client::new();
+    wait_for(
+        Duration::from_secs(30),
+        Duration::from_millis(500),
+        || async {
+            match client.get(url).send().await {
+                Ok(response) => response.status().is_success(),
+                Err(_) => false,
+            }
+        },
+    )
+    .await
+    .expect(&format!("service did not become ready: {url}"));
+}
+
+async fn wait_for<F, Fut>(timeout: Duration, interval: Duration, mut condition: F) -> Result<(), ()>
+where
+    F: FnMut() -> Fut,
+    Fut: std::future::Future<Output = bool>,
+{
     let started = Instant::now();
     loop {
-        if let Ok(response) = client.get(url).send().await
-            && response.status().is_success()
-        {
-            break;
+        if condition().await {
+            return Ok(());
         }
 
-        assert!(
-            started.elapsed() < Duration::from_secs(30),
-            "service did not become ready: {url}"
-        );
-        sleep(Duration::from_millis(500)).await;
+        if started.elapsed() >= timeout {
+            return Err(());
+        }
+
+        sleep(interval).await;
     }
 }
 
@@ -897,7 +830,7 @@ fn install_rustls_provider() {
 }
 
 fn assert_manifest_children(nodes: &[ManifestNode], expected: &[(&str, &str, &str)]) {
-    let actual = nodes
+    let actual: Vec<(&str, &str, &str)> = nodes
         .iter()
         .map(|node| {
             (
@@ -906,7 +839,7 @@ fn assert_manifest_children(nodes: &[ManifestNode], expected: &[(&str, &str, &st
                 node.node_type.as_str(),
             )
         })
-        .collect::<Vec<_>>();
+        .collect();
     assert_eq!(actual, expected);
 }
 

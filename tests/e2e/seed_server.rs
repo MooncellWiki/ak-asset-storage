@@ -78,12 +78,13 @@ async fn seed_two_versions_then_query_real_server() {
     // Hashes are deduplicated across versions when bundles share the same content
     assert!(unique_hashes.len() <= all_bundles.len());
 
-    let file_id_by_hash = all_bundles.iter().fold(HashMap::new(), |mut acc, bundle| {
-        acc.entry(bundle.file_hash.clone())
-            .or_insert_with(HashSet::new)
-            .insert(bundle.file_id);
-        acc
-    });
+    let file_id_by_hash: HashMap<String, HashSet<i32>> =
+        all_bundles.iter().fold(HashMap::new(), |mut acc, bundle| {
+            acc.entry(bundle.file_hash.clone())
+                .or_default()
+                .insert(bundle.file_id);
+            acc
+        });
     // Each unique hash maps to exactly one file record
     assert!(file_id_by_hash.values().all(|ids| ids.len() == 1));
 
