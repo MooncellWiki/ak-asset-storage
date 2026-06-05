@@ -241,15 +241,45 @@ impl TestEnv {
         fs::copy(source, target_dir.join(MANIFEST_NAME)).unwrap();
     }
 
-    pub async fn get_json<T: DeserializeOwned>(&self, path: &str) -> T {
+    pub async fn get_json<T: DeserializeOwned>(&self, path: &str) -> (StatusCode, T) {
         let response = self
             .client
             .get(format!("http://127.0.0.1:{SERVER_PORT}{path}"))
             .send()
             .await
             .unwrap();
-        assert_eq!(response.status(), StatusCode::OK);
-        response.json().await.unwrap()
+        let status = response.status();
+        let body = response.json().await.unwrap();
+        (status, body)
+    }
+
+    pub async fn get_text(&self, path: &str) -> (StatusCode, String) {
+        let response = self
+            .client
+            .get(format!("http://127.0.0.1:{SERVER_PORT}{path}"))
+            .send()
+            .await
+            .unwrap();
+        let status = response.status();
+        let body = response.text().await.unwrap();
+        (status, body)
+    }
+
+    pub async fn post_json_with_auth(
+        &self,
+        path: &str,
+        token: Option<&str>,
+        body: serde_json::Value,
+    ) -> StatusCode {
+        let mut req = self
+            .client
+            .post(format!("http://127.0.0.1:{SERVER_PORT}{path}"))
+            .json(&body);
+        if let Some(t) = token {
+            req = req.header("torappu-auth", t);
+        }
+        let response = req.send().await.unwrap();
+        response.status()
     }
 
     pub async fn assert_database_state(&self) {

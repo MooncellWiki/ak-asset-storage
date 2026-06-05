@@ -8,7 +8,8 @@ async fn seed_two_versions_then_query_real_server() {
 
     env.run_seed().await;
 
-    let version_list: Vec<VersionSummary> = env.get_json("/api/v1/version").await;
+    let (status, version_list): (_, Vec<VersionSummary>) = env.get_json("/api/v1/version").await;
+    assert_eq!(status, axum::http::StatusCode::OK);
     assert_eq!(version_list.len(), env.fixture.versions.len());
 
     let expected_by_res = env
@@ -23,14 +24,16 @@ async fn seed_two_versions_then_query_real_server() {
         assert_eq!(version.client_version, expected.client_version);
         assert!(version.is_ready);
 
-        let version_detail: VersionDetails = env
+        let (status, version_detail): (_, VersionDetails) = env
             .get_json(&format!("/api/v1/version/{}", version.id))
             .await;
+        assert_eq!(status, axum::http::StatusCode::OK);
         assert_eq!(version_detail.hot_update_list, expected.hot_update_list);
 
-        let bundles: Vec<BundleDetails> = env
+        let (status, bundles): (_, Vec<BundleDetails>) = env
             .get_json(&format!("/api/v1/version/{}/files", version.id))
             .await;
+        assert_eq!(status, axum::http::StatusCode::OK);
         assert_eq!(bundles.len(), expected.bundle_names.len());
 
         let mut bundle_paths = bundles
@@ -42,14 +45,16 @@ async fn seed_two_versions_then_query_real_server() {
         assert!(bundle_paths.iter().any(|path| path.contains('#')));
         assert!(bundle_paths.iter().any(|path| path.contains('/')));
 
-        let query_bundles: Vec<BundleDetails> = env
+        let (status, query_bundles): (_, Vec<BundleDetails>) = env
             .get_json(&format!("/api/v1/bundle?version={}", version.id))
             .await;
+        assert_eq!(status, axum::http::StatusCode::OK);
         assert_eq!(query_bundles.len(), bundles.len());
 
         for bundle in &query_bundles {
-            let detail: BundleDetails =
+            let (status, detail): (_, BundleDetails) =
                 env.get_json(&format!("/api/v1/bundle/{}", bundle.id)).await;
+            assert_eq!(status, axum::http::StatusCode::OK);
             assert_eq!(detail.id, bundle.id);
             assert_eq!(detail.path, bundle.path);
             assert_eq!(detail.file_id, bundle.file_id);
@@ -62,7 +67,8 @@ async fn seed_two_versions_then_query_real_server() {
         }
     }
 
-    let all_bundles: Vec<BundleDetails> = env.get_json("/api/v1/bundle").await;
+    let (status, all_bundles): (_, Vec<BundleDetails>) = env.get_json("/api/v1/bundle").await;
+    assert_eq!(status, axum::http::StatusCode::OK);
     assert_eq!(all_bundles.len(), env.fixture.all_bundle_names.len());
 
     let unique_hashes = all_bundles
