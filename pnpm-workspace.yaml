@@ -1,3 +1,9 @@
+allowBuilds:
+  esbuild: true
+minimumReleaseAgeExclude:
+  - "@types/node@25.9.2"
+shellEmulator: true
+
 onlyBuiltDependencies:
   - esbuild
   - unrs-resolver

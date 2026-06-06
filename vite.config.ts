@@ -4,8 +4,8 @@ import UnoCSS from "unocss/vite";
 import Icons from "unplugin-icons/vite";
 import { NaiveUiResolver } from "unplugin-vue-components/resolvers";
 import Components from "unplugin-vue-components/vite";
-import VueRouter from "unplugin-vue-router/vite";
 import { defineConfig } from "vite";
+import VueRouter from "vue-router/vite";
 
 export default defineConfig({
   build: {
@@ -26,7 +26,6 @@ export default defineConfig({
     port: 25173,
   },
   plugins: [
-    // https://github.com/posva/unplugin-vue-router
     VueRouter({
       routesFolder: "app/pages",
       exclude: "app/**/components/*",

@@ -12,11 +12,7 @@
     "paths": {
       "~/*": ["./app/*"]
     },
-    "types": [
-      "unplugin-vue-router/client",
-      "vite/client",
-      "unplugin-icons/types/vue"
-    ],
+    "types": ["vite/client", "unplugin-icons/types/vue"],
     "allowImportingTsExtensions": true,
 
     /* Linting */
