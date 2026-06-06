@@ -2,13 +2,33 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.20.0] - 2026-06-06
+
+[7d9cc37](7d9cc37265b1ae7aa1bdef5e1e7863361515410e)...[2c1cca6](2c1cca62f890efa676fb645d5867f7b3b46e3cc6)
+
+### 🐛 Bug Fixes
+
+- Make vue typecheck happy ([2c1cca6](https://github.com/MooncellWiki/ak-asset-storage/commit/2c1cca62f890efa676fb645d5867f7b3b46e3cc6))
+
+### 🚜 Refactor
+
+- Remove ddd (#163) ([8dd919b](https://github.com/MooncellWiki/ak-asset-storage/commit/8dd919b5df61ee8175d9662a3aab4f1af40c6e64))
+
+### ⚙️ Miscellaneous Tasks
+
+- Update dependencies ([8292939](https://github.com/MooncellWiki/ak-asset-storage/commit/829293966cc38445c439c16da02f4cb1530d79b8))
+
 ## [0.19.1] - 2026-06-02
 
-[b009566](b009566b46a12e90a218a2f0781f256b2cd51237)...[ad4163d](ad4163d6de22042ddfa4cc197ae7a7b9109b45e7)
+[b009566](b009566b46a12e90a218a2f0781f256b2cd51237)...[7d9cc37](7d9cc37265b1ae7aa1bdef5e1e7863361515410e)
 
 ### 🐛 Bug Fixes
 
 - Rustls CryptoProvider feature panic ([ad4163d](https://github.com/MooncellWiki/ak-asset-storage/commit/ad4163d6de22042ddfa4cc197ae7a7b9109b45e7))
+
+### ⚙️ Miscellaneous Tasks
+
+- Release 0.19.1 ([7d9cc37](https://github.com/MooncellWiki/ak-asset-storage/commit/7d9cc37265b1ae7aa1bdef5e1e7863361515410e))
 
 ## [0.19.0] - 2026-06-02
 
