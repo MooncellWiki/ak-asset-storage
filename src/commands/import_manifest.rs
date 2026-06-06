@@ -10,5 +10,5 @@ pub async fn execute(settings: &AppSettings, res_version: &str) -> AppResult<()>
         gamedata_root: std::path::PathBuf::from(&settings.torappu.asset_base_path).join("gamedata"),
     };
 
-    service.import_by_res_version(res_version).await
+    service.import_by_res_version(res_version, false).await
 }

@@ -2,7 +2,7 @@ use crate::{
     AppResult,
     database::{
         Database,
-        row::{AssetMappingRow, NodeType},
+        row::{AssetMappingRow, AssetMappingStatus, NodeType},
     },
 };
 use anyhow::{Context, anyhow};
@@ -23,24 +23,34 @@ pub struct AssetMappingImportService {
 }
 
 impl AssetMappingImportService {
-    pub async fn import_by_res_version(&self, res_version: &str) -> AppResult<()> {
-        self.import_from_version_dir(&self.gamedata_root.join(res_version))
+    pub async fn import_by_res_version(&self, res_version: &str, is_new: bool) -> AppResult<()> {
+        self.import_from_version_dir(&self.gamedata_root.join(res_version), is_new)
             .await
     }
 
-    pub async fn import_from_version_dir(&self, version_dir: &Path) -> AppResult<()> {
+    pub async fn import_from_version_dir(&self, version_dir: &Path, is_new: bool) -> AppResult<()> {
         let res_version = version_dir
             .file_name()
             .and_then(std::ffi::OsStr::to_str)
             .context("Failed to extract res version from version dir")?;
-        let manifest_path = version_dir.join(MANIFEST_NAME);
-        let mappings = parse_manifest(&manifest_path, res_version)?;
 
         let version = self
             .database
             .get_version_by_res(res_version)
             .await?
             .ok_or_else(|| anyhow!("Version not found for res {res_version}"))?;
+
+        if is_new && version.asset_mapping_status != AssetMappingStatus::Pending {
+            info!(
+                "asset mapping for {res_version} is not pending (status: {:?}), skipping import",
+                version.asset_mapping_status
+            );
+            return Ok(());
+        }
+
+        let manifest_path = version_dir.join(MANIFEST_NAME);
+        let mappings = parse_manifest(&manifest_path, res_version)?;
+
         let version_id = version
             .id
             .ok_or_else(|| anyhow!("Version ID missing for res {res_version}"))?;

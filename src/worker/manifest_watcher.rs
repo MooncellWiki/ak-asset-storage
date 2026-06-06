@@ -26,12 +26,14 @@ struct ManifestFingerprint {
 struct ManifestSignal {
     res_version: String,
     fingerprint: ManifestFingerprint,
+    is_new: bool,
 }
 
 #[derive(Clone, Copy, Debug)]
 struct PendingImport {
     due_at: Instant,
     fingerprint: ManifestFingerprint,
+    is_new: bool,
 }
 
 pub struct ManifestWatcher {
@@ -148,6 +150,7 @@ fn spawn_import_loop(
                         PendingImport {
                             due_at: Instant::now() + IMPORT_DEBOUNCE,
                             fingerprint: signal.fingerprint,
+                            is_new: signal.is_new,
                         },
                     );
                     debug!("scheduled manifest import for {res_version}");
@@ -167,7 +170,7 @@ fn spawn_import_loop(
                             "importing manifest for {res_version} with fingerprint {:?}",
                             pending_import.fingerprint
                         );
-                        match service.import_by_res_version(&res_version).await {
+                        match service.import_by_res_version(&res_version, pending_import.is_new).await {
                             Ok(()) => debug!("imported asset mapping for {res_version}"),
                             Err(err) => error!("failed to import asset mapping for {res_version}: {err:?}"),
                         }
@@ -211,6 +214,7 @@ fn scan_manifests(
                     signals.push(ManifestSignal {
                         res_version,
                         fingerprint,
+                        is_new,
                     });
                 }
             }
