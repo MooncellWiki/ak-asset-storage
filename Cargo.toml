@@ -95,7 +95,7 @@ sentry = { version = "0.48.2", features = [
 ] }
 tower = "0.5.3"
 futures = "0.3.32"
-zip = { version = "7.2.0" }
+zip = { version = "8.6.0" }
 itertools = { version = "0.14.0" }
 walkdir = "2.5.0"
 bollard = "0.21.0"
