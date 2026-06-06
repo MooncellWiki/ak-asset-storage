@@ -53,7 +53,11 @@
             >
               <NSpin size="large"> </NSpin>
             </div>
-            <AssetContent v-else v-model="selectedPath" :node="selectedNode!" />
+            <AssetContent
+              v-else-if="selectedNode"
+              v-model="selectedPath"
+              :node="selectedNode"
+            />
           </div>
         </template>
       </NSplit>
@@ -65,7 +69,11 @@
         >
           <NSpin size="large"> </NSpin>
         </div>
-        <AssetContent v-else v-model="selectedPath" :node="selectedNode!" />
+        <AssetContent
+          v-else-if="selectedNode"
+          v-model="selectedPath"
+          :node="selectedNode"
+        />
       </div>
     </div>
 
@@ -85,10 +93,10 @@
 <script lang="ts" setup>
 import { useBreakpoints } from "@vueuse/core";
 import { useRouteQuery } from "@vueuse/router";
+import { computed, ref, watch } from "vue";
 import CarbonClose from "~icons/carbon/close";
 import CarbonHome from "~icons/carbon/home";
 import CarbonMenu from "~icons/carbon/menu";
-import { computed, ref, watch } from "vue";
 import { client } from "~/common/client";
 import AssetContent from "./components/AssetContent.vue";
 import AssetTree from "./components/AssetTree.vue";
