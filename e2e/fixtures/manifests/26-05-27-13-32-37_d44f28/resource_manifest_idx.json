@@ -1,0 +1,49 @@
+{
+  "rawCount": 0,
+  "bundles": [
+    {
+      "name": "arts/avg_shader_profile.ab"
+    },
+    {
+      "name": "arts/charportraits/portraits_hub.ab"
+    },
+    {
+      "name": "scenes/activities/a001/level_a001_01/level_a001_01.ab"
+    },
+    {
+      "name": "scenes/activities/a001/level_a001_01/level_a001_01/lightingdata.ab"
+    }
+  ],
+  "assetToBundleList": [
+    {
+      "assetName": "arts/avg_shader_profile",
+      "bundleIndex": 0,
+      "name": "avg_shader_profile",
+      "path": "dyn/arts/avg_shader_profile.prefab"
+    },
+    {
+      "assetName": "arts/avgmaterialpresets/bluescreen_middle",
+      "bundleIndex": 0,
+      "name": "bluescreen_middle",
+      "path": "dyn/arts/avgmaterialpresets/bluescreen_middle.asset"
+    },
+    {
+      "assetName": "arts/charportraits/char_002_amiya_1",
+      "bundleIndex": 1,
+      "name": "char_002_amiya_1",
+      "path": "dyn/arts/charportraits/char_002_amiya_1.png"
+    },
+    {
+      "assetName": "scenes/activities/a001/level_a001_01/level_a001_01",
+      "bundleIndex": 2,
+      "name": "level_a001_01",
+      "path": "dyn/scenes/activities/a001/level_a001_01/level_a001_01.unity"
+    },
+    {
+      "assetName": "scenes/activities/a001/level_a001_01/level_a001_01/lightingdata",
+      "bundleIndex": 3,
+      "name": "lightingdata",
+      "path": "dyn/scenes/activities/a001/level_a001_01/level_a001_01/lightingdata.asset"
+    }
+  ]
+}

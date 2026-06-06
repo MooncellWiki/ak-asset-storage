@@ -1,0 +1,42 @@
+{
+  "技巧概要·卷1": {
+    "char_123_fang": {
+      "rarity": 3,
+      "name": "芬",
+      "profession": "PIONEER",
+      "elite": 0,
+      "skill": 3,
+      "uniequip": 0,
+      "mastery": [0]
+    },
+    "char_240_wyvern": {
+      "rarity": 3,
+      "name": "香草",
+      "profession": "PIONEER",
+      "elite": 0,
+      "skill": 3,
+      "uniequip": 0,
+      "mastery": [0]
+    }
+  },
+  "源岩": {
+    "char_123_fang": {
+      "rarity": 3,
+      "name": "芬",
+      "profession": "PIONEER",
+      "elite": 0,
+      "skill": 2,
+      "uniequip": 0,
+      "mastery": [0]
+    },
+    "char_211_adnach": {
+      "rarity": 3,
+      "name": "安德切尔",
+      "profession": "SNIPER",
+      "elite": 0,
+      "skill": 2,
+      "uniequip": 0,
+      "mastery": [0]
+    }
+  }
+}

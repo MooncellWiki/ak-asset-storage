@@ -22,14 +22,16 @@ After editing `.rs` files, run `cargo check`. For full verification: `cargo fmt`
 
 ## Architecture
 
-Rust workspace (edition 2024, toolchain 1.92.0) with 4 crates:
+Rust is now a single crate (`ak-asset-storage`, edition 2024, toolchain 1.92.0) organized by module:
 
-- `crates/application` — entities, ports (traits), services, DTOs. Pure domain logic, no infrastructure deps.
-- `crates/infrastructure` — PostgreSQL repos, S3, SMTP, HTTP clients. Depends on `application`.
-- `crates/web` — Axum HTTP handlers/routes, embeds frontend via `rust-embed`. Depends on `application` + `infrastructure`.
-- `crates/cli` — binary entrypoint (`ak-asset-storage`). Commands: `server`, `worker`, `seed`, `import-manifest`.
+- `src/api/` — Axum handlers, router, HTTP DTOs, embedded frontend serving
+- `src/database/` — PostgreSQL-only SQLx access behind `pub struct Database { pool: PgPool }`
+- `src/external/` — concrete integrations for AK API, S3, SMTP, Docker, GitHub, torappu assets
+- `src/service/` — shared business flows used by worker/server
+- `src/worker/` — polling and manifest watcher background jobs
+- `src/commands/` — CLI entrypoints for `server`, `worker`, `seed`, `import-manifest`
 
-Dependency direction: `cli → web → application ← infrastructure`. The web crate should not directly depend on infrastructure; uses DI.
+Avoid reintroducing repository/config/service traits unless there is a concrete need.
 
 Config is TOML-based (see `example.toml`), not env-only.
 
@@ -79,6 +81,7 @@ docker exec -i ak-asset-storage-db-1 psql -U ak -d ak_asset_storage_next -c "SEL
 
 **Important rules:**
 
+- **Always use `sqlx::query!` / `query_as!` / `query_scalar!` macros**, never the non-macro `sqlx::query` / `query_as` functions. The macros provide compile-time query verification.
 - **Never edit the `.sqlx/` directory.** Leave it as-is.
 - **Do not use `SQLX_OFFLINE=true`** when running `cargo check` or `cargo build`. Instead, run `sqlx migrate run` first to ensure migrations are applied to the running database, then run `cargo check` or `cargo build` directly so sqlx can verify queries against the live database.
 - If `cargo check` or `cargo build` fails with a database connection error, **stop and ask the user to resolve it** — do not fall back to `SQLX_OFFLINE=true`.
@@ -89,8 +92,4 @@ Workspace uses pedantic + nursery lints with select allows (`missing_errors_doc`
 
 ## Testing
 
-All tests are in `crates/application/tests/`:
-
-- `unit/` — mocked repos and services
-- `integration/` — workflow tests with mocked externals
-- `common/mocks/` — shared mock implementations and test data
+The previous multi-crate test suite was removed during the single-crate refactor. Add new tests under the root crate when rebuilding coverage.

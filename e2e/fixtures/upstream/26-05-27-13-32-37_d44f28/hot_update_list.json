@@ -1,0 +1,39 @@
+{
+  "abInfos": [
+    {
+      "abSize": 20348,
+      "hash": "1441400720a23e76e66e6a60cc9b3c82",
+      "md5": "d7318e5da801c94128d9993df2b7c19d",
+      "name": "refs/fx/texture/overseas/char_1037_amiya3_sale#13.ab",
+      "totalSize": 18816
+    },
+    {
+      "abSize": 4856,
+      "hash": "9a8c3eb9af25f10d49e4d554abd44b54",
+      "md5": "2e820b2e4157417fa0e19da6e4a75f51",
+      "name": "arts/avg_shader_profile.ab",
+      "totalSize": 3860
+    },
+    {
+      "abSize": 26596,
+      "hash": "ccb95b1d1ea0b5e1d4c559ff25fd1778",
+      "md5": "38440fcf704d65fd62e2bfd43e4f87d1",
+      "name": "arts/charportraits/portraits_hub.ab",
+      "totalSize": 19946
+    },
+    {
+      "abSize": 413132,
+      "hash": "8041654365cdb167d93a12ce5547f7e3",
+      "md5": "ecf822f7b1a75512f0e50a82633e29e1",
+      "name": "scenes/activities/a001/level_a001_01/level_a001_01.ab",
+      "totalSize": 319805
+    },
+    {
+      "abSize": 806224,
+      "hash": "ec170e97405e760c0036df0d37ffc77c",
+      "md5": "4dbe1bad815430ca8044472a61edd0ef",
+      "name": "scenes/activities/a001/level_a001_01/level_a001_01/lightingdata.ab",
+      "totalSize": 673979
+    }
+  ]
+}

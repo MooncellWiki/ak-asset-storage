@@ -79,7 +79,7 @@ The frontend will be available at `http://localhost:25173` and the API at `http:
 Run backend tests:
 
 ```bash
-cargo test --workspace
+cargo test --all-features -- --nocapture
 ```
 
 Run frontend type checking and linting:
@@ -108,10 +108,12 @@ After running `docker compose up -d`, the following services will be available:
 
 ## Project Structure
 
-- `crates/cli/` - Binary entry points
-- `crates/web/` - HTTP API and static file serving
-- `crates/application/` - Core business logic
-- `crates/infrastructure/` - External service integrations
+- `src/commands/` - CLI entry points
+- `src/api/` - HTTP API and static file serving
+- `src/database/` - PostgreSQL queries and models
+- `src/service/` - Shared business workflows
+- `src/external/` - External service integrations
+- `src/worker/` - Background worker loops and watchers
 - `app/` - Vue.js frontend application
 
 ## Code Style

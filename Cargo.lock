@@ -186,91 +186,43 @@ dependencies = [
 ]
 
 [[package]]
-name = "ak-asset-storage-application"
+name = "ak-asset-storage"
 version = "0.19.1"
 dependencies = [
  "anyhow",
- "async-trait",
  "axum",
+ "bollard",
+ "bytes",
  "chrono",
+ "clap",
  "futures",
  "itertools",
+ "lettre",
+ "mimalloc",
+ "mime_guess",
+ "object_store",
+ "octocrab",
+ "reqwest 0.13.4",
+ "rust-embed",
+ "rustls",
+ "sentry",
  "serde",
  "serde_json",
  "serde_variant",
  "sha256",
- "thiserror",
- "tokio",
- "tracing",
- "utoipa",
- "zip",
-]
-
-[[package]]
-name = "ak-asset-storage-cli"
-version = "0.19.1"
-dependencies = [
- "ak-asset-storage-application",
- "ak-asset-storage-infrastructure",
- "ak-asset-storage-web",
- "anyhow",
- "async-trait",
- "clap",
- "mimalloc",
- "rustls",
- "sentry",
- "sqlx",
- "tokio",
- "tracing",
-]
-
-[[package]]
-name = "ak-asset-storage-infrastructure"
-version = "0.19.1"
-dependencies = [
- "ak-asset-storage-application",
- "anyhow",
- "async-trait",
- "bollard",
- "bytes",
- "futures",
- "lettre",
- "object_store",
- "octocrab",
- "reqwest 0.13.4",
- "sentry",
- "serde",
- "serde_json",
  "sqlx",
  "thiserror",
  "tokio",
  "toml",
- "tracing",
- "tracing-subscriber",
- "walkdir",
-]
-
-[[package]]
-name = "ak-asset-storage-web"
-version = "0.19.1"
-dependencies = [
- "ak-asset-storage-application",
- "ak-asset-storage-infrastructure",
- "anyhow",
- "axum",
- "mime_guess",
- "rust-embed",
- "serde",
- "serde_json",
- "sqlx",
- "thiserror",
- "tokio",
  "tower",
  "tower-http",
  "tracing",
+ "tracing-subscriber",
  "utoipa",
  "utoipa-axum",
  "utoipa-scalar",
+ "walkdir",
+ "zip",
 ]
 
 [[package]]

@@ -1,0 +1,53 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\nSELECT\n    m.asset_name AS \"asset_name!\",\n    m.bundle_path AS \"bundle_path!\",\n    m.asset_path,\n    m.short_name,\n    f.size AS \"bundle_size?\",\n    f.hash AS \"bundle_hash?\"\nFROM asset_to_bundle_mappings m\nLEFT JOIN bundles b ON m.bundle_path = b.path AND m.version_id = b.version\nLEFT JOIN files f ON b.file = f.id\nWHERE m.version_id = $1 AND m.asset_name = $2 AND m.node_type IN ('file', 'both')\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "asset_name!",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 1,
+        "name": "bundle_path!",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 2,
+        "name": "asset_path",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 3,
+        "name": "short_name",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 4,
+        "name": "bundle_size?",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 5,
+        "name": "bundle_hash?",
+        "type_info": "Bpchar"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int4",
+        "Text"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      true,
+      true,
+      false,
+      false
+    ]
+  },
+  "hash": "2bedbc6e314a548d23f6fe6665a5bb69ddafd9fdd34b2a5f7f46372209684658"
+}

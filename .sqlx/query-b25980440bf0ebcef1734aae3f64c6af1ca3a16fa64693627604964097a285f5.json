@@ -1,0 +1,63 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT id, res, client, is_ready, hot_update_list, asset_mapping_status AS \"asset_mapping_status!: AssetMappingStatus\" FROM versions WHERE res = $1",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 1,
+        "name": "res",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 2,
+        "name": "client",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 3,
+        "name": "is_ready",
+        "type_info": "Bool"
+      },
+      {
+        "ordinal": 4,
+        "name": "hot_update_list",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 5,
+        "name": "asset_mapping_status!: AssetMappingStatus",
+        "type_info": {
+          "Custom": {
+            "name": "asset_mapping_status",
+            "kind": {
+              "Enum": [
+                "pending",
+                "importing",
+                "ready"
+              ]
+            }
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Text"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "b25980440bf0ebcef1734aae3f64c6af1ca3a16fa64693627604964097a285f5"
+}

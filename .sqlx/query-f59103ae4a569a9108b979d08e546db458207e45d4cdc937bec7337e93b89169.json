@@ -1,0 +1,37 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO versions (res, client, is_ready, hot_update_list, asset_mapping_status) VALUES ($1, $2, $3, $4, $5::asset_mapping_status) RETURNING id",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Int4"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Varchar",
+        "Varchar",
+        "Bool",
+        "Text",
+        {
+          "Custom": {
+            "name": "asset_mapping_status",
+            "kind": {
+              "Enum": [
+                "pending",
+                "importing",
+                "ready"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "f59103ae4a569a9108b979d08e546db458207e45d4cdc937bec7337e93b89169"
+}
