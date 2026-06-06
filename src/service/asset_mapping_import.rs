@@ -33,8 +33,6 @@ impl AssetMappingImportService {
             .file_name()
             .and_then(std::ffi::OsStr::to_str)
             .context("Failed to extract res version from version dir")?;
-        let manifest_path = version_dir.join(MANIFEST_NAME);
-        let mappings = parse_manifest(&manifest_path, res_version)?;
 
         let version = self
             .database
@@ -49,6 +47,9 @@ impl AssetMappingImportService {
             );
             return Ok(());
         }
+
+        let manifest_path = version_dir.join(MANIFEST_NAME);
+        let mappings = parse_manifest(&manifest_path, res_version)?;
 
         let version_id = version
             .id
