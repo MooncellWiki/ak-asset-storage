@@ -144,8 +144,8 @@ SELECT
     m.bundle_path AS "bundle_path!",
     m.asset_path,
     m.short_name,
-    f.size AS "bundle_size",
-    f.hash AS "bundle_hash"
+    f.size AS "bundle_size?",
+    f.hash AS "bundle_hash?"
 FROM asset_to_bundle_mappings m
 LEFT JOIN bundles b ON m.bundle_path = b.path AND m.version_id = b.version
 LEFT JOIN files f ON b.file = f.id
