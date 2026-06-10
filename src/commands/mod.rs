@@ -1,3 +1,4 @@
+mod import_item_demand;
 mod import_manifest;
 mod seed;
 mod worker;
@@ -59,6 +60,10 @@ pub enum Commands {
         #[arg(long)]
         res_version: String,
     },
+    ImportItemDemand {
+        #[arg(short, long, default_value = "config.toml")]
+        config: String,
+    },
     Version,
 }
 
@@ -107,6 +112,12 @@ pub async fn run(cli: Cli) -> Result<()> {
         } => {
             let (settings, _sentry) = init(&config)?;
             import_manifest::execute(settings.as_ref(), &res_version)
+                .await
+                .map_err(anyhow::Error::from)
+        }
+        Commands::ImportItemDemand { config } => {
+            let (settings, _sentry) = init(&config)?;
+            import_item_demand::execute(settings.as_ref())
                 .await
                 .map_err(anyhow::Error::from)
         }

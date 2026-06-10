@@ -1,9 +1,7 @@
 use crate::support::TestEnv;
 use axum::http::StatusCode;
 
-const ITEM_DEMAND_PATH: &str = "/api/v1/item/demand";
 const ITEM_DEMAND_GET_PATH: &str = "/api/v1/item/技巧概要·卷1/demand";
-const VALID_TOKEN: &str = "e2e-token";
 
 fn load_fixture() -> serde_json::Value {
     let repo_root = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"));
@@ -21,62 +19,38 @@ fn load_second_fixture() -> serde_json::Value {
 
 #[tokio::test]
 #[ignore = "manual e2e test requiring docker, rc, and fixture assets"]
-async fn update_without_auth_returns_401() {
+async fn import_and_get_success() {
     let env = TestEnv::bootstrap().await;
-    let fixture = load_fixture();
-    let status = env
-        .post_json_with_auth(ITEM_DEMAND_PATH, None, fixture)
-        .await;
-    assert_eq!(status, StatusCode::UNAUTHORIZED);
-}
+    env.copy_item_demand_fixture("item_demand.json");
 
-#[tokio::test]
-#[ignore = "manual e2e test requiring docker, rc, and fixture assets"]
-async fn update_with_wrong_token_returns_401() {
-    let env = TestEnv::bootstrap().await;
-    let fixture = load_fixture();
-    let status = env
-        .post_json_with_auth(ITEM_DEMAND_PATH, Some("wrong-token"), fixture)
-        .await;
-    assert_eq!(status, StatusCode::UNAUTHORIZED);
-}
-
-#[tokio::test]
-#[ignore = "manual e2e test requiring docker, rc, and fixture assets"]
-async fn update_and_get_success() {
-    let env = TestEnv::bootstrap().await;
-    let fixture = load_fixture();
-
-    let status = env
-        .post_json_with_auth(ITEM_DEMAND_PATH, Some(VALID_TOKEN), fixture.clone())
-        .await;
-    assert_eq!(status, StatusCode::OK);
+    env.run_import_item_demand().await;
 
     let (status, body) = env.get_text(ITEM_DEMAND_GET_PATH).await;
     assert_eq!(status, StatusCode::OK);
 
+    let fixture = load_fixture();
     let expected = serde_json::to_string(fixture.get("技巧概要·卷1").unwrap()).unwrap();
     assert_eq!(body, expected);
 }
 
 #[tokio::test]
 #[ignore = "manual e2e test requiring docker, rc, and fixture assets"]
-async fn update_replaces_existing_data() {
+async fn import_replaces_existing_data() {
     let env = TestEnv::bootstrap().await;
-    let first = load_fixture();
+
+    // First import: full fixture contains 技巧概要·卷1 and 源岩
+    env.copy_item_demand_fixture("item_demand.json");
+    env.run_import_item_demand().await;
+
+    // Second import: reduced fixture only contains 源岩
     let second = load_second_fixture();
+    let repo_root = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let fixture_path = repo_root.join("e2e/fixtures/item_demand_second.json");
+    std::fs::write(&fixture_path, serde_json::to_string(&second).unwrap()).unwrap();
+    env.copy_item_demand_fixture("item_demand_second.json");
+    env.run_import_item_demand().await;
 
-    let status = env
-        .post_json_with_auth(ITEM_DEMAND_PATH, Some(VALID_TOKEN), first)
-        .await;
-    assert_eq!(status, StatusCode::OK);
-
-    let status = env
-        .post_json_with_auth(ITEM_DEMAND_PATH, Some(VALID_TOKEN), second.clone())
-        .await;
-    assert_eq!(status, StatusCode::OK);
-
-    // First fixture contained 技巧概要·卷1, second fixture does not
+    // First fixture contained 技巧概要·卷1, second fixture does not => should be gone
     let (status, _body) = env.get_text(ITEM_DEMAND_GET_PATH).await;
     assert_eq!(status, StatusCode::NOT_FOUND);
 
@@ -85,6 +59,9 @@ async fn update_replaces_existing_data() {
     assert_eq!(status, StatusCode::OK);
     let expected = serde_json::to_string(second.get("源岩").unwrap()).unwrap();
     assert_eq!(body, expected);
+
+    // Cleanup temp fixture
+    let _ = std::fs::remove_file(&fixture_path);
 }
 
 #[tokio::test]

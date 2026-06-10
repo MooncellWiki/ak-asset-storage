@@ -181,6 +181,30 @@ impl TestEnv {
         assert!(status.success(), "import-manifest command failed: {status}");
     }
 
+    pub async fn run_import_item_demand(&self) {
+        let status = build_binary_command()
+            .arg("import-item-demand")
+            .arg("-c")
+            .arg(&self.config_path)
+            .stdout(Stdio::inherit())
+            .stderr(Stdio::inherit())
+            .status()
+            .await
+            .unwrap();
+        assert!(
+            status.success(),
+            "import-item-demand command failed: {status}"
+        );
+    }
+
+    pub fn copy_item_demand_fixture(&self, fixture_name: &str) {
+        let repo_root = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+        let source = repo_root.join("e2e/fixtures").join(fixture_name);
+        let target_dir = self.runtime_dir.join("asset/raw");
+        fs::create_dir_all(&target_dir).unwrap();
+        fs::copy(source, target_dir.join("itemDemand.json")).unwrap();
+    }
+
     pub async fn create_version_for_manifest_test(&self, res_version: &str, is_ready: bool) -> i32 {
         let version = self
             .fixture
@@ -235,23 +259,6 @@ impl TestEnv {
         let status = response.status();
         let body = response.text().await.unwrap();
         (status, body)
-    }
-
-    pub async fn post_json_with_auth(
-        &self,
-        path: &str,
-        token: Option<&str>,
-        body: serde_json::Value,
-    ) -> StatusCode {
-        let mut req = self
-            .client
-            .post(format!("http://127.0.0.1:{SERVER_PORT}{path}"))
-            .json(&body);
-        if let Some(t) = token {
-            req = req.header("torappu-auth", t);
-        }
-        let response = req.send().await.unwrap();
-        response.status()
     }
 
     pub async fn assert_database_state(&self) {
