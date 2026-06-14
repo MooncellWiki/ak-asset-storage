@@ -149,6 +149,10 @@ impl TestEnv {
         &self.config_path
     }
 
+    pub fn runtime_dir(&self) -> &StdPath {
+        &self.runtime_dir
+    }
+
     pub async fn run_seed(&self) {
         let status = build_binary_command()
             .arg("seed")
@@ -197,9 +201,7 @@ impl TestEnv {
         );
     }
 
-    pub fn copy_item_demand_fixture(&self, fixture_name: &str) {
-        let repo_root = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
-        let source = repo_root.join("e2e/fixtures").join(fixture_name);
+    pub fn copy_item_demand_fixture<P: AsRef<StdPath>>(&self, source: P) {
         let target_dir = self.runtime_dir.join("asset/raw");
         fs::create_dir_all(&target_dir).unwrap();
         fs::copy(source, target_dir.join("itemDemand.json")).unwrap();
@@ -265,12 +267,7 @@ impl TestEnv {
         let database = connect_database().await;
         let versions = database.query_versions().await.unwrap();
         let bundles = database
-            .query_bundles_with_details(&BundleFilter {
-                path: None,
-                hash: None,
-                file: None,
-                version: None,
-            })
+            .query_bundles_with_details(&all_bundles_filter())
             .await
             .unwrap();
 
@@ -303,12 +300,7 @@ impl TestEnv {
 
         let database = connect_database().await;
         let bundles = database
-            .query_bundles_with_details(&BundleFilter {
-                path: None,
-                hash: None,
-                file: None,
-                version: None,
-            })
+            .query_bundles_with_details(&all_bundles_filter())
             .await
             .unwrap();
 
@@ -448,6 +440,15 @@ pub async fn connect_database() -> Database {
     })
     .await
     .unwrap()
+}
+
+fn all_bundles_filter() -> BundleFilter {
+    BundleFilter {
+        path: None,
+        hash: None,
+        file: None,
+        version: None,
+    }
 }
 
 pub async fn wait_for_ready_version(database: &Database, timeout: Duration) -> TestResult<()> {
@@ -777,22 +778,18 @@ async fn wait_for_postgres() {
 }
 
 async fn wait_for_rustfs() {
-    let client = reqwest::Client::new();
-    wait_for(
-        Duration::from_secs(30),
-        Duration::from_millis(500),
-        || async {
-            match client.get("http://127.0.0.1:9000/health").send().await {
-                Ok(response) => response.status().is_success(),
-                Err(_) => false,
-            }
-        },
-    )
-    .await
-    .expect("rustfs did not become ready");
+    wait_for_http_success("http://127.0.0.1:9000/health")
+        .await
+        .expect("rustfs did not become ready");
 }
 
 async fn wait_for_http_ok(url: &str) {
+    wait_for_http_success(url)
+        .await
+        .unwrap_or_else(|_| panic!("service did not become ready: {url}"));
+}
+
+async fn wait_for_http_success(url: &str) -> Result<(), ()> {
     let client = reqwest::Client::new();
     wait_for(
         Duration::from_secs(30),
@@ -805,7 +802,6 @@ async fn wait_for_http_ok(url: &str) {
         },
     )
     .await
-    .expect(&format!("service did not become ready: {url}"));
 }
 
 async fn wait_for<F, Fut>(timeout: Duration, interval: Duration, mut condition: F) -> Result<(), ()>
