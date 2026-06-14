@@ -2,9 +2,21 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.21.0] - 2026-06-14
+
+[d6092bf](d6092bf02cf5ef392b2bb93eef469358cc79b827)...[87c749b](87c749bc9381272fdb6d98ae826f96173b787b0a)
+
+### 🐛 Bug Fixes
+
+- 第一次发现的时候不应该重新导入 (#169) ([cf51cb8](https://github.com/MooncellWiki/ak-asset-storage/commit/cf51cb84b086076a90047b109965c31a25fca789))
+
+### 🚜 Refactor
+
+- Replace item demand update api with a file change watcher (#170) ([87c749b](https://github.com/MooncellWiki/ak-asset-storage/commit/87c749bc9381272fdb6d98ae826f96173b787b0a))
+
 ## [0.20.0] - 2026-06-06
 
-[7d9cc37](7d9cc37265b1ae7aa1bdef5e1e7863361515410e)...[2c1cca6](2c1cca62f890efa676fb645d5867f7b3b46e3cc6)
+[7d9cc37](7d9cc37265b1ae7aa1bdef5e1e7863361515410e)...[d6092bf](d6092bf02cf5ef392b2bb93eef469358cc79b827)
 
 ### 🐛 Bug Fixes
 
@@ -17,6 +29,7 @@ All notable changes to this project will be documented in this file.
 ### ⚙️ Miscellaneous Tasks
 
 - Update dependencies ([8292939](https://github.com/MooncellWiki/ak-asset-storage/commit/829293966cc38445c439c16da02f4cb1530d79b8))
+- Release 0.20.0 ([d6092bf](https://github.com/MooncellWiki/ak-asset-storage/commit/d6092bf02cf5ef392b2bb93eef469358cc79b827))
 
 ## [0.19.1] - 2026-06-02
 
