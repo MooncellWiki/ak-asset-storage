@@ -11,7 +11,6 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** /_health */
         get: operations["health"];
         put?: never;
         post?: never;
@@ -28,7 +27,6 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** /_ping */
         get: operations["ping"];
         put?: never;
         post?: never;
@@ -45,8 +43,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** /bundle */
-        get: operations["filter"];
+        get: operations["filter_bundle"];
         put?: never;
         post?: never;
         delete?: never;
@@ -62,8 +59,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** /bundle/{id} */
-        get: operations["get_one"];
+        get: operations["get_bundle"];
         put?: never;
         post?: never;
         delete?: never;
@@ -81,11 +77,6 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /**
-         * Launch Docker container with game asset processing
-         * @description This endpoint launches a Docker container to process game assets using the provided version parameters.
-         *     It uses the same authentication mechanism as `update_item_demands` endpoint.
-         */
         post: operations["launch_container"];
         delete?: never;
         options?: never;
@@ -100,7 +91,6 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** /files */
         get: operations["search_assets_by_path"];
         put?: never;
         post?: never;
@@ -117,27 +107,9 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** /files/{path} */
         get: operations["list_asset"];
         put?: never;
         post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/item/demand": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** POST /item/demand */
-        post: operations["update_item_demands"];
         delete?: never;
         options?: never;
         head?: never;
@@ -151,7 +123,6 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** `/item/:item_name/demand` */
         get: operations["get_item_demand"];
         put?: never;
         post?: never;
@@ -168,8 +139,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** /manifest/{version_id}/children */
-        get: operations["list_children"];
+        get: operations["list_manifest_children"];
         put?: never;
         post?: never;
         delete?: never;
@@ -185,8 +155,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** /manifest/{version_id}/detail */
-        get: operations["get_detail"];
+        get: operations["get_manifest_detail"];
         put?: never;
         post?: never;
         delete?: never;
@@ -202,8 +171,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** /manifest/{version_id}/search */
-        get: operations["search"];
+        get: operations["search_manifest"];
         put?: never;
         post?: never;
         delete?: never;
@@ -219,7 +187,6 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** /version */
         get: operations["list_version"];
         put?: never;
         post?: never;
@@ -236,7 +203,6 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** /version/{id} */
         get: operations["get_version"];
         put?: never;
         post?: never;
@@ -253,7 +219,6 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** /version/{id}/files */
         get: operations["get_files_by_version"];
         put?: never;
         post?: never;
@@ -267,20 +232,7 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
-        AssetDirInfo: {
-            children: components["schemas"]["AssetEntry"][];
-            dir: components["schemas"]["AssetEntry"];
-        };
-        AssetEntry: {
-            create_at: string;
-            is_dir: boolean;
-            modified_at: string;
-            name: string;
-            path: string;
-            /** Format: int64 */
-            size: number;
-        };
-        AssetMappingDetailDto: {
+        AssetMappingDetails: {
             assetName: string;
             assetPath?: string | null;
             bundleHash?: string | null;
@@ -289,7 +241,7 @@ export interface components {
             bundleSize?: number | null;
             shortName?: string | null;
         };
-        BundleDetailsDto: {
+        BundleDetails: {
             fileHash: string;
             /** Format: int32 */
             fileId: number;
@@ -317,12 +269,12 @@ export interface components {
         Health: {
             ok: boolean;
         };
-        ManifestNodeDto: {
+        ManifestNode: {
             name: string;
             nodeType: string;
             path: string;
         };
-        VersionDetailDto: {
+        VersionDetails: {
             clientVersion: string;
             hotUpdateList: string;
             /** Format: int32 */
@@ -330,7 +282,7 @@ export interface components {
             isReady: boolean;
             resVersion: string;
         };
-        VersionDto: {
+        VersionSummary: {
             assetMappingStatus: string;
             clientVersion: string;
             /** Format: int32 */
@@ -385,13 +337,13 @@ export interface operations {
             };
         };
     };
-    filter: {
+    filter_bundle: {
         parameters: {
             query?: {
-                path?: string;
-                hash?: string;
-                file?: number;
-                version?: number;
+                path?: string | null;
+                hash?: string | null;
+                file?: number | null;
+                version?: number | null;
             };
             header?: never;
             path?: never;
@@ -404,12 +356,12 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["BundleDetailsDto"][];
+                    "application/json": components["schemas"]["BundleDetails"][];
                 };
             };
         };
     };
-    get_one: {
+    get_bundle: {
         parameters: {
             query?: never;
             header?: never;
@@ -425,7 +377,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["BundleDetailsDto"];
+                    "application/json": components["schemas"]["BundleDetails"];
                 };
             };
         };
@@ -492,22 +444,6 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content: {
-                    "application/json": components["schemas"]["AssetEntry"][];
-                };
-            };
-            /** @description Bad request */
-            400: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            /** @description Internal server error */
-            500: {
-                headers: {
-                    [name: string]: unknown;
-                };
                 content?: never;
             };
         };
@@ -526,60 +462,6 @@ export interface operations {
         responses: {
             /** @description Directory listing */
             200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["AssetDirInfo"];
-                };
-            };
-            /** @description Directory not found */
-            404: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            /** @description Internal server error */
-            500: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-        };
-    };
-    update_item_demands: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": {
-                    [key: string]: unknown;
-                };
-            };
-        };
-        responses: {
-            /** @description Item demands updated successfully */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            /** @description Unauthorized - invalid authentication token */
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            /** @description Internal server error */
-            500: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -616,7 +498,7 @@ export interface operations {
             };
         };
     };
-    list_children: {
+    list_manifest_children: {
         parameters: {
             query?: {
                 dir?: string | null;
@@ -634,12 +516,12 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["ManifestNodeDto"][];
+                    "application/json": components["schemas"]["ManifestNode"][];
                 };
             };
         };
     };
-    get_detail: {
+    get_manifest_detail: {
         parameters: {
             query: {
                 asset_name: string;
@@ -657,12 +539,12 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["AssetMappingDetailDto"];
+                    "application/json": components["schemas"]["AssetMappingDetails"];
                 };
             };
         };
     };
-    search: {
+    search_manifest: {
         parameters: {
             query: {
                 q: string;
@@ -680,7 +562,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["ManifestNodeDto"][];
+                    "application/json": components["schemas"]["ManifestNode"][];
                 };
             };
         };
@@ -699,7 +581,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["VersionDto"][];
+                    "application/json": components["schemas"]["VersionSummary"][];
                 };
             };
         };
@@ -720,7 +602,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["VersionDetailDto"];
+                    "application/json": components["schemas"]["VersionDetails"];
                 };
             };
         };
@@ -741,7 +623,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["BundleDetailsDto"][];
+                    "application/json": components["schemas"]["BundleDetails"][];
                 };
             };
         };

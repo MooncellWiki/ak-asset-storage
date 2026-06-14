@@ -19,8 +19,6 @@ use axum::{
     response::{IntoResponse, Response},
 };
 use rust_embed::Embed;
-use std::collections::HashMap;
-
 #[debug_handler]
 #[utoipa::path(get, path = "/_ping", responses((status = OK, body = Health)))]
 pub async fn ping() -> Json<Health> {
@@ -155,49 +153,6 @@ pub async fn get_item_demand(
         .ok_or(WebError::NotFound)?;
 
     Ok(([(header::CONTENT_TYPE, "application/json")], usage).into_response())
-}
-
-#[debug_handler]
-#[utoipa::path(
-    post,
-    path = "/item/demand",
-    tag = "item",
-    request_body = HashMap<String, serde_json::Value>,
-    responses(
-        (status = OK, description = "Item demands updated successfully"),
-        (status = 401, description = "Unauthorized - invalid authentication token"),
-        (status = 500, description = "Internal server error")
-    )
-)]
-pub async fn update_item_demands(
-    State(state): State<AppState>,
-    headers: axum::http::HeaderMap,
-    Json(demands): Json<HashMap<String, serde_json::Value>>,
-) -> WebResult<impl IntoResponse> {
-    let auth_header = headers
-        .get("torappu-auth")
-        .ok_or(WebError::Unauthorized(
-            "Missing torappu-auth header".to_string(),
-        ))?
-        .to_str()
-        .map_err(|_| WebError::Unauthorized("Invalid torappu-auth header format".to_string()))?;
-
-    let expected_token = state.settings.torappu.token.as_str();
-    if auth_header != expected_token {
-        return Err(WebError::Unauthorized(
-            "Invalid authentication token".to_string(),
-        ));
-    }
-
-    let demands: Result<Vec<(String, String)>, serde_json::Error> = demands
-        .into_iter()
-        .map(|(key, value)| serde_json::to_string(&value).map(|serialized| (key, serialized)))
-        .collect();
-
-    let demands =
-        demands.map_err(|err| WebError::BadRequest(format!("Invalid JSON value: {err}")))?;
-    state.database.replace_all_demands(demands).await?;
-    Ok(StatusCode::OK)
 }
 
 #[utoipa::path(

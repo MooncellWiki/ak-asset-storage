@@ -40,7 +40,6 @@ pub fn build_router(state: AppState) -> Router {
         .routes(routes!(handlers::get_manifest_detail))
         .routes(routes!(handlers::search_manifest))
         .routes(routes!(handlers::get_item_demand))
-        .routes(routes!(handlers::update_item_demands))
         .routes(routes!(handlers::launch_container))
         .split_for_parts();
 

@@ -9,9 +9,11 @@ use crate::{
     runtime,
     service::{
         asset_download::AssetDownloadService, asset_mapping_import::AssetMappingImportService,
-        version_check::VersionCheckService,
+        item_demand_import::ItemDemandImportService, version_check::VersionCheckService,
     },
-    worker::{manifest_watcher::ManifestWatcher, sync::SyncWorker},
+    worker::{
+        item_demand_watcher::ItemDemandWatcher, manifest_watcher::ManifestWatcher, sync::SyncWorker,
+    },
 };
 use std::{path::PathBuf, time::Duration};
 use tracing::info;
@@ -63,10 +65,20 @@ pub async fn execute(
 
     let gamedata_root = PathBuf::from(&settings.torappu.asset_base_path).join("gamedata");
     let import_service = AssetMappingImportService {
-        database,
+        database: database.clone(),
         gamedata_root: gamedata_root.clone(),
     };
     let manifest_watcher = ManifestWatcher::new(import_service, &gamedata_root)
+        .map_err(crate::AppError::Application)?;
+
+    let item_demand_path = PathBuf::from(&settings.torappu.asset_base_path)
+        .join("raw")
+        .join("itemDemand.json");
+    let item_demand_service = ItemDemandImportService {
+        database,
+        file_path: item_demand_path.clone(),
+    };
+    let item_demand_watcher = ItemDemandWatcher::new(item_demand_service, &item_demand_path)
         .map_err(crate::AppError::Application)?;
 
     info!("Worker is running. Press Ctrl+C to stop.");
@@ -80,6 +92,7 @@ pub async fn execute(
         }
     }
 
+    drop(item_demand_watcher);
     drop(manifest_watcher);
     info!("Worker has stopped.");
     Ok(())

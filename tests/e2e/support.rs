@@ -149,6 +149,10 @@ impl TestEnv {
         &self.config_path
     }
 
+    pub fn runtime_dir(&self) -> &StdPath {
+        &self.runtime_dir
+    }
+
     pub async fn run_seed(&self) {
         let status = build_binary_command()
             .arg("seed")
@@ -179,6 +183,28 @@ impl TestEnv {
             .await
             .unwrap();
         assert!(status.success(), "import-manifest command failed: {status}");
+    }
+
+    pub async fn run_import_item_demand(&self) {
+        let status = build_binary_command()
+            .arg("import-item-demand")
+            .arg("-c")
+            .arg(&self.config_path)
+            .stdout(Stdio::inherit())
+            .stderr(Stdio::inherit())
+            .status()
+            .await
+            .unwrap();
+        assert!(
+            status.success(),
+            "import-item-demand command failed: {status}"
+        );
+    }
+
+    pub fn copy_item_demand_fixture<P: AsRef<StdPath>>(&self, source: P) {
+        let target_dir = self.runtime_dir.join("asset/raw");
+        fs::create_dir_all(&target_dir).unwrap();
+        fs::copy(source, target_dir.join("itemDemand.json")).unwrap();
     }
 
     pub async fn create_version_for_manifest_test(&self, res_version: &str, is_ready: bool) -> i32 {
@@ -237,33 +263,11 @@ impl TestEnv {
         (status, body)
     }
 
-    pub async fn post_json_with_auth(
-        &self,
-        path: &str,
-        token: Option<&str>,
-        body: serde_json::Value,
-    ) -> StatusCode {
-        let mut req = self
-            .client
-            .post(format!("http://127.0.0.1:{SERVER_PORT}{path}"))
-            .json(&body);
-        if let Some(t) = token {
-            req = req.header("torappu-auth", t);
-        }
-        let response = req.send().await.unwrap();
-        response.status()
-    }
-
     pub async fn assert_database_state(&self) {
         let database = connect_database().await;
         let versions = database.query_versions().await.unwrap();
         let bundles = database
-            .query_bundles_with_details(&BundleFilter {
-                path: None,
-                hash: None,
-                file: None,
-                version: None,
-            })
+            .query_bundles_with_details(&all_bundles_filter())
             .await
             .unwrap();
 
@@ -296,12 +300,7 @@ impl TestEnv {
 
         let database = connect_database().await;
         let bundles = database
-            .query_bundles_with_details(&BundleFilter {
-                path: None,
-                hash: None,
-                file: None,
-                version: None,
-            })
+            .query_bundles_with_details(&all_bundles_filter())
             .await
             .unwrap();
 
@@ -441,6 +440,15 @@ pub async fn connect_database() -> Database {
     })
     .await
     .unwrap()
+}
+
+fn all_bundles_filter() -> BundleFilter {
+    BundleFilter {
+        path: None,
+        hash: None,
+        file: None,
+        version: None,
+    }
 }
 
 pub async fn wait_for_ready_version(database: &Database, timeout: Duration) -> TestResult<()> {
@@ -770,22 +778,18 @@ async fn wait_for_postgres() {
 }
 
 async fn wait_for_rustfs() {
-    let client = reqwest::Client::new();
-    wait_for(
-        Duration::from_secs(30),
-        Duration::from_millis(500),
-        || async {
-            match client.get("http://127.0.0.1:9000/health").send().await {
-                Ok(response) => response.status().is_success(),
-                Err(_) => false,
-            }
-        },
-    )
-    .await
-    .expect("rustfs did not become ready");
+    wait_for_http_success("http://127.0.0.1:9000/health")
+        .await
+        .expect("rustfs did not become ready");
 }
 
 async fn wait_for_http_ok(url: &str) {
+    wait_for_http_success(url)
+        .await
+        .unwrap_or_else(|_| panic!("service did not become ready: {url}"));
+}
+
+async fn wait_for_http_success(url: &str) -> Result<(), ()> {
     let client = reqwest::Client::new();
     wait_for(
         Duration::from_secs(30),
@@ -798,7 +802,6 @@ async fn wait_for_http_ok(url: &str) {
         },
     )
     .await
-    .expect(&format!("service did not become ready: {url}"));
 }
 
 async fn wait_for<F, Fut>(timeout: Duration, interval: Duration, mut condition: F) -> Result<(), ()>
