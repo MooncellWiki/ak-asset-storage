@@ -261,6 +261,8 @@ export interface components {
             prev_client_version: string;
             prev_res_version: string;
             res_version: string;
+            include?: string;
+            exclude?: string;
         };
         DockerLaunchResponse: {
             container_name: string;

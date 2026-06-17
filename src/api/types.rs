@@ -53,6 +53,8 @@ pub struct DockerLaunchRequest {
     pub res_version: String,
     pub prev_client_version: String,
     pub prev_res_version: String,
+    pub include: Option<String>,
+    pub exclude: Option<String>,
 }
 
 #[derive(Debug, serde::Serialize, ToSchema)]

@@ -41,6 +41,8 @@ impl DockerClient {
         res_version: &str,
         prev_client_version: &str,
         prev_res_version: &str,
+        include: Option<&str>,
+        exclude: Option<&str>,
     ) -> AppResult<String> {
         let image_url = &self.config.image_url;
         let container_name = &self.config.container_name;
@@ -140,18 +142,28 @@ impl DockerClient {
             host_config.binds = Some(volume_mapping.clone());
         }
 
+        let mut cmd = vec![
+            client_version.to_string(),
+            res_version.to_string(),
+            "-c".to_string(),
+            prev_client_version.to_string(),
+            "-r".to_string(),
+            prev_res_version.to_string(),
+        ];
+        if let Some(include) = include {
+            cmd.push("-i".to_string());
+            cmd.push(include.to_string());
+        }
+        if let Some(exclude) = exclude {
+            cmd.push("-e".to_string());
+            cmd.push(exclude.to_string());
+        }
+
         let container_config = ContainerCreateBody {
             image: Some(image_url.clone()),
             env: self.config.env_vars.clone(),
             host_config: Some(host_config),
-            cmd: Some(vec![
-                client_version.to_string(),
-                res_version.to_string(),
-                "-c".to_string(),
-                prev_client_version.to_string(),
-                "-r".to_string(),
-                prev_res_version.to_string(),
-            ]),
+            cmd: Some(cmd),
             networking_config: Some(
                 NetworkingConfig {
                     endpoints_config: HashMap::from([(
