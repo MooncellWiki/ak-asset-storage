@@ -212,6 +212,8 @@ pub async fn launch_container(
             &payload.res_version,
             &payload.prev_client_version,
             &payload.prev_res_version,
+            &payload.include,
+            &payload.exclude,
         )
         .await
         .map_err(WebError::from)?;

@@ -258,6 +258,8 @@ export interface components {
         };
         DockerLaunchRequest: {
             client_version: string;
+            exclude?: string;
+            include?: string;
             prev_client_version: string;
             prev_res_version: string;
             res_version: string;

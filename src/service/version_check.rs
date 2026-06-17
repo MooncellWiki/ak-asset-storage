@@ -100,7 +100,7 @@ impl VersionCheckService {
         {
             info!("Attempting to launch Docker container for new version");
             match docker
-                .launch_container(client_version, res_version, &prev.client, &prev.res)
+                .launch_container(client_version, res_version, &prev.client, &prev.res, "", "")
                 .await
             {
                 Ok(container_name) => {
