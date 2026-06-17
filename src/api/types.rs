@@ -50,13 +50,11 @@ pub struct Health {
 #[derive(Debug, Deserialize, serde::Serialize, ToSchema)]
 pub struct DockerLaunchRequest {
     pub client_version: String,
-    #[serde(default)]
-    pub include: Option<String>,
-    #[serde(default)]
-    pub exclude: Option<String>,
     pub res_version: String,
     pub prev_client_version: String,
     pub prev_res_version: String,
+    pub include: Option<String>,
+    pub exclude: Option<String>,
 }
 
 #[derive(Debug, serde::Serialize, ToSchema)]
