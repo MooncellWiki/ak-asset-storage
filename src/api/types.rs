@@ -51,9 +51,9 @@ pub struct Health {
 pub struct DockerLaunchRequest {
     pub client_version: String,
     #[serde(default)]
-    pub include: String,
+    pub include: Option<String>,
     #[serde(default)]
-    pub exclude: String,
+    pub exclude: Option<String>,
     pub res_version: String,
     pub prev_client_version: String,
     pub prev_res_version: String,

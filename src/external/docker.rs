@@ -41,8 +41,8 @@ impl DockerClient {
         res_version: &str,
         prev_client_version: &str,
         prev_res_version: &str,
-        include: &str,
-        exclude: &str,
+        include: Option<&str>,
+        exclude: Option<&str>,
     ) -> AppResult<String> {
         let image_url = &self.config.image_url;
         let container_name = &self.config.container_name;
@@ -150,11 +150,11 @@ impl DockerClient {
             "-r".to_string(),
             prev_res_version.to_string(),
         ];
-        if !include.is_empty() {
+        if let Some(include) = include {
             cmd.push("-i".to_string());
             cmd.push(include.to_string());
         }
-        if !exclude.is_empty() {
+        if let Some(exclude) = exclude {
             cmd.push("-e".to_string());
             cmd.push(exclude.to_string());
         }
