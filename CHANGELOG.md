@@ -2,9 +2,17 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.22.0] - 2026-06-17
+
+[99e54a0](99e54a04cec127e888829812fdf7dd8dd45387d3)...[e30e655](e30e655d6726851cbeb39161e04d9d9355b964dc)
+
+### 🚀 Features
+
+- Add include/exclude filters to launch_container Docker launch API (#171) ([e30e655](https://github.com/MooncellWiki/ak-asset-storage/commit/e30e655d6726851cbeb39161e04d9d9355b964dc)), Co-authored-by:copilot-swe-agent[bot] <198982749+Copilot@users.noreply.github.com>
+
 ## [0.21.0] - 2026-06-14
 
-[d6092bf](d6092bf02cf5ef392b2bb93eef469358cc79b827)...[87c749b](87c749bc9381272fdb6d98ae826f96173b787b0a)
+[d6092bf](d6092bf02cf5ef392b2bb93eef469358cc79b827)...[99e54a0](99e54a04cec127e888829812fdf7dd8dd45387d3)
 
 ### 🐛 Bug Fixes
 
@@ -13,6 +21,10 @@ All notable changes to this project will be documented in this file.
 ### 🚜 Refactor
 
 - Replace item demand update api with a file change watcher (#170) ([87c749b](https://github.com/MooncellWiki/ak-asset-storage/commit/87c749bc9381272fdb6d98ae826f96173b787b0a))
+
+### ⚙️ Miscellaneous Tasks
+
+- Release 0.21.0 ([99e54a0](https://github.com/MooncellWiki/ak-asset-storage/commit/99e54a04cec127e888829812fdf7dd8dd45387d3))
 
 ## [0.20.0] - 2026-06-06
 
