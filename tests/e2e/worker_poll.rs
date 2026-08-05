@@ -5,10 +5,10 @@ use std::time::Duration;
 #[ignore = "manual e2e test requiring docker, rc, and fixture assets"]
 async fn worker_polls_new_version_and_downloads_assets() {
     let env = TestEnv::bootstrap_worker().await;
-    let mut worker = support::spawn_worker(env.config_path(), 1).await;
+    let mut worker = support::spawn_worker(env.config_path(), 1);
 
     let database = support::connect_database().await;
-    support::wait_for_ready_version(&database, Duration::from_secs(60))
+    support::wait_for_ready_version(&database, Duration::from_mins(1))
         .await
         .unwrap();
 

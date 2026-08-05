@@ -15,10 +15,9 @@ use crate::{
 use axum::{
     Json, debug_handler,
     extract::{Path, Query, State},
-    http::{StatusCode, header},
+    http::header,
     response::{IntoResponse, Response},
 };
-use rust_embed::Embed;
 #[debug_handler]
 #[utoipa::path(get, path = "/_ping", responses((status = OK, body = Health)))]
 pub async fn ping() -> Json<Health> {
@@ -255,41 +254,4 @@ pub async fn list_asset(
 
 pub async fn list_root_asset(State(state): State<AppState>) -> WebResult<Response> {
     Ok(json(state.torappu.list_asset("")?))
-}
-
-#[derive(Embed)]
-#[folder = "dist"]
-struct Assets;
-
-static INDEX_HTML: &str = "index.html";
-
-pub async fn static_handler(uri: axum::http::Uri) -> impl IntoResponse {
-    let path = uri.path().trim_start_matches('/');
-    if path.is_empty() || path == INDEX_HTML {
-        return index_html();
-    }
-
-    match Assets::get(path) {
-        Some(content) => {
-            let mime = mime_guess::from_path(path).first_or_octet_stream();
-            ([(header::CONTENT_TYPE, mime.as_ref())], content.data).into_response()
-        }
-        None => Assets::get(INDEX_HTML).map_or_else(
-            || (StatusCode::NOT_FOUND, "404").into_response(),
-            |content| {
-                (
-                    [(header::CONTENT_TYPE, "text/html; charset=utf-8")],
-                    content.data,
-                )
-                    .into_response()
-            },
-        ),
-    }
-}
-
-fn index_html() -> Response {
-    match Assets::get(INDEX_HTML) {
-        Some(content) => axum::response::Html(content.data).into_response(),
-        None => (StatusCode::NOT_FOUND, "404").into_response(),
-    }
 }

@@ -1,11 +1,12 @@
 #![allow(clippy::needless_for_each)]
 
 use crate::api::{
-    AppState, handlers,
+    AppState, embed, handlers,
     middleware::{apply_axum_middleware, serve_dir_with_charset},
 };
-use axum::{Json, Router, routing::get};
+use axum::{Json, Router, handler::HandlerWithoutStateExt, routing::get};
 use std::path::PathBuf;
+use tower_http::services::ServeDir;
 use utoipa::OpenApi;
 use utoipa_axum::{router::OpenApiRouter, routes};
 use utoipa_scalar::{Scalar, Servable};
@@ -60,7 +61,10 @@ pub fn build_router(state: AppState) -> Router {
             "/gamedata",
             serve_dir_with_charset(asset_path.join("gamedata")),
         )
-        .fallback(handlers::static_handler)
+        .fallback_service(
+            ServeDir::with_backend("", embed::EmbedBackend)
+                .fallback(embed::spa_index.into_service()),
+        )
         .with_state(state);
 
     apply_axum_middleware(router)
