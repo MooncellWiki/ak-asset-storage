@@ -104,7 +104,7 @@ pub struct BundleDetails {
 impl TestEnv {
     pub async fn bootstrap() -> Self {
         let (mut env, config_path) = Self::bootstrap_common().await;
-        let server = spawn_server(&config_path).await;
+        let server = spawn_server(&config_path);
         wait_for_http_ok(&format!("http://127.0.0.1:{SERVER_PORT}/api/v1/_health")).await;
 
         env.server = Some(server);
@@ -442,7 +442,7 @@ pub async fn connect_database() -> Database {
     .unwrap()
 }
 
-fn all_bundles_filter() -> BundleFilter {
+const fn all_bundles_filter() -> BundleFilter {
     BundleFilter {
         path: None,
         hash: None,
@@ -453,13 +453,13 @@ fn all_bundles_filter() -> BundleFilter {
 
 pub async fn wait_for_ready_version(database: &Database, timeout: Duration) -> TestResult<()> {
     wait_for(timeout, Duration::from_secs(1), || async {
-        match database.query_versions().await {
-            Ok(versions) => versions.into_iter().any(|version| version.is_ready),
-            Err(_) => false,
-        }
+        database
+            .query_versions()
+            .await
+            .is_ok_and(|versions| versions.into_iter().any(|version| version.is_ready))
     })
     .await
-    .map_err(|_| "worker did not finish downloading within timeout".into())
+    .map_err(|()| "worker did not finish downloading within timeout".into())
 }
 
 pub async fn wait_for_asset_mapping_status(
@@ -471,12 +471,11 @@ pub async fn wait_for_asset_mapping_status(
     wait_for(timeout, Duration::from_secs(1), || async {
         match database.get_version_by_res(res_version).await {
             Ok(Some(version)) => version.asset_mapping_status == expected_status,
-            Ok(None) => false,
-            Err(_) => false,
+            Ok(None) | Err(_) => false,
         }
     })
     .await
-    .map_err(|_| {
+    .map_err(|()| {
         format!(
             "asset mapping status for {res_version} did not become {expected_status:?} within timeout"
         )
@@ -719,7 +718,7 @@ async fn fake_asset(
     fs::read(version.root.join(file_path)).map_err(|_| StatusCode::NOT_FOUND)
 }
 
-async fn spawn_server(config_path: &StdPath) -> Child {
+fn spawn_server(config_path: &StdPath) -> Child {
     build_binary_command()
         .arg("server")
         .arg("-c")
@@ -730,7 +729,7 @@ async fn spawn_server(config_path: &StdPath) -> Child {
         .unwrap()
 }
 
-pub async fn spawn_worker(config_path: &StdPath, poll_interval_seconds: u64) -> Child {
+pub fn spawn_worker(config_path: &StdPath, poll_interval_seconds: u64) -> Child {
     build_binary_command()
         .arg("worker")
         .arg("-c")
@@ -752,11 +751,10 @@ fn build_binary_command() -> Command {
 }
 
 fn binary_path() -> PathBuf {
-    std::env::var_os("CARGO_BIN_EXE_ak-asset-storage")
-        .map(PathBuf::from)
-        .unwrap_or_else(|| {
-            PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("target/debug/ak-asset-storage")
-        })
+    std::env::var_os("CARGO_BIN_EXE_ak-asset-storage").map_or_else(
+        || PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("target/debug/ak-asset-storage"),
+        PathBuf::from,
+    )
 }
 
 async fn wait_for_postgres() {
@@ -786,7 +784,7 @@ async fn wait_for_rustfs() {
 async fn wait_for_http_ok(url: &str) {
     wait_for_http_success(url)
         .await
-        .unwrap_or_else(|_| panic!("service did not become ready: {url}"));
+        .unwrap_or_else(|()| panic!("service did not become ready: {url}"));
 }
 
 async fn wait_for_http_success(url: &str) -> Result<(), ()> {
@@ -795,10 +793,11 @@ async fn wait_for_http_success(url: &str) -> Result<(), ()> {
         Duration::from_secs(30),
         Duration::from_millis(500),
         || async {
-            match client.get(url).send().await {
-                Ok(response) => response.status().is_success(),
-                Err(_) => false,
-            }
+            client
+                .get(url)
+                .send()
+                .await
+                .is_ok_and(|response| response.status().is_success())
         },
     )
     .await

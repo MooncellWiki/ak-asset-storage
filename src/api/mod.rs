@@ -1,3 +1,4 @@
+mod embed;
 mod error;
 mod handlers;
 mod middleware;

@@ -26,8 +26,8 @@ async fn import_manifest_command_imports_asset_mappings() {
     .unwrap();
 
     // Spawn worker to download bundles (seed logic)
-    let mut worker = support::spawn_worker(env.config_path(), 1).await;
-    support::wait_for_ready_version(&database, Duration::from_secs(60))
+    let mut worker = support::spawn_worker(env.config_path(), 1);
+    support::wait_for_ready_version(&database, Duration::from_mins(1))
         .await
         .unwrap();
     let _ = worker.start_kill();

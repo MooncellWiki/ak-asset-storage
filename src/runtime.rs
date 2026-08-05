@@ -87,12 +87,12 @@ pub fn init_tracing(
             .init();
     }
 
-    Ok(sentry::init(sentry::ClientOptions {
-        dsn: Some(Dsn::from_str(&sentry_cfg.dsn)?),
-        release: sentry::release_name!(),
-        traces_sample_rate: sentry_cfg.traces_sample_rate,
-        ..Default::default()
-    }))
+    let dsn = Dsn::from_str(&sentry_cfg.dsn)?;
+    let mut options = sentry::ClientOptions::new()
+        .maybe_release(sentry::release_name!())
+        .traces_sample_rate(sentry_cfg.traces_sample_rate);
+    options.dsn = Some(dsn);
+    Ok(sentry::init(options))
 }
 
 pub async fn shutdown_signal() {
