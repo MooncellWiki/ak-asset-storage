@@ -2,13 +2,29 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.23.0] - 2026-08-06
+
+[4859b39](4859b39884f036964761b1e1137cc6deb3a8d48f)...[015aa4d](015aa4d71a16f78fcd9530577bc8919320770d73)
+
+### 🧪 Testing
+
+- Add more e2e test ([015aa4d](https://github.com/MooncellWiki/ak-asset-storage/commit/015aa4d71a16f78fcd9530577bc8919320770d73))
+
+### ⚙️ Miscellaneous Tasks
+
+- Update dependencies ([35c1a16](https://github.com/MooncellWiki/ak-asset-storage/commit/35c1a16682b6c5ca7539ab0f21c349b3236e7ab0))
+
 ## [0.22.0] - 2026-06-17
 
-[99e54a0](99e54a04cec127e888829812fdf7dd8dd45387d3)...[e30e655](e30e655d6726851cbeb39161e04d9d9355b964dc)
+[99e54a0](99e54a04cec127e888829812fdf7dd8dd45387d3)...[4859b39](4859b39884f036964761b1e1137cc6deb3a8d48f)
 
 ### 🚀 Features
 
 - Add include/exclude filters to launch_container Docker launch API (#171) ([e30e655](https://github.com/MooncellWiki/ak-asset-storage/commit/e30e655d6726851cbeb39161e04d9d9355b964dc)), Co-authored-by:copilot-swe-agent[bot] <198982749+Copilot@users.noreply.github.com>
+
+### ⚙️ Miscellaneous Tasks
+
+- Release 0.22.0 ([4859b39](https://github.com/MooncellWiki/ak-asset-storage/commit/4859b39884f036964761b1e1137cc6deb3a8d48f))
 
 ## [0.21.0] - 2026-06-14
 
