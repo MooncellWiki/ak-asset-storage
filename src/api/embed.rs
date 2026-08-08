@@ -100,6 +100,9 @@ impl Backend for EmbedBackend {
 }
 
 fn lookup(path: &Path) -> io::Result<rust_embed::EmbeddedFile> {
+    // `ServeDir::with_backend` prefixes requested paths with its `.` base,
+    // while rust-embed stores paths relative to the embedded folder.
+    let path = path.strip_prefix(".").unwrap_or(path);
     let key = path.to_string_lossy().replace('\\', "/");
     Assets::get(&key).ok_or_else(|| io::Error::from(io::ErrorKind::NotFound))
 }
@@ -119,5 +122,15 @@ pub async fn spa_index() -> Response {
         )
             .into_response(),
         None => (StatusCode::NOT_FOUND, "404").into_response(),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn lookup_accepts_serve_dir_relative_paths() {
+        assert!(lookup(Path::new("./index.html")).is_ok());
     }
 }
