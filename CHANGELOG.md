@@ -2,9 +2,17 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.23.1] - 2026-08-08
+
+[2b259c1](2b259c1188be65125d0c3f4ebc049ef60ddd8b7e)...[256a665](256a6652a4e3fe592403de98643791e856996800)
+
+### 🐛 Bug Fixes
+
+- Strip dot prefix from embedded asset lookup paths ([256a665](https://github.com/MooncellWiki/ak-asset-storage/commit/256a6652a4e3fe592403de98643791e856996800))
+
 ## [0.23.0] - 2026-08-06
 
-[4859b39](4859b39884f036964761b1e1137cc6deb3a8d48f)...[015aa4d](015aa4d71a16f78fcd9530577bc8919320770d73)
+[4859b39](4859b39884f036964761b1e1137cc6deb3a8d48f)...[2b259c1](2b259c1188be65125d0c3f4ebc049ef60ddd8b7e)
 
 ### 🧪 Testing
 
@@ -13,6 +21,7 @@ All notable changes to this project will be documented in this file.
 ### ⚙️ Miscellaneous Tasks
 
 - Update dependencies ([35c1a16](https://github.com/MooncellWiki/ak-asset-storage/commit/35c1a16682b6c5ca7539ab0f21c349b3236e7ab0))
+- Release 0.23.0 ([2b259c1](https://github.com/MooncellWiki/ak-asset-storage/commit/2b259c1188be65125d0c3f4ebc049ef60ddd8b7e))
 
 ## [0.22.0] - 2026-06-17
 
