@@ -5,9 +5,6 @@
 //! currently focused character slot.
 
 use std::collections::{HashMap, HashSet};
-use std::sync::LazyLock;
-
-use regex::Regex;
 
 use super::parser::ParsedLine;
 
@@ -25,29 +22,45 @@ pub struct ResourceUsage {
     pub sort_order: usize,
 }
 
-/// `^(.*?)(?:#(\d+))?(?:\$(\d+))?$` — `{base}#{face}${body}` with face/body
-/// defaulting to 1.
-static CHARACTER_ID_REGEX: LazyLock<Regex> = LazyLock::new(|| {
-    Regex::new(r"^(.*?)(?:#(\d+))?(?:\$(\d+))?$").expect("character id regex must compile")
-});
-
+/// Ports the native `Torappu.AVG` `_LoadImage` staged suffix parsing.
+///
+/// `_TryParseBody` → `_TryParseAlias` → `_TryParseIndex` (VA `0x183A0FD50`):
+/// cut at the last `$` for the body index, then at the last `#` for the face
+/// index. Each suffix goes through .NET `Int32.TryParse(NumberStyles.Integer)`
+/// semantics, which tolerate surrounding whitespace, so upstream typos like
+/// `avg_4236_tmslot_1#3 $1` or `avg_4179_monstr_1#4$1 ` resolve exactly like
+/// their clean forms. Whatever remains is the base key verbatim: whitespace
+/// inside the base would flow into the native resource path and fail to load,
+/// so it is preserved to surface as a broken reference instead of being
+/// silently mended into a nonexistent asset id. `@alias` refs would need the
+/// `character.json` link map (none exist in the corpus) and stay in the base.
+#[must_use]
 pub fn normalize_character_id(id: &str) -> String {
-    // Quoted values may carry trailing whitespace (`name="avg_npc_366_1#1$1 "`)
-    // which would otherwise slip into the base group and break canonical
-    // lookups; trim before matching.
-    let id = id.trim();
-    if id.is_empty() {
+    if id.trim().is_empty() {
         return String::new();
     }
-    let caps = CHARACTER_ID_REGEX
-        .captures(id)
-        .expect("fully optional regex always matches non-empty input");
-    let base = caps
-        .get(1)
-        .map_or(String::new(), |m| m.as_str().to_string());
-    let face = caps.get(2).map_or("1", |m| m.as_str());
-    let body = caps.get(3).map_or("1", |m| m.as_str());
-    format!("{base}#{face}${body}")
+    let mut value = id;
+    let mut face = 1;
+    let mut body = 1;
+    if let Some(pos) = value.rfind('$')
+        && let Ok(parsed) = parse_suffix_index(&value[pos + '$'.len_utf8()..])
+    {
+        body = parsed;
+        value = &value[..pos];
+    }
+    if let Some(pos) = value.rfind('#')
+        && let Ok(parsed) = parse_suffix_index(&value[pos + '#'.len_utf8()..])
+    {
+        face = parsed;
+        value = &value[..pos];
+    }
+    format!("{value}#{face}${body}")
+}
+
+/// .NET `Int32.TryParse` acceptance: optional sign plus digits with
+/// surrounding whitespace, no interior separators.
+fn parse_suffix_index(suffix: &str) -> Result<i32, std::num::ParseIntError> {
+    suffix.trim().parse::<i32>()
 }
 
 /// Accumulates usages for a single script, keyed by `(type, id)` in
@@ -247,17 +260,43 @@ mod tests {
     }
 
     #[test]
-    fn trims_surrounding_whitespace_before_normalizing() {
+    fn absorbs_whitespace_around_face_and_body_suffixes() {
+        // .NET Int32.TryParse tolerates surrounding whitespace in suffixes, so
+        // the corpus's trailing-space values and the act53side inner-space
+        // typo resolve exactly like their clean forms.
         assert_eq!(normalize_character_id("   "), "");
         assert_eq!(
             normalize_character_id("avg_npc_366_1#1$1 "),
             "avg_npc_366_1#1$1"
         );
-        assert_eq!(normalize_character_id("  avg_npc_009\t"), "avg_npc_009#1$1");
         assert_eq!(
-            normalize_character_id(" char_220_grani#5 \n"),
-            "char_220_grani#5$1"
+            normalize_character_id("avg_4179_monstr_1#4$1\t"),
+            "avg_4179_monstr_1#4$1"
         );
+        // Upstream typo in act53side: space between face and body suffix.
+        assert_eq!(
+            normalize_character_id("avg_4236_tmslot_1#3 $1"),
+            "avg_4236_tmslot_1#3$1"
+        );
+        assert_eq!(
+            normalize_character_id("avg_4236_tmslot_1# 3"),
+            "avg_4236_tmslot_1#3$1"
+        );
+    }
+
+    #[test]
+    fn keeps_base_whitespace_verbatim_like_native_load_failure() {
+        // Whitespace inside the base key flows into the native resource path
+        // and fails to load; the extractor preserves it so the reference
+        // surfaces as broken instead of mending into a nonexistent id.
+        assert_eq!(normalize_character_id(" avg_npc_009 "), " avg_npc_009 #1$1");
+    }
+
+    #[test]
+    fn unparsable_suffix_stays_in_base() {
+        // An interior-space suffix fails TryParse, so the `#` marker is not
+        // cut and remains part of the (unloadable) base, matching native.
+        assert_eq!(normalize_character_id("avg_x#3 4$1"), "avg_x#3 4#1$1");
     }
 
     #[test]
