@@ -27,10 +27,8 @@ fn write_file(path: &Path, content: &str) {
     std::fs::write(path, content).unwrap();
 }
 
-fn marker_json(res_version: &str, task: &str) -> String {
-    format!(
-        r#"{{"schemaVersion":1,"task":"{task}","clientVersion":"2.6.01","resVersion":"{res_version}","completedAt":"2026-08-17T10:00:00Z","producer":{{"name":"torappu","revision":"e2e"}}}}"#
-    )
+fn marker_json() -> String {
+    r#"{"schema_version":1,"completed_at":"2026-08-17T10:00:00Z"}"#.to_string()
 }
 
 fn gamedata_root(env: &TestEnv) -> std::path::PathBuf {
@@ -60,10 +58,7 @@ fn publish_version(env: &TestEnv, res_version: &str) {
         }
         other => panic!("unknown fixture version {other}"),
     }
-    write_file(
-        &version_dir.join(".gamedata-ready.json"),
-        &marker_json(res_version, "GameData"),
-    );
+    write_file(&version_dir.join(".gamedata-ready.json"), &marker_json());
 
     let latest = gamedata_root(env).join("latest");
     let _ = std::fs::remove_file(&latest);
@@ -172,13 +167,13 @@ async fn failed_import_keeps_previous_snapshot() {
     publish_version(&env, V1_RES);
     env.run_import_story_usage().await;
 
-    // A marker with an unexpected task must fail validation before any
-    // transaction opens.
+    // A marker with an unsupported schema version must fail validation
+    // before any transaction opens.
     write_file(
         &gamedata_root(&env)
             .join(V1_RES)
             .join(".gamedata-ready.json"),
-        &marker_json(V1_RES, "Other"),
+        r#"{"schema_version":2,"completed_at":"2026-08-17T10:00:00Z"}"#,
     );
     let status = env.try_import_story_usage().await;
     assert!(!status.success(), "import should fail on invalid marker");

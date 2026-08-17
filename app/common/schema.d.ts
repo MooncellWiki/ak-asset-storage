@@ -180,6 +180,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/story-resource-usages": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["get_story_resource_usages"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/version": {
         parameters: {
             query?: never;
@@ -258,11 +274,11 @@ export interface components {
         };
         DockerLaunchRequest: {
             client_version: string;
+            exclude?: string | null;
+            include?: string | null;
             prev_client_version: string;
             prev_res_version: string;
             res_version: string;
-            include?: string;
-            exclude?: string;
         };
         DockerLaunchResponse: {
             container_name: string;
@@ -275,6 +291,19 @@ export interface components {
             name: string;
             nodeType: string;
             path: string;
+        };
+        StoryResourceRef: {
+            id: string;
+            type: string;
+        };
+        StoryResourceUsageItem: {
+            displayNames: string[];
+            scriptPath: string;
+        };
+        StoryResourceUsageResponse: {
+            items: components["schemas"]["StoryResourceUsageItem"][];
+            nextCursor?: string | null;
+            resource: components["schemas"]["StoryResourceRef"];
         };
         VersionDetails: {
             clientVersion: string;
@@ -566,6 +595,42 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["ManifestNode"][];
                 };
+            };
+        };
+    };
+    get_story_resource_usages: {
+        parameters: {
+            query: {
+                /** @description Resource type: `background`, `image`, `item` or `character`. */
+                type: string;
+                /** @description Percent-encoded normalized resource id (may contain `/`, `#`, `$`). */
+                id: string;
+                /** @description Page size, defaults to 50, at most 200. */
+                limit?: number | null;
+                /** @description Opaque cursor from a previous response (`nextCursor`). */
+                cursor?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Scripts using the resource */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StoryResourceUsageResponse"];
+                };
+            };
+            /** @description Invalid resource type, id, or limit */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
         };
     };

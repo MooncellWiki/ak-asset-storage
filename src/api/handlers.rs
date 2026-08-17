@@ -261,18 +261,22 @@ pub async fn get_story_resource_usages(
         )));
     }
 
+    // Fetch one extra row as a cheap has-next probe; a full page of exactly
+    // `limit` rows does not prove another page exists.
     let rows = state
         .database
         .query_story_resource_usages(
             &query.resource_type,
             &query.id,
             query.cursor.as_deref(),
-            i64::from(limit),
+            i64::from(limit) + 1,
         )
         .await?;
 
-    let next_cursor = if rows.len() == limit as usize {
-        rows.last().map(|row| row.script_path.clone())
+    let has_more = rows.len() > limit as usize;
+    let next_cursor = if has_more {
+        rows.get(limit as usize - 1)
+            .map(|row| row.script_path.clone())
     } else {
         None
     };
@@ -284,6 +288,7 @@ pub async fn get_story_resource_usages(
         },
         items: rows
             .into_iter()
+            .take(limit as usize)
             .map(|row| StoryResourceUsageItem {
                 script_path: row.script_path,
                 display_names: row.display_names,

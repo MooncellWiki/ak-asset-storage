@@ -66,7 +66,7 @@ fn build_snapshot(gamedata_root: &Path) -> anyhow::Result<Vec<StoryUsageRow>> {
     })?;
 
     let marker = parse_marker(&resolved_marker)?;
-    validate_marker(&marker, &resolved_marker)?;
+    validate_marker(&marker)?;
 
     let version_dir = resolved_marker
         .parent()
@@ -155,10 +155,8 @@ mod tests {
         std::fs::write(path, content).expect("write file");
     }
 
-    fn marker_json(res_version: &str) -> String {
-        format!(
-            r#"{{"schemaVersion":1,"task":"GameData","clientVersion":"2.6.01","resVersion":"{res_version}","completedAt":"2026-08-17T10:00:00Z"}}"#
-        )
+    fn marker_json() -> String {
+        r#"{"schema_version":1,"completed_at":"2026-08-17T10:00:00Z"}"#.to_string()
     }
 
     fn setup_gamedata(root: &Path, res_version: &str) {
@@ -180,10 +178,7 @@ mod tests {
             "[Dialog]\n[Background(image=\"bg_should_be_ignored\")]\n",
         );
         write(&version_dir.join("story/story_variables.json"), "{}");
-        write(
-            &version_dir.join(MARKER_FILE_NAME),
-            &marker_json(res_version),
-        );
+        write(&version_dir.join(MARKER_FILE_NAME), &marker_json());
         #[cfg(unix)]
         std::os::unix::fs::symlink(res_version, root.join("latest")).expect("symlink latest");
     }

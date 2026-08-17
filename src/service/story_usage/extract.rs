@@ -32,6 +32,10 @@ static CHARACTER_ID_REGEX: LazyLock<Regex> = LazyLock::new(|| {
 });
 
 pub fn normalize_character_id(id: &str) -> String {
+    // Quoted values may carry trailing whitespace (`name="avg_npc_366_1#1$1 "`)
+    // which would otherwise slip into the base group and break canonical
+    // lookups; trim before matching.
+    let id = id.trim();
     if id.is_empty() {
         return String::new();
     }
@@ -239,6 +243,41 @@ mod tests {
         assert_eq!(
             normalize_character_id("avg_1014_nearl2_1#2$2"),
             "avg_1014_nearl2_1#2$2"
+        );
+    }
+
+    #[test]
+    fn trims_surrounding_whitespace_before_normalizing() {
+        assert_eq!(normalize_character_id("   "), "");
+        assert_eq!(
+            normalize_character_id("avg_npc_366_1#1$1 "),
+            "avg_npc_366_1#1$1"
+        );
+        assert_eq!(normalize_character_id("  avg_npc_009\t"), "avg_npc_009#1$1");
+        assert_eq!(
+            normalize_character_id(" char_220_grani#5 \n"),
+            "char_220_grani#5$1"
+        );
+    }
+
+    #[test]
+    fn character_line_with_trailing_space_in_quoted_name_matches_canonical_id() {
+        let all = usages(concat!(
+            r#"[Character(name="avg_npc_366_1#1$1 ",name2="avg_npc_003")]"#,
+            "\n",
+            r#"[name="流浪者"]   text"#,
+            "\n",
+        ));
+        // The trimmed id must dedupe onto the canonical entry, not spawn a
+        // `avg_npc_366_1#1$1 #1$1` variant, and slot 2 being the sole other
+        // character keeps attribution sane.
+        assert!(
+            all.iter().any(|u| u.resource_id == "avg_npc_366_1#1$1"),
+            "{all:?}"
+        );
+        assert!(
+            !all.iter().any(|u| u.resource_id.contains(' ')),
+            "whitespace-bearing id leaked into usages: {all:?}"
         );
     }
 
