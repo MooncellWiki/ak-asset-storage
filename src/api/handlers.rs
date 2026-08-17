@@ -4,7 +4,8 @@ use crate::{
         state::AppState,
         types::{
             AssetSearchQuery, BundleListQuery, DockerLaunchRequest, DockerLaunchResponse, Health,
-            ManifestChildrenQuery, ManifestDetailQuery, ManifestSearchQuery,
+            ManifestChildrenQuery, ManifestDetailQuery, ManifestSearchQuery, StoryResourceRef,
+            StoryResourceUsageItem, StoryResourceUsageQuery, StoryResourceUsageResponse,
         },
         utils::json,
     },
@@ -220,6 +221,75 @@ pub async fn launch_container(
     Ok(Json(DockerLaunchResponse {
         container_name,
         status: "launched".to_string(),
+    }))
+}
+
+#[debug_handler]
+#[utoipa::path(
+    get,
+    path = "/story-resource-usages",
+    tag = "story",
+    params(StoryResourceUsageQuery),
+    responses(
+        (status = 200, description = "Scripts using the resource", body = StoryResourceUsageResponse),
+        (status = 400, description = "Invalid resource type, id, or limit")
+    )
+)]
+pub async fn get_story_resource_usages(
+    State(state): State<AppState>,
+    Query(query): Query<StoryResourceUsageQuery>,
+) -> WebResult<Response> {
+    const RESOURCE_TYPES: [&str; 4] = ["background", "image", "item", "character"];
+    const DEFAULT_LIMIT: u32 = 50;
+    const MAX_LIMIT: u32 = 200;
+
+    if !RESOURCE_TYPES.contains(&query.resource_type.as_str()) {
+        return Err(WebError::BadRequest(format!(
+            "type must be one of {}",
+            RESOURCE_TYPES.join(", ")
+        )));
+    }
+    if query.id.contains('\0') {
+        return Err(WebError::BadRequest(
+            "id must not contain NUL characters".to_string(),
+        ));
+    }
+    let limit = query.limit.unwrap_or(DEFAULT_LIMIT);
+    if !(1..=MAX_LIMIT).contains(&limit) {
+        return Err(WebError::BadRequest(format!(
+            "limit must be between 1 and {MAX_LIMIT}"
+        )));
+    }
+
+    let rows = state
+        .database
+        .query_story_resource_usages(
+            &query.resource_type,
+            &query.id,
+            query.cursor.as_deref(),
+            i64::from(limit),
+        )
+        .await?;
+
+    let next_cursor = if rows.len() == limit as usize {
+        rows.last().map(|row| row.script_path.clone())
+    } else {
+        None
+    };
+
+    Ok(json(StoryResourceUsageResponse {
+        resource: StoryResourceRef {
+            resource_type: query.resource_type,
+            id: query.id,
+        },
+        items: rows
+            .into_iter()
+            .map(|row| StoryResourceUsageItem {
+                script_path: row.script_path,
+                display_names: row.display_names,
+            })
+            .collect(),
+        next_cursor,
     }))
 }
 

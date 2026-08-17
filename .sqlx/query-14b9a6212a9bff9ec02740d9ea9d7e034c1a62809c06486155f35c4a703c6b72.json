@@ -1,0 +1,14 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n                INSERT INTO story_resource_usages\n                    (script_path, resource_type, resource_id, display_names, sort_order)\n                SELECT batch.script_path, batch.resource_type, batch.resource_id,\n                       batch.display_names, batch.sort_order\n                FROM jsonb_to_recordset($1::jsonb)\n                    AS batch(\n                        script_path text,\n                        resource_type text,\n                        resource_id text,\n                        display_names text[],\n                        sort_order int4\n                    )\n                ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Jsonb"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "14b9a6212a9bff9ec02740d9ea9d7e034c1a62809c06486155f35c4a703c6b72"
+}

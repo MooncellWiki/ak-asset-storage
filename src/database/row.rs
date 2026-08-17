@@ -23,6 +23,16 @@ pub struct FileRow {
     pub size: i32,
 }
 
+/// One `story_resource_usages` row produced by the story usage importer.
+#[derive(Debug, Clone)]
+pub struct StoryUsageRow {
+    pub script_path: String,
+    pub resource_type: String,
+    pub resource_id: String,
+    pub display_names: Vec<String>,
+    pub sort_order: i32,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct AssetMappingRow {
     pub id: Option<i32>,
