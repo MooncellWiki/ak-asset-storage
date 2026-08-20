@@ -29,6 +29,9 @@ pub struct StoryUsageRow {
     pub script_path: String,
     pub resource_type: String,
     pub resource_id: String,
+    /// Listing-granularity key (characters use body form, others the raw
+    /// id); computed at extraction time and written alongside `resource_id`.
+    pub listing_id: String,
     pub display_names: Vec<String>,
     pub sort_order: i32,
 }

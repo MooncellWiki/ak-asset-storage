@@ -196,6 +196,29 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/story-resources": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Lists distinct resources with their script counts, keyed by ascending
+         *     `(resource_type, listing id)` for cursor pagination. `type` filters and
+         *     `q` substring-matches (case-insensitive) when given. Characters list at
+         *     body granularity (`base$body`, face suffix stripped): the renderer
+         *     composites every face onto one shared body texture.
+         */
+        get: operations["list_story_resources"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/version": {
         parameters: {
             query?: never;
@@ -292,18 +315,29 @@ export interface components {
             nodeType: string;
             path: string;
         };
-        StoryResourceRef: {
+        StoryResourceListResponse: {
+            nextCursor?: string | null;
+            resources: components["schemas"]["StoryResourceSummary"][];
+        };
+        StoryResourceSummary: {
+            /** @description Characters use the body form `base$body`; other types use the raw id. */
             id: string;
+            /** Format: int64 */
+            scriptCount: number;
             type: string;
         };
         StoryResourceUsageItem: {
             displayNames: string[];
+            /**
+             * @description Face-level character ids (`base#face$body`) this script uses.
+             *     Present only for character body queries (`base$body` id form).
+             */
+            faces?: string[] | null;
             scriptPath: string;
         };
         StoryResourceUsageResponse: {
-            items: components["schemas"]["StoryResourceUsageItem"][];
             nextCursor?: string | null;
-            resource: components["schemas"]["StoryResourceRef"];
+            usages: components["schemas"]["StoryResourceUsageItem"][];
         };
         VersionDetails: {
             clientVersion: string;
@@ -603,7 +637,12 @@ export interface operations {
             query: {
                 /** @description Resource type: `background`, `image`, `item` or `character`. */
                 type: string;
-                /** @description Percent-encoded normalized resource id (may contain `/`, `#`, `$`). */
+                /**
+                 * @description Percent-encoded exact resource id (may contain `/`, `#`, `$`).
+                 *     Characters accept two forms: `base#face$body` matches that exact
+                 *     face-level reference, while `base$body` (no `#`) matches scripts
+                 *     using any face of the body.
+                 */
                 id: string;
                 /** @description Page size, defaults to 50, at most 200. */
                 limit?: number | null;
@@ -625,7 +664,49 @@ export interface operations {
                     "application/json": components["schemas"]["StoryResourceUsageResponse"];
                 };
             };
-            /** @description Invalid resource type, id, or limit */
+            /** @description Invalid resource type, id, cursor or limit */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    list_story_resources: {
+        parameters: {
+            query?: {
+                /**
+                 * @description Restrict the listing to one resource type: `background`, `image`,
+                 *     `item` or `character`.
+                 */
+                type?: string | null;
+                /**
+                 * @description Case-insensitive substring filter on the listing id. Characters are
+                 *     listed at body granularity (`base$body`, face suffix stripped).
+                 */
+                q?: string | null;
+                /** @description Page size, defaults to 50, at most 200. */
+                limit?: number | null;
+                /** @description Opaque cursor from a previous response (`nextCursor`). */
+                cursor?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description One page of resources with script counts */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StoryResourceListResponse"];
+                };
+            };
+            /** @description Invalid resource type, query, cursor or limit */
             400: {
                 headers: {
                     [name: string]: unknown;

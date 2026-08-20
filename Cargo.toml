@@ -101,6 +101,7 @@ walkdir = "2.5.0"
 regex = "1.12.2"
 bollard = "0.21.0"
 octocrab = "0.54.1"
+base64 = "0.23.1"
 mimalloc = "0.1.52"
 
 [dependencies]
@@ -137,6 +138,7 @@ walkdir = { workspace = true }
 regex = { workspace = true }
 bollard = { workspace = true }
 octocrab = { workspace = true }
+base64 = { workspace = true }
 mimalloc = { workspace = true }
 rustls = { version = "0.23.43", default-features = false, features = [
   "std",

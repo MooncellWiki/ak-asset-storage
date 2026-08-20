@@ -7,7 +7,10 @@ pub struct StoryResourceUsageQuery {
     /// Resource type: `background`, `image`, `item` or `character`.
     #[serde(rename = "type")]
     pub resource_type: String,
-    /// Percent-encoded normalized resource id (may contain `/`, `#`, `$`).
+    /// Percent-encoded exact resource id (may contain `/`, `#`, `$`).
+    /// Characters accept two forms: `base#face$body` matches that exact
+    /// face-level reference, while `base$body` (no `#`) matches scripts
+    /// using any face of the body (face-overlay characters only).
     pub id: String,
     /// Page size, defaults to 50, at most 200.
     pub limit: Option<u32>,
@@ -15,11 +18,31 @@ pub struct StoryResourceUsageQuery {
     pub cursor: Option<String>,
 }
 
+#[derive(Debug, Deserialize, IntoParams)]
+pub struct StoryResourceListQuery {
+    /// Restrict the listing to one resource type: `background`, `image`,
+    /// `item` or `character`.
+    #[serde(rename = "type")]
+    pub resource_type: Option<String>,
+    /// Case-insensitive substring filter on the listing id. Face-overlay
+    /// characters are listed at body granularity (`base$body`); standalone
+    /// full-image characters keep their face-level ids.
+    pub q: Option<String>,
+    /// Page size, defaults to 50, at most 200.
+    pub limit: Option<u32>,
+    /// Opaque cursor from a previous response (`nextCursor`).
+    pub cursor: Option<String>,
+}
+
 #[derive(Debug, serde::Serialize, ToSchema)]
-pub struct StoryResourceRef {
+#[serde(rename_all = "camelCase")]
+pub struct StoryResourceSummary {
     #[serde(rename = "type")]
     pub resource_type: String,
+    /// Face-overlay characters use the body form `base$body`; standalone
+    /// full-image characters and other types use the raw id.
     pub id: String,
+    pub script_count: i64,
 }
 
 #[derive(Debug, serde::Serialize, ToSchema)]
@@ -27,13 +50,22 @@ pub struct StoryResourceRef {
 pub struct StoryResourceUsageItem {
     pub script_path: String,
     pub display_names: Vec<String>,
+    /// Face-level character ids (`base#face$body`) this script uses.
+    /// Present only for character body queries (`base$body` id form).
+    pub faces: Option<Vec<String>>,
+}
+
+#[derive(Debug, serde::Serialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct StoryResourceListResponse {
+    pub resources: Vec<StoryResourceSummary>,
+    pub next_cursor: Option<String>,
 }
 
 #[derive(Debug, serde::Serialize, ToSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct StoryResourceUsageResponse {
-    pub resource: StoryResourceRef,
-    pub items: Vec<StoryResourceUsageItem>,
+    pub usages: Vec<StoryResourceUsageItem>,
     pub next_cursor: Option<String>,
 }
 

@@ -9,12 +9,39 @@ const V2_RES: &str = "26-06-02-00-00-00_storyv2";
 
 const V1_SCRIPT: &str = r#"[HEADER(key="test")] 测试
 [Background(image="bg_test_1", fadetime=1)]
-[Character(name="avg_npc_001")]
+[Character(name="avg_npc_001#2$1")]
+（无台词的反应表情）
+[Character(name="avg_npc_001#1$1")]
 [name="测试者甲"]   你好
+[Character(name="char_img_1#2$1")]
+（无台词的整图表情）
 [ShowItem(image="item_test_1")]
 "#;
 
 const V1_INFO_SCRIPT: &str = "[Background(image=\"bg_info_ignored\")]\n";
+
+/// Link map next to gamedata: `avg_npc_001` is a face-overlay character,
+/// `char_img_1` a standalone-full-image character, `avg_npc_002` unknown.
+const CHARACTER_LINKS: &str = r#"{
+    "avg_npc_001": {
+        "pos": {"x": 0, "y": 190}, "size": {"x": 970, "y": 970},
+        "groups": [{"mode": "face_overlay", "base": "avg_npc_001/avg_npc_001$1",
+                    "faceRect": {"x": 459, "y": 159, "w": 130, "h": 110}}],
+        "array": [
+            {"name": "1$1", "alias": "", "group": 0, "face": "avg_npc_001/1$1"},
+            {"name": "2$1", "alias": "", "group": 0, "face": "avg_npc_001/2$1"}
+        ]
+    },
+    "char_img_1": {
+        "pos": {"x": 0, "y": 190}, "size": {"x": 970, "y": 970}, "groups": [],
+        "array": [
+            {"name": "char_img_1", "alias": "normal", "group": -1,
+             "image": "char_img_1/char_img_1"},
+            {"name": "char_img_1_2", "alias": "smile", "group": -1,
+             "image": "char_img_1/char_img_1_2"}
+        ]
+    }
+}"#;
 
 const V2_SCRIPT: &str = r#"[Background(image="bg_test_2", fadetime=1)]
 [Image(image="img_test_2")]
@@ -35,8 +62,9 @@ fn gamedata_root(env: &TestEnv) -> std::path::PathBuf {
     env.runtime_dir().join("asset/gamedata")
 }
 
-/// Writes the version directory (story scripts + marker) and points the
-/// `latest` symlink at it, mirroring torappu's publish order.
+/// Writes the version directory (story scripts + marker), the character
+/// link map under the sibling raw asset root, and points the `latest`
+/// symlink at the version, mirroring torappu's publish order.
 fn publish_version(env: &TestEnv, res_version: &str) {
     let version_dir = gamedata_root(env).join(res_version);
     match res_version {
@@ -59,6 +87,10 @@ fn publish_version(env: &TestEnv, res_version: &str) {
         other => panic!("unknown fixture version {other}"),
     }
     write_file(&version_dir.join(".gamedata-ready.json"), &marker_json());
+    write_file(
+        &env.runtime_dir().join("asset/raw/avg/character.json"),
+        CHARACTER_LINKS,
+    );
 
     let latest = gamedata_root(env).join("latest");
     let _ = std::fs::remove_file(&latest);
@@ -116,6 +148,36 @@ async fn manual_import_replaces_snapshot_and_serves_api() {
     );
     assert!(body.contains(r#""displayNames":["测试者甲"]"#), "{body}");
 
+    // Character body form (`base$body`, no face) matches any face of the
+    // body and reports which faces each script uses.
+    // The silent #2 face has an empty display_names row; the aggregation must
+    // drop its LEFT JOIN null instead of returning `{name, NULL}` (sqlx would
+    // fail decoding the array into `Vec<String>` with a 503).
+    let (status, body) = env
+        .get_text("/api/v1/story-resource-usages?type=character&id=avg_npc_001%241")
+        .await;
+    assert_eq!(status, StatusCode::OK);
+    assert!(
+        body.contains(r#""scriptPath":"activities/test/level_test_01_beg""#),
+        "{body}"
+    );
+    assert!(body.contains(r#""displayNames":["测试者甲"]"#), "{body}");
+    assert!(
+        body.contains(r#""faces":["avg_npc_001#1$1","avg_npc_001#2$1"]"#),
+        "{body}"
+    );
+
+    // The silent face itself lists with empty display names.
+    let (status, body) = env
+        .get_text("/api/v1/story-resource-usages?type=character&id=avg_npc_001%232%241")
+        .await;
+    assert_eq!(status, StatusCode::OK);
+    assert!(
+        body.contains(r#""scriptPath":"activities/test/level_test_01_beg""#),
+        "{body}"
+    );
+    assert!(body.contains(r#""displayNames":[]"#), "{body}");
+
     let (status, body) = env
         .get_text("/api/v1/story-resource-usages?type=background&id=bg_test_1")
         .await;
@@ -127,9 +189,51 @@ async fn manual_import_replaces_snapshot_and_serves_api() {
         .get_text("/api/v1/story-resource-usages?type=background&id=bg_info_ignored")
         .await;
     assert_eq!(status, StatusCode::OK);
-    assert!(body.contains(r#""items":[]"#), "{body}");
+    assert!(body.contains(r#""usages":[]"#), "{body}");
 
-    // Invalid type / limit are rejected.
+    // Resource listing: distinct resources with script counts. Face-overlay
+    // characters collapse to body granularity (`base$body`); standalone
+    // full-image characters keep their face-level ids.
+    let (status, body) = env.get_text("/api/v1/story-resources?limit=200").await;
+    assert_eq!(status, StatusCode::OK);
+    assert!(
+        body.contains(r#"{"type":"background","id":"bg_test_1","scriptCount":1}"#),
+        "{body}"
+    );
+    assert!(
+        body.contains(r#"{"type":"item","id":"item_test_1","scriptCount":1}"#),
+        "{body}"
+    );
+    assert!(
+        body.contains(r#"{"type":"character","id":"avg_npc_001$1","scriptCount":1}"#),
+        "{body}"
+    );
+    assert!(!body.contains("avg_npc_001#"), "{body}");
+    assert!(
+        body.contains(r#"{"type":"character","id":"char_img_1#2$1","scriptCount":1}"#),
+        "{body}"
+    );
+    assert!(!body.contains(r#""id":"char_img_1$1""#), "{body}");
+    assert!(!body.contains("bg_info_ignored"), "{body}");
+
+    // Body-form usage query only matches overlay characters; the
+    // full-image character has no shared body.
+    let (status, body) = env
+        .get_text("/api/v1/story-resource-usages?type=character&id=char_img_1%241")
+        .await;
+    assert_eq!(status, StatusCode::OK);
+    assert!(body.contains(r#""usages":[]"#), "{body}");
+
+    // `q` substring search is case-insensitive and scoped to resource ids.
+    let (status, body) = env.get_text("/api/v1/story-resources?q=BG_TEST").await;
+    assert_eq!(status, StatusCode::OK);
+    assert!(
+        body.contains(r#"{"type":"background","id":"bg_test_1","scriptCount":1}"#),
+        "{body}"
+    );
+    assert!(!body.contains("avg_npc_001"), "{body}");
+
+    // Invalid type / limit / missing params are rejected.
     let (status, _) = env
         .get_text("/api/v1/story-resource-usages?type=unknown&id=x")
         .await;
@@ -137,6 +241,12 @@ async fn manual_import_replaces_snapshot_and_serves_api() {
     let (status, _) = env
         .get_text("/api/v1/story-resource-usages?type=item&id=x&limit=201")
         .await;
+    assert_eq!(status, StatusCode::BAD_REQUEST);
+    let (status, _) = env
+        .get_text("/api/v1/story-resource-usages?id=bg_test_1")
+        .await;
+    assert_eq!(status, StatusCode::BAD_REQUEST);
+    let (status, _) = env.get_text("/api/v1/story-resources?type=unknown").await;
     assert_eq!(status, StatusCode::BAD_REQUEST);
 
     // Switching latest to a new version and re-importing replaces the snapshot.
@@ -147,7 +257,7 @@ async fn manual_import_replaces_snapshot_and_serves_api() {
         .get_text("/api/v1/story-resource-usages?type=background&id=bg_test_1")
         .await;
     assert_eq!(status, StatusCode::OK);
-    assert!(body.contains(r#""items":[]"#), "{body}");
+    assert!(body.contains(r#""usages":[]"#), "{body}");
 
     let (status, body) = env
         .get_text("/api/v1/story-resource-usages?type=character&id=avg_npc_002%233%241")
@@ -188,6 +298,7 @@ async fn failed_import_keeps_previous_snapshot() {
         script_path: "activities/test/level_test_01_beg".to_string(),
         resource_type: "background".to_string(),
         resource_id: "bg_test_1".to_string(),
+        listing_id: "bg_test_1".to_string(),
         display_names: Vec::new(),
         sort_order: 0,
     };

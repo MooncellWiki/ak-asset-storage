@@ -10,6 +10,23 @@ pub struct StoryUsageItemRow {
     pub display_names: Vec<String>,
 }
 
+/// Body-granularity usage row: one script using any face of the body, with
+/// the face-level ids (`base#face$body`) it uses.
+#[derive(Debug, Clone)]
+pub struct StoryCharacterBodyUsageRow {
+    pub script_path: String,
+    pub display_names: Vec<String>,
+    pub faces: Vec<String>,
+}
+
+/// Listing result item: one distinct resource with its usage count.
+#[derive(Debug, Clone)]
+pub struct StoryResourceSummaryRow {
+    pub resource_type: String,
+    pub resource_id: String,
+    pub script_count: i64,
+}
+
 const INSERT_BATCH_SIZE: usize = 1000;
 
 impl Database {
@@ -38,6 +55,7 @@ impl Database {
                         "script_path": row.script_path,
                         "resource_type": row.resource_type,
                         "resource_id": row.resource_id,
+                        "listing_id": row.listing_id,
                         "display_names": row.display_names,
                         "sort_order": row.sort_order,
                     })
@@ -48,14 +66,15 @@ impl Database {
             sqlx::query!(
                 r#"
                 INSERT INTO story_resource_usages
-                    (script_path, resource_type, resource_id, display_names, sort_order)
+                    (script_path, resource_type, resource_id, listing_id, display_names, sort_order)
                 SELECT batch.script_path, batch.resource_type, batch.resource_id,
-                       batch.display_names, batch.sort_order
+                       batch.listing_id, batch.display_names, batch.sort_order
                 FROM jsonb_to_recordset($1::jsonb)
                     AS batch(
                         script_path text,
                         resource_type text,
                         resource_id text,
+                        listing_id text,
                         display_names text[],
                         sort_order int4
                     )
@@ -107,6 +126,88 @@ impl Database {
             resource_type,
             resource_id,
             cursor,
+            limit
+        )
+        .fetch_all(self.pool())
+        .await
+        .map_err(|err| AppError::ExternalService(err.into()))
+    }
+
+    /// Reverse lookup at character body granularity: `body_id` is the face
+    /// suffix-stripped `base$body` form (the `listing_id`), and scripts
+    /// using any face of that body collapse into one row with the union of
+    /// their display names and the face-level ids each script uses. Keyed
+    /// by ascending `script_path` for cursor pagination.
+    pub async fn query_story_character_body_usages(
+        &self,
+        body_id: &str,
+        cursor: Option<&str>,
+        limit: i64,
+    ) -> AppResult<Vec<StoryCharacterBodyUsageRow>> {
+        sqlx::query_as!(
+            StoryCharacterBodyUsageRow,
+            r#"
+            SELECT script_path,
+                   COALESCE(
+                       array_agg(DISTINCT name) FILTER (WHERE name IS NOT NULL),
+                       '{}'::text[]
+                   ) AS "display_names!: Vec<String>",
+                   array_agg(DISTINCT resource_id ORDER BY resource_id) AS "faces!: Vec<String>"
+            FROM story_resource_usages
+            LEFT JOIN LATERAL unnest(display_names) AS name ON TRUE
+            WHERE resource_type = 'character'
+              AND listing_id = $1
+              AND ($2::text IS NULL OR script_path > $2)
+            GROUP BY script_path
+            ORDER BY script_path
+            LIMIT $3
+            "#,
+            body_id,
+            cursor,
+            limit
+        )
+        .fetch_all(self.pool())
+        .await
+        .map_err(|err| AppError::ExternalService(err.into()))
+    }
+
+    /// Lists distinct resources with per-resource distinct-script counts,
+    /// keyed by ascending `(resource_type, listing_id)` for cursor
+    /// pagination. Characters collapse to body granularity — the renderer
+    /// composites each face onto a shared `base$body` texture, so the `#face`
+    /// overlay suffix is stripped and faces of one body merge; other types
+    /// list their ids verbatim.
+    ///
+    /// `id_pattern` is an already-escaped ILIKE fragment without the
+    /// surrounding `%` wildcards and matches the listing id; `after` is an
+    /// exclusive keyset bound.
+    pub async fn list_story_resources(
+        &self,
+        resource_type: Option<&str>,
+        id_pattern: Option<&str>,
+        after: Option<(&str, &str)>,
+        limit: i64,
+    ) -> AppResult<Vec<StoryResourceSummaryRow>> {
+        let (after_type, after_id) = after.map_or((None, None), |(resource_type, resource_id)| {
+            (Some(resource_type), Some(resource_id))
+        });
+        sqlx::query_as!(
+            StoryResourceSummaryRow,
+            r#"
+            SELECT resource_type, listing_id AS "resource_id!: String",
+                   count(DISTINCT script_path) AS "script_count!: i64"
+            FROM story_resource_usages
+            WHERE ($1::text IS NULL OR resource_type = $1)
+              AND ($2::text IS NULL OR listing_id ILIKE '%' || $2 || '%')
+              AND ($3::text IS NULL OR (resource_type, listing_id) > ($3, $4))
+            GROUP BY resource_type, listing_id
+            ORDER BY resource_type, listing_id
+            LIMIT $5
+            "#,
+            resource_type,
+            id_pattern,
+            after_type,
+            after_id,
             limit
         )
         .fetch_all(self.pool())

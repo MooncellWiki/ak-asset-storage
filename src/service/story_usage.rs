@@ -2,6 +2,7 @@
 //! marker, parses every story txt under the resolved version, and replaces
 //! the `story_resource_usages` snapshot in one transaction.
 
+pub mod character_links;
 pub mod extract;
 pub mod marker;
 pub mod parser;
@@ -12,6 +13,7 @@ use std::{
 };
 
 use anyhow::{Context, bail};
+use character_links::CharacterLinks;
 use walkdir::WalkDir;
 
 use crate::{
@@ -30,8 +32,22 @@ pub struct StoryUsageImportService {
 
 impl StoryUsageImportService {
     pub async fn import(&self) -> AppResult<()> {
+        let asset_root = self
+            .gamedata_root
+            .parent()
+            .context("gamedata root has no parent asset root")?
+            .to_path_buf();
+        let links = tokio::task::spawn_blocking(move || CharacterLinks::load(&asset_root))
+            .await
+            .map_err(|err| {
+                AppError::Application(anyhow::anyhow!(
+                    "character link map load task failed: {err}"
+                ))
+            })?
+            .map_err(AppError::Application)?;
+
         let gamedata_root = self.gamedata_root.clone();
-        let rows = tokio::task::spawn_blocking(move || build_snapshot(&gamedata_root))
+        let rows = tokio::task::spawn_blocking(move || build_snapshot(&gamedata_root, &links))
             .await
             .map_err(|err| {
                 AppError::Application(anyhow::anyhow!("story usage snapshot task failed: {err}"))
@@ -56,7 +72,10 @@ impl StoryUsageImportService {
 /// Resolves `gamedata/latest/.gamedata-ready.json`, validates the marker, then
 /// builds the full snapshot from that version's `story/` directory. All file
 /// reads happen outside any database transaction.
-fn build_snapshot(gamedata_root: &Path) -> anyhow::Result<Vec<StoryUsageRow>> {
+fn build_snapshot(
+    gamedata_root: &Path,
+    links: &CharacterLinks,
+) -> anyhow::Result<Vec<StoryUsageRow>> {
     let logical_marker = gamedata_root.join("latest").join(MARKER_FILE_NAME);
     let resolved_marker = fs::canonicalize(&logical_marker).with_context(|| {
         format!(
@@ -85,11 +104,12 @@ fn build_snapshot(gamedata_root: &Path) -> anyhow::Result<Vec<StoryUsageRow>> {
     for (script_path, path) in files {
         let content = fs::read_to_string(&path)
             .with_context(|| format!("failed to read story script: {}", path.display()))?;
-        let lines = parser::parse_script(&content);
+        let parsed = parser::parse_script(&content);
         drop(content);
-        for usage in extract::extract_usages(&lines) {
+        for usage in extract::extract_usages(&parsed) {
             rows.push(StoryUsageRow {
                 script_path: script_path.clone(),
+                listing_id: links.listing_id(&usage.resource_type, &usage.resource_id),
                 resource_type: usage.resource_type,
                 resource_id: usage.resource_id,
                 display_names: usage.display_names,
@@ -159,6 +179,25 @@ mod tests {
         r#"{"schema_version":1,"completed_at":"2026-08-17T10:00:00Z"}"#.to_string()
     }
 
+    /// Link map with one full-image character; every other fixture base is
+    /// unknown and keeps the body-collapse fallback.
+    fn links() -> CharacterLinks {
+        CharacterLinks::parse(
+            r#"{
+                "char_img_1": {
+                    "pos": {"x": 0, "y": 190}, "size": {"x": 970, "y": 970}, "groups": [],
+                    "array": [
+                        {"name": "char_img_1", "alias": "normal", "group": -1,
+                         "image": "char_img_1/char_img_1"},
+                        {"name": "char_img_1_2", "alias": "smile", "group": -1,
+                         "image": "char_img_1/char_img_1_2"}
+                    ]
+                }
+            }"#,
+        )
+        .expect("fixture link map")
+    }
+
     fn setup_gamedata(root: &Path, res_version: &str) {
         let version_dir = root.join(res_version);
         write(
@@ -171,6 +210,7 @@ mod tests {
                 "[ShowItem(image=\"item_caster\")]\n",
                 "[Character(name=\"avg_npc_009\")]\n",
                 "[name=\"赏金猎人\"]   这女人，还不肯说吗？\n",
+                "[Character(name=\"char_img_1#2\")]\n",
             ),
         );
         write(
@@ -190,7 +230,7 @@ mod tests {
         let _ = std::fs::remove_dir_all(&root);
         setup_gamedata(&root, "26-08-07-14-53-29_30b8f0");
 
-        let rows = build_snapshot(&root).expect("snapshot");
+        let rows = build_snapshot(&root, &links()).expect("snapshot");
 
         let background = rows
             .iter()
@@ -201,10 +241,19 @@ mod tests {
 
         let character = rows
             .iter()
-            .find(|row| row.resource_type == "character")
+            .find(|row| row.resource_id == "avg_npc_009#1$1")
             .expect("character row");
-        assert_eq!(character.resource_id, "avg_npc_009#1$1");
         assert_eq!(character.display_names, vec!["赏金猎人"]);
+        // Unknown base keeps the body-collapse fallback.
+        assert_eq!(character.listing_id, "avg_npc_009$1");
+
+        // Full-image characters keep their face-level ids: every `#face` ref
+        // is a standalone png, not a face overlay on a shared body.
+        let full_image = rows
+            .iter()
+            .find(|row| row.resource_id == "char_img_1#2$1")
+            .expect("full-image character row");
+        assert_eq!(full_image.listing_id, "char_img_1#2$1");
 
         assert!(rows.iter().any(|row| row.resource_id == "ac1_0"));
         assert!(rows.iter().any(|row| row.resource_id == "item_caster"));
@@ -232,7 +281,7 @@ mod tests {
             "[Background(image=\"bg_black\")]\n",
         );
 
-        let rows = build_snapshot(&root).expect("snapshot from old latest");
+        let rows = build_snapshot(&root, &links()).expect("snapshot from old latest");
         assert!(
             rows.iter()
                 .all(|row| row.script_path.starts_with("activities/"))
@@ -243,7 +292,7 @@ mod tests {
         #[cfg(unix)]
         std::os::unix::fs::symlink("26-09-01-00-00-00_abcdef", root.join("latest"))
             .expect("relink latest");
-        assert!(build_snapshot(&root).is_err());
+        assert!(build_snapshot(&root, &links()).is_err());
 
         let _ = std::fs::remove_dir_all(&root);
     }
