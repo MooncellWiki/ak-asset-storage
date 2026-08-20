@@ -1,0 +1,44 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            SELECT script_path,\n                   COALESCE(\n                       array_agg(DISTINCT name) FILTER (WHERE name IS NOT NULL),\n                       '{}'::text[]\n                   ) AS \"display_names!: Vec<String>\",\n                   array_agg(DISTINCT resource_id ORDER BY resource_id) AS \"faces!: Vec<String>\"\n            FROM story_resource_usages\n            LEFT JOIN LATERAL unnest(display_names) AS name ON TRUE\n            WHERE resource_type = 'character'\n              AND listing_id = $1\n              AND ($2::text IS NULL OR script_path > $2)\n            GROUP BY script_path\n            ORDER BY script_path\n            LIMIT $3\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "script_path",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "story_resource_usages",
+            "name": "script_path"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "display_names!: Vec<String>",
+        "type_info": "TextArray",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 2,
+        "name": "faces!: Vec<String>",
+        "type_info": "TextArray",
+        "origin": "Expression"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Text",
+        "Text",
+        "Int8"
+      ]
+    },
+    "nullable": [
+      false,
+      null,
+      null
+    ]
+  },
+  "hash": "82e742b7f631ce7b542dc75975b10361bdb24fd870041269a8520e4b1c358b4f"
+}

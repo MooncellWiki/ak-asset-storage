@@ -206,9 +206,9 @@ export interface paths {
         /**
          * Lists distinct resources with their script counts, keyed by ascending
          *     `(resource_type, listing id)` for cursor pagination. `type` filters and
-         *     `q` substring-matches (case-insensitive) when given. Characters list at
-         *     body granularity (`base$body`, face suffix stripped): the renderer
-         *     composites every face onto one shared body texture.
+         *     `q` substring-matches (case-insensitive) when given. Face-overlay
+         *     characters list at body granularity (`base$body`, face suffix stripped);
+         *     standalone full-image characters keep their face-level ids.
          */
         get: operations["list_story_resources"];
         put?: never;
@@ -320,7 +320,10 @@ export interface components {
             resources: components["schemas"]["StoryResourceSummary"][];
         };
         StoryResourceSummary: {
-            /** @description Characters use the body form `base$body`; other types use the raw id. */
+            /**
+             * @description Face-overlay characters use the body form `base$body`; standalone
+             *     full-image characters and other types use the raw id.
+             */
             id: string;
             /** Format: int64 */
             scriptCount: number;
@@ -641,7 +644,7 @@ export interface operations {
                  * @description Percent-encoded exact resource id (may contain `/`, `#`, `$`).
                  *     Characters accept two forms: `base#face$body` matches that exact
                  *     face-level reference, while `base$body` (no `#`) matches scripts
-                 *     using any face of the body.
+                 *     using any face of the body (face-overlay characters only).
                  */
                 id: string;
                 /** @description Page size, defaults to 50, at most 200. */
@@ -682,8 +685,9 @@ export interface operations {
                  */
                 type?: string | null;
                 /**
-                 * @description Case-insensitive substring filter on the listing id. Characters are
-                 *     listed at body granularity (`base$body`, face suffix stripped).
+                 * @description Case-insensitive substring filter on the listing id. Face-overlay
+                 *     characters are listed at body granularity (`base$body`); standalone
+                 *     full-image characters keep their face-level ids.
                  */
                 q?: string | null;
                 /** @description Page size, defaults to 50, at most 200. */
