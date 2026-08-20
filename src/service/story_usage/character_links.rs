@@ -7,6 +7,13 @@
 //! (`image`, names like `base_2`, empty `groups`) are one png per `#face`
 //! reference with no shared body — e.g. `char_002_amiya_1#1`..`#11` are
 //! eleven standalone pngs — so the listing keeps their face-level ids.
+//!
+//! Lookups are case-insensitive: `Torappu.AVG` preserves the case a script
+//! spells, but `ABResourceManager._PreprocessAssetPath` lowercases the whole
+//! asset path before the bundle lookup and every `avg/characters/*.ab` entry
+//! is lowercase, so refs like `avg_1012_skadiSP_1` resolve against the
+//! `avg_1012_skadisp_1` key in-game. Map keys therefore fold to lowercase at
+//! parse time; `name`/`image`/`face` values stay verbatim.
 
 use std::{collections::HashMap, fs, path::Path};
 
@@ -84,13 +91,20 @@ impl CharacterLinks {
     }
 
     pub fn parse(json: &str) -> anyhow::Result<Self> {
-        Ok(serde_json::from_str(json)?)
+        let raw: HashMap<String, LinkNode> = serde_json::from_str(json)?;
+        Ok(Self(
+            raw.into_iter()
+                .map(|(key, node)| (key.to_lowercase(), node))
+                .collect(),
+        ))
     }
 
     /// Listing-granularity id: overlay characters collapse to body form
     /// (`base$body`), full-image characters keep the face-level id, and
     /// non-characters pass through verbatim. Unknown bases keep the body
-    /// grouping so broken references stay navigable.
+    /// grouping so broken references stay navigable. Character ids are
+    /// emitted lowercase-canonical: the base folds for lookup, matching
+    /// native's effective (lowercased) asset paths.
     #[must_use]
     pub fn listing_id(&self, resource_type: &str, resource_id: &str) -> String {
         if resource_type != TYPE_CHARACTER {
@@ -99,11 +113,14 @@ impl CharacterLinks {
         let Some(parts) = split_ref(resource_id) else {
             return resource_id.to_owned();
         };
-        let collapsed = format!("{}${}", parts.base, parts.body);
-        match self.0.get(parts.base) {
+        let base = parts.base.to_lowercase();
+        let collapsed = format!("{base}${}", parts.body);
+        match self.0.get(&base) {
             None => collapsed,
             Some(node) => match resolve_entry(node, parts.face, parts.body) {
-                Some(entry) if entry.image.is_some() => resource_id.to_owned(),
+                Some(entry) if entry.image.is_some() => {
+                    format!("{base}#{}${}", parts.face, parts.body)
+                }
                 _ => collapsed,
             },
         }
@@ -131,6 +148,15 @@ mod tests {
                  "image": "char_full_1/char_full_1"},
                 {"name": "char_full_1_2", "alias": "smile", "group": -1,
                  "image": "char_full_1/char_full_1_2"}
+            ]
+        },
+        "avg_Mix_1": {
+            "pos": {"x": 0, "y": 190}, "size": {"x": 970, "y": 970},
+            "groups": [{"mode": "face_overlay", "base": "avg_Mix_1/avg_Mix_1$1",
+                        "faceRect": {"x": 459, "y": 159, "w": 130, "h": 110}}],
+            "array": [
+                {"name": "1$1", "alias": "", "group": 0, "face": "avg_Mix_1/1$1"},
+                {"name": "2$1", "alias": "", "group": 0, "face": "avg_Mix_1/2$1"}
             ]
         }
     }"#;
@@ -189,5 +215,29 @@ mod tests {
         // Non-characters and suffix-less ids pass through.
         assert_eq!(links.listing_id("background", "bg_med"), "bg_med");
         assert_eq!(links.listing_id("character", "nobody"), "nobody");
+    }
+
+    #[test]
+    fn folds_case_for_lookup_and_emits_lowercase_ids() {
+        let links = links();
+        // Script spelling differs from the json key only by case, like the
+        // corpus's `avg_1012_skadiSP_1` refs against the `avg_1012_skadisp_1`
+        // key: native lowercases the asset path before the bundle lookup, so
+        // the ref resolves and the listing id is lowercase-canonical.
+        assert_eq!(
+            links.listing_id("character", "AVG_MIX_1#2$1"),
+            "avg_mix_1$1"
+        );
+        // Full-image characters keep the face-level id, folded.
+        assert_eq!(
+            links.listing_id("character", "CHAR_FULL_1#2$1"),
+            "char_full_1#2$1"
+        );
+        // A mixed-case key folds too, so both spellings of one character
+        // group under a single listing id.
+        assert_eq!(
+            links.listing_id("character", "avg_Mix_1#1$1"),
+            "avg_mix_1$1"
+        );
     }
 }

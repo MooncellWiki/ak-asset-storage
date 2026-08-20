@@ -211,6 +211,7 @@ mod tests {
                 "[Character(name=\"avg_npc_009\")]\n",
                 "[name=\"赏金猎人\"]   这女人，还不肯说吗？\n",
                 "[Character(name=\"char_img_1#2\")]\n",
+                "[Character(name=\"CHAR_IMG_1#2\")]\n",
             ),
         );
         write(
@@ -254,6 +255,16 @@ mod tests {
             .find(|row| row.resource_id == "char_img_1#2$1")
             .expect("full-image character row");
         assert_eq!(full_image.listing_id, "char_img_1#2$1");
+
+        // A ref spelled with different case than the json key (`CHAR_IMG_1`
+        // vs `char_img_1`, like the corpus's `avg_1012_skadiSP_1` refs)
+        // resolves case-insensitively — native lowercases asset paths — and
+        // keeps the resource id verbatim for provenance.
+        let case_folded = rows
+            .iter()
+            .find(|row| row.resource_id == "CHAR_IMG_1#2$1")
+            .expect("case-folded full-image row");
+        assert_eq!(case_folded.listing_id, "char_img_1#2$1");
 
         assert!(rows.iter().any(|row| row.resource_id == "ac1_0"));
         assert!(rows.iter().any(|row| row.resource_id == "item_caster"));
