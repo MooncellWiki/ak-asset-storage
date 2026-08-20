@@ -23,11 +23,6 @@ struct MarkerFingerprint {
     len: u64,
 }
 
-#[derive(Clone, Copy, Debug)]
-struct PendingImport {
-    due_at: Instant,
-}
-
 pub struct GameDataReadyWatcher {
     event_tx: Option<UnboundedSender<MarkerFingerprint>>,
     scan_handle: Option<JoinHandle<()>>,
@@ -139,27 +134,25 @@ fn spawn_import_loop(
     service: StoryUsageImportService,
 ) -> JoinHandle<()> {
     tokio::spawn(async move {
-        let mut pending: Option<PendingImport> = None;
+        let mut pending: Option<Instant> = None;
         let mut ticker = tokio::time::interval(IMPORT_TICK_INTERVAL);
         ticker.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
 
         loop {
             tokio::select! {
                 recv = event_rx.recv() => {
-                    let Some(_fingerprint) = recv else {
+                    if recv.is_none() {
                         break;
-                    };
-                    pending = Some(PendingImport {
-                        due_at: Instant::now() + IMPORT_DEBOUNCE,
-                    });
+                    }
+                    pending = Some(Instant::now() + IMPORT_DEBOUNCE);
                     debug!("scheduled story usage import");
                 }
                 _ = ticker.tick() => {
-                    let Some(pending_import) = pending.take() else {
+                    let Some(due_at) = pending.take() else {
                         continue;
                     };
-                    if pending_import.due_at > Instant::now() {
-                        pending = Some(pending_import);
+                    if due_at > Instant::now() {
+                        pending = Some(due_at);
                         continue;
                     }
                     debug!("importing story usages from gamedata ready marker");

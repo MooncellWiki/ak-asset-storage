@@ -105,7 +105,6 @@ fn build_snapshot(
         let content = fs::read_to_string(&path)
             .with_context(|| format!("failed to read story script: {}", path.display()))?;
         let parsed = parser::parse_script(&content);
-        drop(content);
         for usage in extract::extract_usages(&parsed) {
             rows.push(StoryUsageRow {
                 script_path: script_path.clone(),
@@ -139,27 +138,16 @@ fn discover_story_files(story_dir: &Path) -> anyhow::Result<Vec<(String, PathBuf
             .path()
             .strip_prefix(story_dir)
             .expect("walkdir entries are under the root");
-        let mut script_path = String::new();
-        for component in relative.components() {
-            if !script_path.is_empty() {
-                script_path.push('/');
-            }
-            script_path.push_str(
-                component
-                    .as_os_str()
-                    .to_str()
-                    .with_context(|| format!("non-utf8 story path: {}", entry.path().display()))?,
-            );
-        }
-        let script_path = script_path
-            .strip_suffix(".txt")
-            .unwrap_or(&script_path)
-            .to_string();
+        let relative = relative
+            .to_str()
+            .with_context(|| format!("non-utf8 story path: {}", entry.path().display()))?;
+        let script_path = relative.replace(std::path::MAIN_SEPARATOR, "/");
+        let script_path = script_path.strip_suffix(".txt").unwrap_or(&script_path);
 
         if script_path.starts_with(UC_INFO_PREFIX) {
             continue;
         }
-        files.push((script_path, entry.path().to_path_buf()));
+        files.push((script_path.to_string(), entry.path().to_path_buf()));
     }
 
     files.sort_by(|a, b| a.0.cmp(&b.0));

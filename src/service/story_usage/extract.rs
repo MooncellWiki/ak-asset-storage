@@ -63,6 +63,18 @@ fn parse_suffix_index(suffix: &str) -> Result<i32, std::num::ParseIntError> {
     suffix.trim().parse::<i32>()
 }
 
+/// Argument value as `&str`, empty when the argument is absent.
+fn str_arg<'a>(args: &'a HashMap<String, String>, key: &str) -> &'a str {
+    args.get(key).map_or("", String::as_str)
+}
+
+/// Character argument value in normalized `base#face$body` form, empty when
+/// the argument is absent.
+fn character_id(args: &HashMap<String, String>, key: &str) -> String {
+    args.get(key)
+        .map_or(String::new(), |value| normalize_character_id(value))
+}
+
 /// Accumulates usages for a single script, keyed by `(type, id)` in
 /// first-appearance order. Peak memory scales with one script's resources.
 #[derive(Default)]
@@ -135,7 +147,7 @@ impl CharacterStage {
         }
     }
 
-    fn focus(&mut self, slot: &str, _default_slot: &str) {
+    fn focus(&mut self, slot: &str) {
         if !slot.is_empty() {
             self.spotlight = slot.to_string();
         } else if self.slots.len() == 1 {
@@ -164,6 +176,7 @@ impl CharacterStage {
     }
 }
 
+#[must_use]
 pub fn extract_usages(lines: &[ParsedLine]) -> Vec<ResourceUsage> {
     let mut usages = UsageAccumulator::default();
     let mut stage = CharacterStage::default();
@@ -173,42 +186,26 @@ pub fn extract_usages(lines: &[ParsedLine]) -> Vec<ResourceUsage> {
             ParsedLine::Dialogue { speaker } => stage.record_name(speaker, &mut usages),
             ParsedLine::Command { name, args } => match name.as_str() {
                 "character" => {
-                    let id1 = args
-                        .get("name")
-                        .map_or(String::new(), |value| normalize_character_id(value));
-                    let id2 = args
-                        .get("name2")
-                        .map_or(String::new(), |value| normalize_character_id(value));
-                    stage.take("1", &id1, &mut usages);
-                    stage.take("2", &id2, &mut usages);
-                    stage.focus(args.get("focus").map_or("", String::as_str), "1");
+                    stage.take("1", &character_id(args, "name"), &mut usages);
+                    stage.take("2", &character_id(args, "name2"), &mut usages);
+                    stage.focus(str_arg(args, "focus"));
                 }
                 "charslot" => {
-                    let id = args
-                        .get("name")
-                        .map_or(String::new(), |value| normalize_character_id(value));
+                    let id = character_id(args, "name");
                     if id.is_empty() {
                         stage.exit();
                     } else {
-                        let slot = args.get("slot").map_or("", String::as_str);
+                        let slot = str_arg(args, "slot");
                         stage.take(slot, &id, &mut usages);
-                        let focus = args.get("focus").map_or("", String::as_str);
-                        stage.focus(focus, slot);
+                        stage.focus(str_arg(args, "focus"));
                     }
                 }
                 "dialog" => stage.exit(),
-                "image" => {
-                    usages.add_resource(TYPE_IMAGE, args.get("image").map_or("", String::as_str));
-                }
+                "image" => usages.add_resource(TYPE_IMAGE, str_arg(args, "image")),
                 "background" => {
-                    usages.add_resource(
-                        TYPE_BACKGROUND,
-                        args.get("image").map_or("", String::as_str),
-                    );
+                    usages.add_resource(TYPE_BACKGROUND, str_arg(args, "image"));
                 }
-                "showitem" => {
-                    usages.add_resource(TYPE_ITEM, args.get("image").map_or("", String::as_str));
-                }
+                "showitem" => usages.add_resource(TYPE_ITEM, str_arg(args, "image")),
                 // Background tile groups; `imagegroup` holds `/`-joined ids.
                 "largebg" | "gridbg" | "verticalbg" => {
                     if let Some(group) = args.get("imagegroup") {
