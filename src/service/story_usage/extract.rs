@@ -106,6 +106,12 @@ impl CharacterStage {
     }
 
     fn focus(&mut self, slot: &str) {
+        // `focus=0` is native's "nobody is highlighted" and never names a slot
+        // (`_ProcessSlot` compares it against ECharSlot). Treating it as a slot
+        // id would park the spotlight on a key `slots` can never hold, so every
+        // following speaker name would be dropped; fall through to the
+        // single-character rule instead, the same as an omitted `focus`.
+        let slot = if slot == "0" { "" } else { slot };
         if !slot.is_empty() {
             self.spotlight = slot.to_string();
         } else if self.slots.len() == 1 {
@@ -160,10 +166,32 @@ pub fn extract_usages(lines: &[ParsedLine]) -> Vec<ResourceUsage> {
                 }
                 "charactercutin" => {
                     if !str_arg(args, "widgetID").is_empty() {
-                        usages.add_resource(StoryResourceType::Character, str_arg(args, "name"));
+                        // `_ExecuteCharacterCutin`'s port trims the ref before
+                        // resolving it; character ids skip `normalize_image_key`,
+                        // so do it here.
+                        usages.add_resource(
+                            StoryResourceType::Character,
+                            str_arg(args, "name").trim(),
+                        );
                     }
                 }
-                "dialog" => stage.exit(),
+                // `[Dialog]` ends the current character scene. But the sentinel
+                // also collects the multi-param dialogue tags native's
+                // `_ParseCommand` cannot parse as `[name="..."]` -- notably
+                // `[name="X",avatarId=1]` and unquoted `[name=X]` -- and
+                // `DialogPanel._ExecuteDialog` reads a speaker off those.
+                "dialog" => {
+                    let speaker = str_arg(args, "name");
+                    if speaker.is_empty() {
+                        stage.exit();
+                    } else {
+                        stage.record_name(speaker, &mut usages);
+                    }
+                }
+                // `DialogPanel._ExecuteMultiline` carries the speaker in `name`
+                // just like a dialogue tag; long conversations are authored
+                // almost entirely with it.
+                "multiline" => stage.record_name(str_arg(args, "name"), &mut usages),
                 "image" | "cgitem" | "blocker" => {
                     usages.add_resource(StoryResourceType::Image, str_arg(args, "image"));
                 }
@@ -437,6 +465,34 @@ mod tests {
         ));
         let npc = find(&all, StoryResourceType::Character, "avg_npc_008");
         assert_eq!(npc.display_names, Vec::<String>::new());
+    }
+
+    #[test]
+    fn multiline_and_multi_param_dialog_tags_carry_speakers() {
+        let all = usages(concat!(
+            r#"[Character(name="avg_npc_009")]"#,
+            "\n",
+            r#"[multiline(name="赏金猎人",end=false)]   前半句"#,
+            "\n",
+            r#"[multiline(end=true)]   后半句"#,
+            "\n",
+            r#"[name="粗暴的赏金猎人",avatarId=1]   text"#,
+            "\n",
+        ));
+        let hunter = find(&all, StoryResourceType::Character, "avg_npc_009");
+        assert_eq!(hunter.display_names, vec!["赏金猎人", "粗暴的赏金猎人"]);
+    }
+
+    #[test]
+    fn explicit_focus_zero_behaves_like_an_omitted_focus() {
+        let all = usages(concat!(
+            r#"[Character(name="avg_npc_009",focus=0)]"#,
+            "\n",
+            r#"[name="赏金猎人"]   text"#,
+            "\n",
+        ));
+        let hunter = find(&all, StoryResourceType::Character, "avg_npc_009");
+        assert_eq!(hunter.display_names, vec!["赏金猎人"]);
     }
 
     #[test]

@@ -136,6 +136,14 @@ fn select_entry<'a>(
     node.array.get(parsed.index).or_else(|| node.array.first())
 }
 
+/// The body form is `base$(group + 1)`, i.e. the group index reused as the
+/// `$N` the Explorer parses back out. That holds on the shipped
+/// `character.json`: across every multi-group character, `groups[i].base` ends
+/// in `$(i + 1)` and each overlay entry name carries the matching `$N`, and no
+/// two bases collide on a listing id. The single-group characters whose entry
+/// names have no `$N` at all (`char_181_flower_1`'s `1`/`2`/`3`) still land on
+/// `$1`, which the widget's "no matching body, take the first group" fallback
+/// resolves correctly.
 fn resolved_id(base: &str, entry: &CharacterEntry) -> ResolvedCharacterId {
     let resource_id = format!("{base}#{}", entry.name);
     let listing_id = if entry.image.is_some() || entry.group < 0 {

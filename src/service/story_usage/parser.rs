@@ -29,9 +29,16 @@ pub enum ParsedLine {
 /// such as `[Dialog]`, and `fallback` captures the rest (notably
 /// `[name="..."]`). Argument keys retain source case like the native
 /// dictionary and the `StoryPlayer` parser.
+///
+/// `fallback` is greedy on purpose. `AVGParser.cctor` builds this pattern with
+/// a greedy fourth group under `RegexOptions.ECMAScript`, and both the regex
+/// crate and JS resolve alternations leftmost-first, so a line whose text
+/// carries its own `]` closes on the *last* one in native, in `StoryPlayer`
+/// and here alike. A lazy `.*?` would close on the first one and silently
+/// disagree with the player about where a dialogue tag ends.
 static COMMAND_REGEX: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(
-        r"^\[\s*(?:(?P<paren>.*?)\((?P<args>.*)\)|(?:(?P<bare>[.|\w]*)|(?P<fallback>.*?)))\s*\]\s*(?P<content>.*)$",
+        r"^\[\s*(?:(?P<paren>.*?)\((?P<args>.*)\)|(?:(?P<bare>[.|\w]*)|(?P<fallback>.*)))\s*\]\s*(?P<content>.*)$",
     )
     .expect("story command regex must compile")
 });
@@ -325,6 +332,19 @@ mod tests {
     fn command_without_name_falls_back_to_dialog() {
         let (name, _) = command("[]");
         assert_eq!(name, "dialog");
+    }
+
+    #[test]
+    fn dialogue_tag_closes_on_the_last_bracket_like_native() {
+        // Native's fourth capture group is greedy, so the tag swallows the
+        // inner `]` and stops being a well-formed `name="..."` -- it degrades
+        // into a `dialog` command whose `name` is the raw leftover, exactly as
+        // `StoryPlayer` renders it.
+        let ParsedLine::Command { name, args } = parse_line(r#"[name="X"] a ] b"#) else {
+            panic!("expected command");
+        };
+        assert_eq!(name, "dialog");
+        assert_eq!(args.get("name").map(String::as_str), Some(r#""X"] a"#));
     }
 
     #[test]
