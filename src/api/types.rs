@@ -8,9 +8,9 @@ pub struct StoryResourceUsageQuery {
     #[serde(rename = "type")]
     pub resource_type: String,
     /// Percent-encoded exact resource id (may contain `/`, `#`, `$`).
-    /// Characters accept two forms: `base#face$body` matches that exact
-    /// face-level reference, while `base$body` (no `#`) matches scripts
-    /// using any face of the body (face-overlay characters only).
+    /// Characters accept two forms: `base#expression` matches the resolved
+    /// `character.json` entry, while `base$body` (no `#`) matches scripts
+    /// using any expression of the body (face-overlay characters only).
     pub id: String,
     /// Page size, defaults to 50, at most 200.
     pub limit: Option<u32>,
@@ -26,7 +26,7 @@ pub struct StoryResourceListQuery {
     pub resource_type: Option<String>,
     /// Case-insensitive substring filter on the listing id. Face-overlay
     /// characters are listed at body granularity (`base$body`); standalone
-    /// full-image characters keep their face-level ids.
+    /// full-image characters keep their resolved expression ids.
     pub q: Option<String>,
     /// Page size, defaults to 50, at most 200.
     pub limit: Option<u32>,
@@ -40,7 +40,8 @@ pub struct StoryResourceSummary {
     #[serde(rename = "type")]
     pub resource_type: String,
     /// Face-overlay characters use the body form `base$body`; standalone
-    /// full-image characters and other types use the raw id.
+    /// full-image characters use `base#expression`, and other types use their
+    /// normalized image key.
     pub id: String,
     pub script_count: i64,
 }
@@ -50,7 +51,7 @@ pub struct StoryResourceSummary {
 pub struct StoryResourceUsageItem {
     pub script_path: String,
     pub display_names: Vec<String>,
-    /// Face-level character ids (`base#face$body`) this script uses.
+    /// Resolved character expression ids (`base#expression`) this script uses.
     /// Present only for character body queries (`base$body` id form).
     pub faces: Option<Vec<String>>,
 }

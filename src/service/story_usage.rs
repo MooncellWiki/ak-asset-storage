@@ -8,6 +8,7 @@ pub mod marker;
 pub mod parser;
 
 use std::{
+    collections::HashMap,
     fs,
     path::{Path, PathBuf},
 };
@@ -105,19 +106,53 @@ fn build_snapshot(
         let content = fs::read_to_string(&path)
             .with_context(|| format!("failed to read story script: {}", path.display()))?;
         let parsed = parser::parse_script(&content);
-        for usage in extract::extract_usages(&parsed) {
-            rows.push(StoryUsageRow {
-                script_path: script_path.clone(),
-                listing_id: links.listing_id(&usage.resource_type, &usage.resource_id),
-                resource_type: usage.resource_type,
-                resource_id: usage.resource_id,
-                display_names: usage.display_names,
-                sort_order: i32::try_from(usage.sort_order)
-                    .expect("per-script resource count fits i32"),
-            });
-        }
+        rows.extend(build_script_rows(&script_path, &parsed, links));
     }
     Ok(rows)
+}
+
+/// Converts extractor refs into the identities `StoryPlayer` actually renders.
+/// Multiple script spellings that resolve to one asset merge into the first
+/// occurrence so the database primary key stays unique.
+fn build_script_rows(
+    script_path: &str,
+    parsed: &[parser::ParsedLine],
+    links: &CharacterLinks,
+) -> Vec<StoryUsageRow> {
+    let mut rows: Vec<StoryUsageRow> = Vec::new();
+    let mut index = HashMap::<(String, String), usize>::new();
+
+    for usage in extract::extract_usages(parsed) {
+        let (resource_id, listing_id) = if usage.resource_type == extract::TYPE_CHARACTER {
+            let Some(resolved) = links.resolve(&usage.resource_id) else {
+                continue;
+            };
+            (resolved.resource_id, resolved.listing_id)
+        } else {
+            (usage.resource_id.clone(), usage.resource_id.clone())
+        };
+        let key = (usage.resource_type.clone(), resource_id.clone());
+        if let Some(&position) = index.get(&key) {
+            for name in usage.display_names {
+                if !rows[position].display_names.contains(&name) {
+                    rows[position].display_names.push(name);
+                }
+            }
+            continue;
+        }
+
+        index.insert(key, rows.len());
+        rows.push(StoryUsageRow {
+            script_path: script_path.to_string(),
+            resource_type: usage.resource_type,
+            resource_id,
+            listing_id,
+            display_names: usage.display_names,
+            sort_order: i32::try_from(usage.sort_order)
+                .expect("per-script resource count fits i32"),
+        });
+    }
+    rows
 }
 
 /// Recursively finds `story/**/*.txt`, excluding `[uc]info/**`. `script_path`
@@ -167,11 +202,21 @@ mod tests {
         r#"{"schema_version":1,"completed_at":"2026-08-17T10:00:00Z"}"#.to_string()
     }
 
-    /// Link map with one full-image character; every other fixture base is
-    /// unknown and keeps the body-collapse fallback.
+    /// Link map with one overlay character and one full-image character.
     fn links() -> CharacterLinks {
         CharacterLinks::parse(
             r#"{
+                "avg_npc_009": {
+                    "pos": {"x": 0, "y": 190}, "size": {"x": 970, "y": 970},
+                    "groups": [{"mode": "face_overlay", "base": "avg_npc_009/avg_npc_009$1",
+                                "faceRect": {"x": 459, "y": 159, "w": 130, "h": 110}}],
+                    "array": [
+                        {"name": "10$1", "alias": "normal", "group": 0,
+                         "face": "avg_npc_009/10$1"},
+                        {"name": "20$1", "alias": "smile", "group": 0,
+                         "face": "avg_npc_009/20$1"}
+                    ]
+                },
                 "char_img_1": {
                     "pos": {"x": 0, "y": 190}, "size": {"x": 970, "y": 970}, "groups": [],
                     "array": [
@@ -193,13 +238,14 @@ mod tests {
             concat!(
                 "[HEADER(key=\"title_test\", is_skippable=true)] 第一关（前）\n",
                 "[Dialog]\n",
-                "[Background(image=\"bg_med\", fadetime=2,block=true)]\n",
+                "[Background(image=\" BG_MED \", fadetime=2,block=true)]\n",
                 "[Image(image=\"ac1_0\")]\n",
                 "[ShowItem(image=\"item_caster\")]\n",
                 "[Character(name=\"avg_npc_009\")]\n",
                 "[name=\"赏金猎人\"]   这女人，还不肯说吗？\n",
                 "[Character(name=\"char_img_1#2\")]\n",
                 "[Character(name=\"CHAR_IMG_1#2\")]\n",
+                "[Character(name=\"unknown_character#1\")]\n",
             ),
         );
         write(
@@ -230,29 +276,32 @@ mod tests {
 
         let character = rows
             .iter()
-            .find(|row| row.resource_id == "avg_npc_009#1$1")
+            .find(|row| row.resource_id == "avg_npc_009#10$1")
             .expect("character row");
         assert_eq!(character.display_names, vec!["赏金猎人"]);
-        // Unknown base keeps the body-collapse fallback.
         assert_eq!(character.listing_id, "avg_npc_009$1");
 
-        // Full-image characters keep their face-level ids: every `#face` ref
-        // is a standalone png, not a face overlay on a shared body.
+        // Full-image characters use the actual character.json entry name, so
+        // the Explorer can select the same PNG as StoryPlayer.
         let full_image = rows
             .iter()
-            .find(|row| row.resource_id == "char_img_1#2$1")
+            .find(|row| row.resource_id == "char_img_1#char_img_1_2")
             .expect("full-image character row");
-        assert_eq!(full_image.listing_id, "char_img_1#2$1");
+        assert_eq!(full_image.listing_id, "char_img_1#char_img_1_2");
 
         // A ref spelled with different case than the json key (`CHAR_IMG_1`
         // vs `char_img_1`, like the corpus's `avg_1012_skadiSP_1` refs)
-        // resolves case-insensitively — native lowercases asset paths — and
-        // keeps the resource id verbatim for provenance.
-        let case_folded = rows
-            .iter()
-            .find(|row| row.resource_id == "CHAR_IMG_1#2$1")
-            .expect("case-folded full-image row");
-        assert_eq!(case_folded.listing_id, "char_img_1#2$1");
+        // resolves to the same canonical row instead of duplicating it.
+        assert_eq!(
+            rows.iter()
+                .filter(|row| row.resource_id == "char_img_1#char_img_1_2")
+                .count(),
+            1
+        );
+        assert!(
+            rows.iter()
+                .all(|row| !row.resource_id.contains("unknown_character"))
+        );
 
         assert!(rows.iter().any(|row| row.resource_id == "ac1_0"));
         assert!(rows.iter().any(|row| row.resource_id == "item_caster"));

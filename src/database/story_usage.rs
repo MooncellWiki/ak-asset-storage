@@ -10,8 +10,8 @@ pub struct StoryUsageItemRow {
     pub display_names: Vec<String>,
 }
 
-/// Body-granularity usage row: one script using any face of the body, with
-/// the face-level ids (`base#face$body`) it uses.
+/// Body-granularity usage row: one script using any expression of the body,
+/// with the resolved `base#expression` ids it uses.
 #[derive(Debug, Clone)]
 pub struct StoryCharacterBodyUsageRow {
     pub script_path: String,
@@ -136,7 +136,7 @@ impl Database {
     /// Reverse lookup at character body granularity: `body_id` is the face
     /// suffix-stripped `base$body` form (the `listing_id`), and scripts
     /// using any face of that body collapse into one row with the union of
-    /// their display names and the face-level ids each script uses. Keyed
+    /// their display names and the resolved expression ids each script uses. Keyed
     /// by ascending `script_path` for cursor pagination.
     pub async fn query_story_character_body_usages(
         &self,
@@ -175,8 +175,8 @@ impl Database {
     /// keyed by ascending `(resource_type, listing_id)` for cursor
     /// pagination. Characters collapse to body granularity — the renderer
     /// composites each face onto a shared `base$body` texture, so the `#face`
-    /// overlay suffix is stripped and faces of one body merge; other types
-    /// list their ids verbatim.
+    /// expression suffix is stripped and faces of one body merge; other types
+    /// list their normalized ids.
     ///
     /// `id_pattern` is an already-escaped ILIKE fragment without the
     /// surrounding `%` wildcards and matches the listing id; `after` is an

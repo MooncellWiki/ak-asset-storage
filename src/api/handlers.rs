@@ -365,7 +365,7 @@ pub async fn get_story_resource_usages(
 /// `(resource_type, listing id)` for cursor pagination. `type` filters and
 /// `q` substring-matches (case-insensitive) when given. Face-overlay
 /// characters list at body granularity (`base$body`, face suffix stripped);
-/// standalone full-image characters keep their face-level ids.
+/// standalone full-image characters keep their resolved expression ids.
 #[debug_handler]
 #[utoipa::path(
     get,

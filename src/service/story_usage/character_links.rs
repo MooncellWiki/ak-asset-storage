@@ -4,9 +4,8 @@
 //!
 //! Overlay entries (`face`, names like `N$M`) share one `base$body` png, so
 //! the resource listing collapses them to body form. Full-image entries
-//! (`image`, names like `base_2`, empty `groups`) are one png per `#face`
-//! reference with no shared body — e.g. `char_002_amiya_1#1`..`#11` are
-//! eleven standalone pngs — so the listing keeps their face-level ids.
+//! (`image`, names like `base_2`, empty `groups`) are one png per expression,
+//! so the listing keeps the resolved `character.json` entry name.
 //!
 //! Lookups are case-insensitive: `Torappu.AVG` preserves the case a script
 //! spells, but `ABResourceManager._PreprocessAssetPath` lowercases the whole
@@ -20,10 +19,13 @@ use std::{collections::HashMap, fs, path::Path};
 use anyhow::{Context, bail};
 use serde::Deserialize;
 
-use super::extract::TYPE_CHARACTER;
-
-#[derive(Debug, Deserialize)]
-pub struct CharacterLinks(HashMap<String, LinkNode>);
+#[derive(Debug)]
+pub struct CharacterLinks {
+    nodes: HashMap<String, LinkNode>,
+    /// `StoryPlayer`'s web-only `base-expression` references, precomputed to
+    /// avoid scanning every character for every story reference.
+    explicit_refs: HashMap<String, (String, String)>,
+}
 
 #[derive(Debug, Deserialize)]
 struct LinkNode {
@@ -33,45 +35,117 @@ struct LinkNode {
 #[derive(Debug, Deserialize)]
 struct CharacterEntry {
     name: String,
+    #[serde(default)]
+    alias: Option<String>,
+    group: i32,
     image: Option<String>,
 }
 
-/// `base#face$body` reference split into its parts.
-struct RefParts<'a> {
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ResolvedCharacterId {
+    /// Face-level identity consumed by the Explorer (`base#entry.name`).
+    pub resource_id: String,
+    /// Overlay entries collapse to `base$body`; full images keep `resource_id`.
+    pub listing_id: String,
+}
+
+struct NativeCharacterRef<'a> {
+    alias: Option<&'a str>,
     base: &'a str,
-    face: i32,
-    body: i32,
+    /// Native `$N` suffix, kept 1-based for entry-name matching.
+    group: Option<i32>,
+    /// Native `#N` suffix converted to the selected zero-based index.
+    index: usize,
 }
 
-fn split_ref(id: &str) -> Option<RefParts<'_>> {
-    let dollar = id.rfind('$')?;
-    let hash = id[..dollar].rfind('#')?;
-    Some(RefParts {
-        base: &id[..hash],
-        face: id[hash + 1..dollar].trim().parse().unwrap_or(1),
-        body: id[dollar + 1..].trim().parse().unwrap_or(1),
-    })
+const fn is_dotnet_whitespace(ch: char) -> bool {
+    matches!(ch, '\u{20}' | '\u{09}'..='\u{0d}')
 }
 
-/// Ports the runtime's group-then-index resolution: entries whose names end
-/// in `$body` form the body's face list (1-based `face` index, falling back
-/// to the first); without such names the whole array is indexed, which is
-/// how full-image characters resolve.
-fn resolve_entry(node: &LinkNode, face: i32, body: i32) -> Option<&CharacterEntry> {
-    let suffix = format!("${body}");
-    let grouped: Vec<&CharacterEntry> = node
-        .array
-        .iter()
-        .filter(|entry| entry.name.ends_with(&suffix))
-        .collect();
-    let index = usize::try_from(face.max(1) - 1).unwrap_or(0);
-    if grouped.is_empty() {
-        node.array.get(index).or_else(|| node.array.first())
+/// `System.Int32.TryParse(NumberStyles.Integer)` as used by `StoryPlayer`'s
+/// native-character-ref port.
+fn try_parse_i32(raw: &str) -> Option<i32> {
+    raw.trim_matches(is_dotnet_whitespace).parse().ok()
+}
+
+fn parse_native_ref(raw: &str) -> NativeCharacterRef<'_> {
+    let mut value = raw;
+    let mut group = None;
+    if let Some(dollar) = value.rfind('$')
+        && let Some(parsed) = try_parse_i32(&value[dollar + 1..])
+    {
+        group = Some(parsed);
+        value = &value[..dollar];
+    }
+
+    if let Some(at) = value.rfind('@') {
+        return NativeCharacterRef {
+            alias: Some(&value[at + 1..]),
+            base: &value[..at],
+            group,
+            index: 0,
+        };
+    }
+
+    let mut index = 0;
+    if let Some(hash) = value.rfind('#')
+        && let Some(parsed) = try_parse_i32(&value[hash + 1..])
+    {
+        index = usize::try_from(parsed.saturating_sub(1).max(0)).unwrap_or(0);
+        value = &value[..hash];
+    }
+    NativeCharacterRef {
+        alias: None,
+        base: value,
+        group,
+        index,
+    }
+}
+
+fn select_entry<'a>(
+    node: &'a LinkNode,
+    parsed: &NativeCharacterRef<'_>,
+) -> Option<&'a CharacterEntry> {
+    if let Some(alias) = parsed.alias {
+        return node
+            .array
+            .iter()
+            .find(|entry| {
+                entry
+                    .alias
+                    .as_deref()
+                    .is_some_and(|candidate| candidate.to_lowercase() == alias)
+            })
+            .or_else(|| node.array.first());
+    }
+
+    if let Some(group) = parsed.group {
+        let suffix = format!("${group}");
+        let mut grouped = node
+            .array
+            .iter()
+            .filter(|entry| entry.name.ends_with(&suffix));
+        let first = grouped.next()?;
+        return if parsed.index == 0 {
+            Some(first)
+        } else {
+            grouped.nth(parsed.index - 1).or(Some(first))
+        };
+    }
+
+    node.array.get(parsed.index).or_else(|| node.array.first())
+}
+
+fn resolved_id(base: &str, entry: &CharacterEntry) -> ResolvedCharacterId {
+    let resource_id = format!("{base}#{}", entry.name);
+    let listing_id = if entry.image.is_some() || entry.group < 0 {
+        resource_id.clone()
     } else {
-        grouped
-            .get(index)
-            .copied()
-            .or_else(|| grouped.first().copied())
+        format!("{base}${}", entry.group + 1)
+    };
+    ResolvedCharacterId {
+        resource_id,
+        listing_id,
     }
 }
 
@@ -92,38 +166,58 @@ impl CharacterLinks {
 
     pub fn parse(json: &str) -> anyhow::Result<Self> {
         let raw: HashMap<String, LinkNode> = serde_json::from_str(json)?;
-        Ok(Self(
-            raw.into_iter()
-                .map(|(key, node)| (key.to_lowercase(), node))
-                .collect(),
-        ))
+        let nodes: HashMap<String, LinkNode> = raw
+            .into_iter()
+            .map(|(key, node)| (key.to_lowercase(), node))
+            .collect();
+        let explicit_refs = nodes
+            .iter()
+            .flat_map(|(base, node)| {
+                node.array.iter().map(move |entry| {
+                    (
+                        format!("{base}-{}", entry.name.to_lowercase()),
+                        (base.clone(), entry.name.clone()),
+                    )
+                })
+            })
+            .collect();
+        Ok(Self {
+            nodes,
+            explicit_refs,
+        })
     }
 
-    /// Listing-granularity id: overlay characters collapse to body form
-    /// (`base$body`), full-image characters keep the face-level id, and
-    /// non-characters pass through verbatim. Unknown bases keep the body
-    /// grouping so broken references stay navigable. Character ids are
-    /// emitted lowercase-canonical: the base folds for lookup, matching
-    /// native's effective (lowercased) asset paths.
+    /// Resolves a raw story ref with the same direct / explicit-expression /
+    /// native suffix order as `StoryPlayer`. Unknown refs are omitted because
+    /// the player cannot display them either.
     #[must_use]
-    pub fn listing_id(&self, resource_type: &str, resource_id: &str) -> String {
-        if resource_type != TYPE_CHARACTER {
-            return resource_id.to_owned();
+    pub fn resolve(&self, raw_ref: &str) -> Option<ResolvedCharacterId> {
+        if raw_ref.is_empty() {
+            return None;
         }
-        let Some(parts) = split_ref(resource_id) else {
-            return resource_id.to_owned();
-        };
-        let base = parts.base.to_lowercase();
-        let collapsed = format!("{base}${}", parts.body);
-        match self.0.get(&base) {
-            None => collapsed,
-            Some(node) => match resolve_entry(node, parts.face, parts.body) {
-                Some(entry) if entry.image.is_some() => {
-                    format!("{base}#{}${}", parts.face, parts.body)
-                }
-                _ => collapsed,
-            },
+        let normalized = raw_ref.to_lowercase();
+
+        if let Some(node) = self.nodes.get(&normalized) {
+            return node
+                .array
+                .first()
+                .map(|entry| resolved_id(&normalized, entry));
         }
+
+        if let Some((base, expression)) = self.explicit_refs.get(&normalized) {
+            let entry = self
+                .nodes
+                .get(base)?
+                .array
+                .iter()
+                .find(|entry| entry.name == expression.as_str())?;
+            return Some(resolved_id(base, entry));
+        }
+
+        let parsed = parse_native_ref(&normalized);
+        let node = self.nodes.get(parsed.base)?;
+        let entry = select_entry(node, &parsed)?;
+        Some(resolved_id(parsed.base, entry))
     }
 }
 
@@ -137,8 +231,8 @@ mod tests {
             "groups": [{"mode": "face_overlay", "base": "avg_overlay_1/avg_overlay_1$1",
                         "faceRect": {"x": 459, "y": 159, "w": 130, "h": 110}}],
             "array": [
-                {"name": "1$1", "alias": "", "group": 0, "face": "avg_overlay_1/1$1"},
-                {"name": "2$1", "alias": "", "group": 0, "face": "avg_overlay_1/2$1"}
+                {"name": "10$1", "alias": "normal", "group": 0, "face": "avg_overlay_1/10$1"},
+                {"name": "20$1", "alias": "smile", "group": 0, "face": "avg_overlay_1/20$1"}
             ]
         },
         "char_full_1": {
@@ -165,79 +259,82 @@ mod tests {
         CharacterLinks::parse(LINKS_JSON).expect("fixture json")
     }
 
+    fn resolved(resource_id: &str, listing_id: &str) -> Option<ResolvedCharacterId> {
+        Some(ResolvedCharacterId {
+            resource_id: resource_id.to_string(),
+            listing_id: listing_id.to_string(),
+        })
+    }
+
     #[test]
-    fn overlay_characters_collapse_to_body_form() {
+    fn resolves_numeric_indices_to_actual_overlay_entry_names() {
         let links = links();
         assert_eq!(
-            links.listing_id("character", "avg_overlay_1#2$1"),
-            "avg_overlay_1$1"
+            links.resolve("avg_overlay_1#2$1"),
+            resolved("avg_overlay_1#20$1", "avg_overlay_1$1")
         );
-        // Face index beyond the list falls back to the first entry, which is
-        // still a face overlay.
         assert_eq!(
-            links.listing_id("character", "avg_overlay_1#9$1"),
-            "avg_overlay_1$1"
+            links.resolve("avg_overlay_1#9$1"),
+            resolved("avg_overlay_1#10$1", "avg_overlay_1$1")
+        );
+        assert_eq!(
+            links.resolve("avg_overlay_1"),
+            resolved("avg_overlay_1#10$1", "avg_overlay_1$1")
         );
     }
 
     #[test]
-    fn full_image_characters_keep_face_level_ids() {
+    fn full_image_ids_use_the_resolved_entry_name() {
         let links = links();
         assert_eq!(
-            links.listing_id("character", "char_full_1#1$1"),
-            "char_full_1#1$1"
+            links.resolve("char_full_1#1"),
+            resolved("char_full_1#char_full_1", "char_full_1#char_full_1")
         );
         assert_eq!(
-            links.listing_id("character", "char_full_1#2$1"),
-            "char_full_1#2$1"
+            links.resolve("char_full_1#2"),
+            resolved("char_full_1#char_full_1_2", "char_full_1#char_full_1_2")
         );
-        // Out-of-range face resolves to the first full image: still no
-        // collapse.
         assert_eq!(
-            links.listing_id("character", "char_full_1#7$1"),
-            "char_full_1#7$1"
+            links.resolve("char_full_1#7"),
+            resolved("char_full_1#char_full_1", "char_full_1#char_full_1")
         );
     }
 
     #[test]
-    fn unknown_bases_and_other_types_keep_previous_rules() {
+    fn supports_storyplayer_explicit_expression_and_alias_forms() {
         let links = links();
-        // Unknown base: body grouping keeps broken refs navigable.
         assert_eq!(
-            links.listing_id("character", "avg_unknown_1#4$1"),
-            "avg_unknown_1$1"
+            links.resolve("char_full_1-char_full_1_2"),
+            resolved("char_full_1#char_full_1_2", "char_full_1#char_full_1_2")
         );
-        // Verbatim broken base survives the collapse.
         assert_eq!(
-            links.listing_id("character", "avg_x#3 4#1$1"),
-            "avg_x#3 4$1"
+            links.resolve("char_full_1@SMILE"),
+            resolved("char_full_1#char_full_1_2", "char_full_1#char_full_1_2")
         );
-        // Non-characters and suffix-less ids pass through.
-        assert_eq!(links.listing_id("background", "bg_med"), "bg_med");
-        assert_eq!(links.listing_id("character", "nobody"), "nobody");
     }
 
     #[test]
-    fn folds_case_for_lookup_and_emits_lowercase_ids() {
+    fn matches_case_insensitively_and_preserves_entry_name_case() {
         let links = links();
-        // Script spelling differs from the json key only by case, like the
-        // corpus's `avg_1012_skadiSP_1` refs against the `avg_1012_skadisp_1`
-        // key: native lowercases the asset path before the bundle lookup, so
-        // the ref resolves and the listing id is lowercase-canonical.
         assert_eq!(
-            links.listing_id("character", "AVG_MIX_1#2$1"),
-            "avg_mix_1$1"
+            links.resolve("AVG_MIX_1#2$1"),
+            resolved("avg_mix_1#2$1", "avg_mix_1$1")
         );
-        // Full-image characters keep the face-level id, folded.
         assert_eq!(
-            links.listing_id("character", "CHAR_FULL_1#2$1"),
-            "char_full_1#2$1"
+            links.resolve("CHAR_FULL_1#2"),
+            resolved("char_full_1#char_full_1_2", "char_full_1#char_full_1_2")
         );
-        // A mixed-case key folds too, so both spellings of one character
-        // group under a single listing id.
+    }
+
+    #[test]
+    fn matches_storyplayer_int32_suffix_whitespace_and_rejects_unknown_refs() {
+        let links = links();
         assert_eq!(
-            links.listing_id("character", "avg_Mix_1#1$1"),
-            "avg_mix_1$1"
+            links.resolve("avg_overlay_1#2 $1 "),
+            resolved("avg_overlay_1#20$1", "avg_overlay_1$1")
         );
+        assert_eq!(links.resolve("avg_overlay_1#2 3$1"), None);
+        assert_eq!(links.resolve("avg_unknown_1#1$1"), None);
+        assert_eq!(links.resolve(""), None);
     }
 }

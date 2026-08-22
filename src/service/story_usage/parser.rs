@@ -2,8 +2,9 @@
 //!
 //! Ported from the `prts-widgets` `StoryPlayer` engine parser
 //! (`src/widgets/StoryPlayer/engine/parser.ts`), covering only what resource
-//! extraction needs: lowercased command names, argument maps, and dialogue
-//! speaker names. Native provenance is `Torappu.AVG.AVGParser`.
+//! extraction needs: lowercased command names, case-sensitive argument maps,
+//! and dialogue speaker names. Native provenance is
+//! `Torappu.AVG.AVGParser`.
 
 use std::collections::HashMap;
 use std::sync::LazyLock;
@@ -26,9 +27,8 @@ pub enum ParsedLine {
 ///
 /// `paren`/`args` capture `Name(params)`, `bare` captures plain word commands
 /// such as `[Dialog]`, and `fallback` captures the rest (notably
-/// `[name="..."]`). Keys are lowercased like arkwaifu's directive parser; the
-/// native dictionary keeps source case but every resource-bearing command in
-/// the corpus uses lowercase keys.
+/// `[name="..."]`). Argument keys retain source case like the native
+/// dictionary and the `StoryPlayer` parser.
 static COMMAND_REGEX: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(
         r"^\[\s*(?:(?P<paren>.*?)\((?P<args>.*)\)|(?:(?P<bare>[.|\w]*)|(?P<fallback>.*?)))\s*\]\s*(?P<content>.*)$",
@@ -117,9 +117,9 @@ fn parse_args(raw: &str) -> HashMap<String, String> {
         let Some((key, value)) = part.split_once('=') else {
             continue;
         };
-        let key = key.trim().to_lowercase();
+        let key = key.trim();
         if !key.is_empty() {
-            args.insert(key, parse_value(value));
+            args.insert(key.to_string(), parse_value(value));
         }
     }
     args
@@ -315,9 +315,10 @@ mod tests {
     }
 
     #[test]
-    fn lowercases_argument_keys() {
+    fn preserves_argument_key_case() {
         let (_, args) = command("[Foo(Image=bg)]");
-        assert_eq!(args.get("image").map(String::as_str), Some("bg"));
+        assert_eq!(args.get("Image").map(String::as_str), Some("bg"));
+        assert!(!args.contains_key("image"));
     }
 
     #[test]

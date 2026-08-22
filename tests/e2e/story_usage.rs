@@ -13,7 +13,7 @@ const V1_SCRIPT: &str = r#"[HEADER(key="test")] 测试
 （无台词的反应表情）
 [Character(name="avg_npc_001#1$1")]
 [name="测试者甲"]   你好
-[Character(name="char_img_1#2$1")]
+[Character(name="char_img_1#2")]
 （无台词的整图表情）
 [ShowItem(image="item_test_1")]
 "#;
@@ -21,7 +21,7 @@ const V1_SCRIPT: &str = r#"[HEADER(key="test")] 测试
 const V1_INFO_SCRIPT: &str = "[Background(image=\"bg_info_ignored\")]\n";
 
 /// Link map next to gamedata: `avg_npc_001` is a face-overlay character,
-/// `char_img_1` a standalone-full-image character, `avg_npc_002` unknown.
+/// `char_img_1` is a standalone-full-image character; the others use overlays.
 const CHARACTER_LINKS: &str = r#"{
     "avg_npc_001": {
         "pos": {"x": 0, "y": 190}, "size": {"x": 970, "y": 970},
@@ -39,6 +39,16 @@ const CHARACTER_LINKS: &str = r#"{
              "image": "char_img_1/char_img_1"},
             {"name": "char_img_1_2", "alias": "smile", "group": -1,
              "image": "char_img_1/char_img_1_2"}
+        ]
+    },
+    "avg_npc_002": {
+        "pos": {"x": 0, "y": 190}, "size": {"x": 970, "y": 970},
+        "groups": [{"mode": "face_overlay", "base": "avg_npc_002/avg_npc_002$1",
+                    "faceRect": {"x": 459, "y": 159, "w": 130, "h": 110}}],
+        "array": [
+            {"name": "1$1", "alias": "", "group": 0, "face": "avg_npc_002/1$1"},
+            {"name": "2$1", "alias": "", "group": 0, "face": "avg_npc_002/2$1"},
+            {"name": "3$1", "alias": "", "group": 0, "face": "avg_npc_002/3$1"}
         ]
     }
 }"#;
@@ -193,7 +203,7 @@ async fn manual_import_replaces_snapshot_and_serves_api() {
 
     // Resource listing: distinct resources with script counts. Face-overlay
     // characters collapse to body granularity (`base$body`); standalone
-    // full-image characters keep their face-level ids.
+    // full-image characters keep their resolved expression ids.
     let (status, body) = env.get_text("/api/v1/story-resources?limit=200").await;
     assert_eq!(status, StatusCode::OK);
     assert!(
@@ -210,7 +220,7 @@ async fn manual_import_replaces_snapshot_and_serves_api() {
     );
     assert!(!body.contains("avg_npc_001#"), "{body}");
     assert!(
-        body.contains(r#"{"type":"character","id":"char_img_1#2$1","scriptCount":1}"#),
+        body.contains(r#"{"type":"character","id":"char_img_1#char_img_1_2","scriptCount":1}"#),
         "{body}"
     );
     assert!(!body.contains(r#""id":"char_img_1$1""#), "{body}");

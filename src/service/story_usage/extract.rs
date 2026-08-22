@@ -22,57 +22,15 @@ pub struct ResourceUsage {
     pub sort_order: usize,
 }
 
-/// Ports the native `Torappu.AVG` `_LoadImage` staged suffix parsing.
-///
-/// `_TryParseBody` → `_TryParseAlias` → `_TryParseIndex` (VA `0x183A0FD50`):
-/// cut at the last `$` for the body index, then at the last `#` for the face
-/// index. Each suffix goes through .NET `Int32.TryParse(NumberStyles.Integer)`
-/// semantics, which tolerate surrounding whitespace, so upstream typos like
-/// `avg_4236_tmslot_1#3 $1` or `avg_4179_monstr_1#4$1 ` resolve exactly like
-/// their clean forms. Whatever remains is the base key verbatim: whitespace
-/// inside the base would flow into the native resource path and fail to load,
-/// so it is preserved to surface as a broken reference instead of being
-/// silently mended into a nonexistent asset id. `@alias` refs would need the
-/// `character.json` link map (none exist in the corpus) and stay in the base.
-#[must_use]
-pub fn normalize_character_id(id: &str) -> String {
-    if id.trim().is_empty() {
-        return String::new();
-    }
-    let mut value = id;
-    let mut face = 1;
-    let mut body = 1;
-    if let Some(pos) = value.rfind('$')
-        && let Ok(parsed) = parse_suffix_index(&value[pos + '$'.len_utf8()..])
-    {
-        body = parsed;
-        value = &value[..pos];
-    }
-    if let Some(pos) = value.rfind('#')
-        && let Ok(parsed) = parse_suffix_index(&value[pos + '#'.len_utf8()..])
-    {
-        face = parsed;
-        value = &value[..pos];
-    }
-    format!("{value}#{face}${body}")
-}
-
-/// .NET `Int32.TryParse` acceptance: optional sign plus digits with
-/// surrounding whitespace, no interior separators.
-fn parse_suffix_index(suffix: &str) -> Result<i32, std::num::ParseIntError> {
-    suffix.trim().parse::<i32>()
-}
-
 /// Argument value as `&str`, empty when the argument is absent.
 fn str_arg<'a>(args: &'a HashMap<String, String>, key: &str) -> &'a str {
     args.get(key).map_or("", String::as_str)
 }
 
-/// Character argument value in normalized `base#face$body` form, empty when
-/// the argument is absent.
-fn character_id(args: &HashMap<String, String>, key: &str) -> String {
-    args.get(key)
-        .map_or(String::new(), |value| normalize_character_id(value))
+/// Image-like resource identity follows `StoryPlayer`'s asset routing: trim the
+/// script value and fold the effective bundle path to lowercase.
+fn normalize_image_key(raw: &str) -> String {
+    raw.trim().to_lowercase()
 }
 
 /// Accumulates usages for a single script, keyed by `(type, id)` in
@@ -86,6 +44,13 @@ struct UsageAccumulator {
 
 impl UsageAccumulator {
     fn add_resource(&mut self, resource_type: &str, resource_id: &str) {
+        let normalized;
+        let resource_id = if resource_type == TYPE_CHARACTER {
+            resource_id
+        } else {
+            normalized = normalize_image_key(resource_id);
+            &normalized
+        };
         if resource_id.is_empty() {
             return;
         }
@@ -186,18 +151,23 @@ pub fn extract_usages(lines: &[ParsedLine]) -> Vec<ResourceUsage> {
             ParsedLine::Dialogue { speaker } => stage.record_name(speaker, &mut usages),
             ParsedLine::Command { name, args } => match name.as_str() {
                 "character" => {
-                    stage.take("1", &character_id(args, "name"), &mut usages);
-                    stage.take("2", &character_id(args, "name2"), &mut usages);
+                    stage.take("1", str_arg(args, "name"), &mut usages);
+                    stage.take("2", str_arg(args, "name2"), &mut usages);
                     stage.focus(str_arg(args, "focus"));
                 }
                 "charslot" => {
-                    let id = character_id(args, "name");
+                    let id = str_arg(args, "name");
                     if id.is_empty() {
                         stage.exit();
                     } else {
                         let slot = str_arg(args, "slot");
-                        stage.take(slot, &id, &mut usages);
+                        stage.take(slot, id, &mut usages);
                         stage.focus(str_arg(args, "focus"));
+                    }
+                }
+                "charactercutin" => {
+                    if !str_arg(args, "widgetID").is_empty() {
+                        usages.add_resource(TYPE_CHARACTER, str_arg(args, "name"));
                     }
                 }
                 "dialog" => stage.exit(),
@@ -206,12 +176,48 @@ pub fn extract_usages(lines: &[ParsedLine]) -> Vec<ResourceUsage> {
                     usages.add_resource(TYPE_BACKGROUND, str_arg(args, "image"));
                 }
                 "showitem" => usages.add_resource(TYPE_ITEM, str_arg(args, "image")),
-                // Background tile groups; `imagegroup` holds `/`-joined ids.
-                "largebg" | "gridbg" | "verticalbg" => {
-                    if let Some(group) = args.get("imagegroup") {
-                        for id in group.split('/') {
-                            usages.add_resource(TYPE_BACKGROUND, id);
+                "cgitem" | "blocker" => {
+                    usages.add_resource(TYPE_IMAGE, str_arg(args, "image"));
+                }
+                "avgdisplay" => {
+                    let style = str_arg(args, "style").trim();
+                    if style == "bg" || style == "5" {
+                        usages.add_resource(TYPE_BACKGROUND, str_arg(args, "name"));
+                    }
+                }
+                "interlude" => {
+                    let interlude_type = str_arg(args, "type").trim();
+                    match interlude_type {
+                        "bg" | "2" => {
+                            usages.add_resource(TYPE_BACKGROUND, str_arg(args, "name"));
                         }
+                        "uichar" | "1" => {
+                            usages.add_resource(TYPE_IMAGE, str_arg(args, "name"));
+                        }
+                        "char" | "3" => {
+                            usages.add_resource(TYPE_CHARACTER, str_arg(args, "name"));
+                        }
+                        _ => {}
+                    }
+                }
+                // StoryPlayer prefers imagegroup over cggroup. The former is
+                // a background family for *bg commands; the latter and every
+                // largeimg group use regular story images.
+                "largebg" | "gridbg" | "verticalbg" | "largeimg" => {
+                    let image_group = str_arg(args, "imagegroup").trim();
+                    let cg_group = str_arg(args, "cggroup").trim();
+                    let (resource_type, group) = if image_group.is_empty() {
+                        (TYPE_IMAGE, cg_group)
+                    } else {
+                        let resource_type = if name == "largeimg" {
+                            TYPE_IMAGE
+                        } else {
+                            TYPE_BACKGROUND
+                        };
+                        (resource_type, image_group)
+                    };
+                    for id in group.split('/') {
+                        usages.add_resource(resource_type, id);
                     }
                 }
                 _ => {}
@@ -239,82 +245,17 @@ mod tests {
     }
 
     #[test]
-    fn normalizes_character_ids_with_default_face_and_body() {
-        assert_eq!(normalize_character_id(""), "");
-        assert_eq!(normalize_character_id("avg_npc_009"), "avg_npc_009#1$1");
-        assert_eq!(
-            normalize_character_id("char_220_grani#5"),
-            "char_220_grani#5$1"
-        );
-        assert_eq!(
-            normalize_character_id("avg_npc_416_1#1$1"),
-            "avg_npc_416_1#1$1"
-        );
-        assert_eq!(
-            normalize_character_id("avg_1014_nearl2_1#2$2"),
-            "avg_1014_nearl2_1#2$2"
-        );
-    }
-
-    #[test]
-    fn absorbs_whitespace_around_face_and_body_suffixes() {
-        // .NET Int32.TryParse tolerates surrounding whitespace in suffixes, so
-        // the corpus's trailing-space values and the act53side inner-space
-        // typo resolve exactly like their clean forms.
-        assert_eq!(normalize_character_id("   "), "");
-        assert_eq!(
-            normalize_character_id("avg_npc_366_1#1$1 "),
-            "avg_npc_366_1#1$1"
-        );
-        assert_eq!(
-            normalize_character_id("avg_4179_monstr_1#4$1\t"),
-            "avg_4179_monstr_1#4$1"
-        );
-        // Upstream typo in act53side: space between face and body suffix.
-        assert_eq!(
-            normalize_character_id("avg_4236_tmslot_1#3 $1"),
-            "avg_4236_tmslot_1#3$1"
-        );
-        assert_eq!(
-            normalize_character_id("avg_4236_tmslot_1# 3"),
-            "avg_4236_tmslot_1#3$1"
-        );
-    }
-
-    #[test]
-    fn keeps_base_whitespace_verbatim_like_native_load_failure() {
-        // Whitespace inside the base key flows into the native resource path
-        // and fails to load; the extractor preserves it so the reference
-        // surfaces as broken instead of mending into a nonexistent id.
-        assert_eq!(normalize_character_id(" avg_npc_009 "), " avg_npc_009 #1$1");
-    }
-
-    #[test]
-    fn unparsable_suffix_stays_in_base() {
-        // An interior-space suffix fails TryParse, so the `#` marker is not
-        // cut and remains part of the (unloadable) base, matching native.
-        assert_eq!(normalize_character_id("avg_x#3 4$1"), "avg_x#3 4#1$1");
-    }
-
-    #[test]
-    fn character_line_with_trailing_space_in_quoted_name_matches_canonical_id() {
+    fn normalizes_image_like_resource_ids() {
         let all = usages(concat!(
-            r#"[Character(name="avg_npc_366_1#1$1 ",name2="avg_npc_003")]"#,
+            r#"[Image(image=" AC1_0 ")]"#,
             "\n",
-            r#"[name="流浪者"]   text"#,
+            r#"[Background(image="BG_23_G05")]"#,
             "\n",
+            r#"[Background(image=" bg_23_g05 ")]"#,
         ));
-        // The trimmed id must dedupe onto the canonical entry, not spawn a
-        // `avg_npc_366_1#1$1 #1$1` variant, and slot 2 being the sole other
-        // character keeps attribution sane.
-        assert!(
-            all.iter().any(|u| u.resource_id == "avg_npc_366_1#1$1"),
-            "{all:?}"
-        );
-        assert!(
-            !all.iter().any(|u| u.resource_id.contains(' ')),
-            "whitespace-bearing id leaked into usages: {all:?}"
-        );
+        assert_eq!(all.len(), 2);
+        assert_eq!(all[0].resource_id, "ac1_0");
+        assert_eq!(all[1].resource_id, "bg_23_g05");
     }
 
     #[test]
@@ -375,6 +316,63 @@ mod tests {
     }
 
     #[test]
+    fn extracts_storyplayer_resource_commands() {
+        let all = usages(concat!(
+            r#"[CgItem(image="CGITEM_42_I11", style="cg")]"#,
+            "\n",
+            r#"[Blocker(image=" BLOCKER_MASK ")]"#,
+            "\n",
+            r#"[AvgDisplay(style=5, name="BG_AVG")]"#,
+            "\n",
+            r#"[Interlude(type=bg, name="BG_INTERLUDE")]"#,
+            "\n",
+            r#"[Interlude(type=1, name="UI_CHAR")]"#,
+            "\n",
+            r#"[Interlude(type=3, name="avg_interlude#2$1")]"#,
+            "\n",
+            r#"[CharacterCutin(widgetID="1", name="avg_cutin")]"#,
+        ));
+
+        find(&all, TYPE_IMAGE, "cgitem_42_i11");
+        find(&all, TYPE_IMAGE, "blocker_mask");
+        find(&all, TYPE_BACKGROUND, "bg_avg");
+        find(&all, TYPE_BACKGROUND, "bg_interlude");
+        find(&all, TYPE_IMAGE, "ui_char");
+        find(&all, TYPE_CHARACTER, "avg_interlude#2$1");
+        find(&all, TYPE_CHARACTER, "avg_cutin");
+    }
+
+    #[test]
+    fn grouped_commands_follow_storyplayer_precedence_and_asset_family() {
+        let all = usages(concat!(
+            r#"[LargeBG(imagegroup="BG_A/BG_B", cggroup="CG_IGNORED")]"#,
+            "\n",
+            r#"[VerticalBG(cggroup="CG_A/CG_B")]"#,
+            "\n",
+            r#"[LargeImg(imagegroup="IMG_A/IMG_B")]"#,
+        ));
+
+        find(&all, TYPE_BACKGROUND, "bg_a");
+        find(&all, TYPE_BACKGROUND, "bg_b");
+        assert!(!all.iter().any(|usage| usage.resource_id == "cg_ignored"));
+        find(&all, TYPE_IMAGE, "cg_a");
+        find(&all, TYPE_IMAGE, "cg_b");
+        find(&all, TYPE_IMAGE, "img_a");
+        find(&all, TYPE_IMAGE, "img_b");
+    }
+
+    #[test]
+    fn parameter_keys_remain_case_sensitive() {
+        let all = usages(concat!(
+            r#"[Background(Image="bg_not_loaded")]"#,
+            "\n",
+            r#"[Background(image="bg_loaded")]"#,
+        ));
+        assert_eq!(all.len(), 1);
+        assert_eq!(all[0].resource_id, "bg_loaded");
+    }
+
+    #[test]
     fn attributes_display_names_to_focused_character() {
         let all = usages(concat!(
             r#"[Character(name="avg_npc_009",name2="avg_npc_003",focus=1)]"#,
@@ -387,8 +385,8 @@ mod tests {
             "\n",
         ));
 
-        let hunter = find(&all, "character", "avg_npc_009#1$1");
-        let korul = find(&all, "character", "avg_npc_003#1$1");
+        let hunter = find(&all, "character", "avg_npc_009");
+        let korul = find(&all, "character", "avg_npc_003");
         assert_eq!(hunter.display_names, vec!["赏金猎人"]);
         assert_eq!(korul.display_names, vec!["可萝尔"]);
     }
@@ -401,7 +399,7 @@ mod tests {
             r#"[name="赏金猎人"]   text"#,
             "\n",
         ));
-        let hunter = find(&all, "character", "avg_npc_009#1$1");
+        let hunter = find(&all, "character", "avg_npc_009");
         assert_eq!(hunter.display_names, Vec::<String>::new());
     }
 
@@ -412,7 +410,7 @@ mod tests {
             "\n",
             r#"[name="？？？"]   所以，得把你们全部解决掉才行？"#,
         ));
-        let granhi = find(&all, "character", "char_220_grani#5$1");
+        let granhi = find(&all, "character", "char_220_grani#5");
         assert_eq!(granhi.display_names, vec!["？？？"]);
     }
 
@@ -426,7 +424,7 @@ mod tests {
             r#"[name="赏金猎人"]   text"#,
             "\n",
         ));
-        let npc = find(&all, "character", "avg_npc_008#1$1");
+        let npc = find(&all, "character", "avg_npc_008");
         assert_eq!(npc.display_names, Vec::<String>::new());
     }
 
@@ -444,7 +442,7 @@ mod tests {
             r#"[charslot(slot="r")]"#,
             "\n",
         ));
-        let focused = find(&all, "character", "avg_npc_242#1$1");
+        let focused = find(&all, "character", "avg_npc_242");
         assert_eq!(focused.display_names, vec!["流浪者"]);
         let left = find(&all, "character", "avg_npc_416_1#1$1");
         assert_eq!(left.display_names, Vec::<String>::new());
@@ -462,7 +460,7 @@ mod tests {
             r#"[name="赏金猎人"]   three"#,
             "\n",
         ));
-        let hunter = find(&all, "character", "avg_npc_009#1$1");
+        let hunter = find(&all, "character", "avg_npc_009");
         assert_eq!(hunter.display_names, vec!["赏金猎人", "粗暴的赏金猎人"]);
     }
 
@@ -478,7 +476,7 @@ mod tests {
             r#"[name="赏金猎人"]   text"#,
             "\n",
         ));
-        let hunter = find(&all, "character", "avg_npc_009#1$1");
+        let hunter = find(&all, "character", "avg_npc_009");
         assert_eq!(hunter.display_names, vec!["赏金猎人"]);
     }
 
@@ -498,7 +496,7 @@ mod tests {
         ));
 
         assert_eq!(find(&all, "background", "bg_med").sort_order, 0);
-        assert_eq!(find(&all, "character", "avg_npc_009#1$1").sort_order, 1);
+        assert_eq!(find(&all, "character", "avg_npc_009").sort_order, 1);
         assert_eq!(find(&all, "image", "ac1_0").sort_order, 2);
         assert_eq!(find(&all, "background", "bg_tower").sort_order, 3);
     }
@@ -513,7 +511,7 @@ mod tests {
         ));
         // take("1", "") removes slot 1; slot 2 is the only character left, so
         // the no-focus rule spotlights it and the name is attributed.
-        let korul = find(&all, "character", "avg_npc_003#1$1");
+        let korul = find(&all, "character", "avg_npc_003");
         assert_eq!(korul.display_names, vec!["可萝尔"]);
     }
 }
