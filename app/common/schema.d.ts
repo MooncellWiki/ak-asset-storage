@@ -208,7 +208,7 @@ export interface paths {
          *     `(resource_type, listing id)` for cursor pagination. `type` filters and
          *     `q` substring-matches (case-insensitive) when given. Face-overlay
          *     characters list at body granularity (`base$body`, face suffix stripped);
-         *     standalone full-image characters keep their face-level ids.
+         *     standalone full-image characters keep their resolved expression ids.
          */
         get: operations["list_story_resources"];
         put?: never;
@@ -322,17 +322,20 @@ export interface components {
         StoryResourceSummary: {
             /**
              * @description Face-overlay characters use the body form `base$body`; standalone
-             *     full-image characters and other types use the raw id.
+             *     full-image characters use `base#expression`, and other types use their
+             *     normalized image key.
              */
             id: string;
             /** Format: int64 */
             scriptCount: number;
-            type: string;
+            type: components["schemas"]["StoryResourceType"];
         };
+        /** @enum {string} */
+        StoryResourceType: "background" | "image" | "item" | "character";
         StoryResourceUsageItem: {
             displayNames: string[];
             /**
-             * @description Face-level character ids (`base#face$body`) this script uses.
+             * @description Resolved character expression ids (`base#expression`) this script uses.
              *     Present only for character body queries (`base$body` id form).
              */
             faces?: string[] | null;
@@ -639,12 +642,12 @@ export interface operations {
         parameters: {
             query: {
                 /** @description Resource type: `background`, `image`, `item` or `character`. */
-                type: string;
+                type: components["schemas"]["StoryResourceType"];
                 /**
                  * @description Percent-encoded exact resource id (may contain `/`, `#`, `$`).
-                 *     Characters accept two forms: `base#face$body` matches that exact
-                 *     face-level reference, while `base$body` (no `#`) matches scripts
-                 *     using any face of the body (face-overlay characters only).
+                 *     Characters accept two forms: `base#expression` matches the resolved
+                 *     `character.json` entry, while `base$body` (no `#`) matches scripts
+                 *     using any expression of the body (face-overlay characters only).
                  */
                 id: string;
                 /** @description Page size, defaults to 50, at most 200. */
@@ -683,11 +686,11 @@ export interface operations {
                  * @description Restrict the listing to one resource type: `background`, `image`,
                  *     `item` or `character`.
                  */
-                type?: string | null;
+                type?: null | components["schemas"]["StoryResourceType"];
                 /**
                  * @description Case-insensitive substring filter on the listing id. Face-overlay
                  *     characters are listed at body granularity (`base$body`); standalone
-                 *     full-image characters keep their face-level ids.
+                 *     full-image characters keep their resolved expression ids.
                  */
                 q?: string | null;
                 /** @description Page size, defaults to 50, at most 200. */

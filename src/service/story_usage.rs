@@ -19,7 +19,10 @@ use walkdir::WalkDir;
 
 use crate::{
     AppError, AppResult,
-    database::{Database, row::StoryUsageRow},
+    database::{
+        Database,
+        row::{StoryResourceType, StoryUsageRow},
+    },
 };
 use marker::{MARKER_FILE_NAME, parse_marker, validate_marker};
 
@@ -120,10 +123,10 @@ fn build_script_rows(
     links: &CharacterLinks,
 ) -> Vec<StoryUsageRow> {
     let mut rows: Vec<StoryUsageRow> = Vec::new();
-    let mut index = HashMap::<(String, String), usize>::new();
+    let mut index = HashMap::<(StoryResourceType, String), usize>::new();
 
     for usage in extract::extract_usages(parsed) {
-        let (resource_id, listing_id) = if usage.resource_type == extract::TYPE_CHARACTER {
+        let (resource_id, listing_id) = if usage.resource_type == StoryResourceType::Character {
             let Some(resolved) = links.resolve(&usage.resource_id) else {
                 continue;
             };
@@ -131,7 +134,7 @@ fn build_script_rows(
         } else {
             (usage.resource_id.clone(), usage.resource_id.clone())
         };
-        let key = (usage.resource_type.clone(), resource_id.clone());
+        let key = (usage.resource_type, resource_id.clone());
         if let Some(&position) = index.get(&key) {
             for name in usage.display_names {
                 if !rows[position].display_names.contains(&name) {
@@ -269,7 +272,7 @@ mod tests {
 
         let background = rows
             .iter()
-            .find(|row| row.resource_type == "background")
+            .find(|row| row.resource_type == StoryResourceType::Background)
             .expect("background row");
         assert_eq!(background.resource_id, "bg_med");
         assert_eq!(background.script_path, "activities/a001/level_a001_01_beg");

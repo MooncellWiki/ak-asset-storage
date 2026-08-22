@@ -1,6 +1,9 @@
 use crate::{
     AppError, AppResult,
-    database::{Database, row::StoryUsageRow},
+    database::{
+        Database,
+        row::{StoryResourceType, StoryUsageRow},
+    },
 };
 
 /// Query result item for the resource reverse-lookup API.
@@ -22,7 +25,7 @@ pub struct StoryCharacterBodyUsageRow {
 /// Listing result item: one distinct resource with its usage count.
 #[derive(Debug, Clone)]
 pub struct StoryResourceSummaryRow {
-    pub resource_type: String,
+    pub resource_type: StoryResourceType,
     pub resource_id: String,
     pub script_count: i64,
 }
@@ -48,20 +51,7 @@ impl Database {
         for chunk in rows.chunks(INSERT_BATCH_SIZE) {
             // jsonb_to_recordset matches record field names exactly, so the
             // JSON keys use the table's snake_case names.
-            let batch: Vec<serde_json::Value> = chunk
-                .iter()
-                .map(|row| {
-                    serde_json::json!({
-                        "script_path": row.script_path,
-                        "resource_type": row.resource_type,
-                        "resource_id": row.resource_id,
-                        "listing_id": row.listing_id,
-                        "display_names": row.display_names,
-                        "sort_order": row.sort_order,
-                    })
-                })
-                .collect();
-            let batch = serde_json::Value::Array(batch);
+            let batch = serde_json::to_value(chunk)?;
 
             sqlx::query!(
                 r#"
@@ -107,7 +97,7 @@ impl Database {
     /// by ascending `script_path` for cursor pagination.
     pub async fn query_story_resource_usages(
         &self,
-        resource_type: &str,
+        resource_type: StoryResourceType,
         resource_id: &str,
         cursor: Option<&str>,
         limit: i64,
@@ -123,7 +113,7 @@ impl Database {
             ORDER BY script_path
             LIMIT $4
             "#,
-            resource_type,
+            resource_type.as_str(),
             resource_id,
             cursor,
             limit
@@ -155,13 +145,14 @@ impl Database {
                    array_agg(DISTINCT resource_id ORDER BY resource_id) AS "faces!: Vec<String>"
             FROM story_resource_usages
             LEFT JOIN LATERAL unnest(display_names) AS name ON TRUE
-            WHERE resource_type = 'character'
-              AND listing_id = $1
-              AND ($2::text IS NULL OR script_path > $2)
+            WHERE resource_type = $1
+              AND listing_id = $2
+              AND ($3::text IS NULL OR script_path > $3)
             GROUP BY script_path
             ORDER BY script_path
-            LIMIT $3
+            LIMIT $4
             "#,
+            StoryResourceType::Character.as_str(),
             body_id,
             cursor,
             limit
@@ -183,7 +174,7 @@ impl Database {
     /// exclusive keyset bound.
     pub async fn list_story_resources(
         &self,
-        resource_type: Option<&str>,
+        resource_type: Option<StoryResourceType>,
         id_pattern: Option<&str>,
         after: Option<(&str, &str)>,
         limit: i64,
@@ -194,7 +185,8 @@ impl Database {
         sqlx::query_as!(
             StoryResourceSummaryRow,
             r#"
-            SELECT resource_type, listing_id AS "resource_id!: String",
+            SELECT resource_type AS "resource_type!: StoryResourceType",
+                   listing_id AS "resource_id!: String",
                    count(DISTINCT script_path) AS "script_count!: i64"
             FROM story_resource_usages
             WHERE ($1::text IS NULL OR resource_type = $1)
@@ -204,7 +196,7 @@ impl Database {
             ORDER BY resource_type, listing_id
             LIMIT $5
             "#,
-            resource_type,
+            resource_type.map(StoryResourceType::as_str),
             id_pattern,
             after_type,
             after_id,

@@ -23,11 +23,44 @@ pub struct FileRow {
     pub size: i32,
 }
 
+#[derive(
+    sqlx::Type,
+    Debug,
+    Clone,
+    Copy,
+    PartialEq,
+    Eq,
+    Hash,
+    serde::Deserialize,
+    serde::Serialize,
+    utoipa::ToSchema,
+)]
+#[sqlx(type_name = "text", rename_all = "lowercase")]
+#[serde(rename_all = "lowercase")]
+pub enum StoryResourceType {
+    Background,
+    Image,
+    Item,
+    Character,
+}
+
+impl StoryResourceType {
+    #[must_use]
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::Background => "background",
+            Self::Image => "image",
+            Self::Item => "item",
+            Self::Character => "character",
+        }
+    }
+}
+
 /// One `story_resource_usages` row produced by the story usage importer.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, serde::Serialize)]
 pub struct StoryUsageRow {
     pub script_path: String,
-    pub resource_type: String,
+    pub resource_type: StoryResourceType,
     pub resource_id: String,
     /// Listing-granularity key (overlay characters use body form, full-image
     /// characters keep the resolved expression, others use the normalized

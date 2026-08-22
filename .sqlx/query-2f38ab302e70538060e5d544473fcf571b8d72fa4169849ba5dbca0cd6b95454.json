@@ -1,11 +1,11 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n            SELECT resource_type, listing_id AS \"resource_id!: String\",\n                   count(DISTINCT script_path) AS \"script_count!: i64\"\n            FROM story_resource_usages\n            WHERE ($1::text IS NULL OR resource_type = $1)\n              AND ($2::text IS NULL OR listing_id ILIKE '%' || $2 || '%')\n              AND ($3::text IS NULL OR (resource_type, listing_id) > ($3, $4))\n            GROUP BY resource_type, listing_id\n            ORDER BY resource_type, listing_id\n            LIMIT $5\n            ",
+  "query": "\n            SELECT resource_type AS \"resource_type!: StoryResourceType\",\n                   listing_id AS \"resource_id!: String\",\n                   count(DISTINCT script_path) AS \"script_count!: i64\"\n            FROM story_resource_usages\n            WHERE ($1::text IS NULL OR resource_type = $1)\n              AND ($2::text IS NULL OR listing_id ILIKE '%' || $2 || '%')\n              AND ($3::text IS NULL OR (resource_type, listing_id) > ($3, $4))\n            GROUP BY resource_type, listing_id\n            ORDER BY resource_type, listing_id\n            LIMIT $5\n            ",
   "describe": {
     "columns": [
       {
         "ordinal": 0,
-        "name": "resource_type",
+        "name": "resource_type!: StoryResourceType",
         "type_info": "Text",
         "origin": {
           "Table": {
@@ -47,5 +47,5 @@
       null
     ]
   },
-  "hash": "fcf6eb67bb910f67d645c00f6cc3e49e1e36d17842d44a1d1e3c82ed35a0834d"
+  "hash": "2f38ab302e70538060e5d544473fcf571b8d72fa4169849ba5dbca0cd6b95454"
 }

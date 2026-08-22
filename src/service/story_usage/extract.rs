@@ -4,18 +4,14 @@
 //! first-appearance ordering per script and speaker-name attribution to the
 //! currently focused character slot.
 
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 
 use super::parser::ParsedLine;
-
-pub const TYPE_BACKGROUND: &str = "background";
-pub const TYPE_IMAGE: &str = "image";
-pub const TYPE_ITEM: &str = "item";
-pub const TYPE_CHARACTER: &str = "character";
+use crate::database::row::StoryResourceType;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ResourceUsage {
-    pub resource_type: String,
+    pub resource_type: StoryResourceType,
     pub resource_id: String,
     pub display_names: Vec<String>,
     /// First-appearance order of the resource inside the script.
@@ -37,15 +33,15 @@ fn normalize_image_key(raw: &str) -> String {
 /// first-appearance order. Peak memory scales with one script's resources.
 #[derive(Default)]
 struct UsageAccumulator {
-    order: Vec<(String, String)>,
-    index: HashMap<(String, String), usize>,
+    order: Vec<(StoryResourceType, String)>,
+    index: HashMap<(StoryResourceType, String), usize>,
     display_names: Vec<Vec<String>>,
 }
 
 impl UsageAccumulator {
-    fn add_resource(&mut self, resource_type: &str, resource_id: &str) {
+    fn add_resource(&mut self, resource_type: StoryResourceType, resource_id: &str) {
         let normalized;
-        let resource_id = if resource_type == TYPE_CHARACTER {
+        let resource_id = if resource_type == StoryResourceType::Character {
             resource_id
         } else {
             normalized = normalize_image_key(resource_id);
@@ -54,7 +50,7 @@ impl UsageAccumulator {
         if resource_id.is_empty() {
             return;
         }
-        let key = (resource_type.to_string(), resource_id.to_string());
+        let key = (resource_type, resource_id.to_string());
         if self.index.contains_key(&key) {
             return;
         }
@@ -64,7 +60,7 @@ impl UsageAccumulator {
     }
 
     fn add_display_name(&mut self, character_id: &str, name: &str) {
-        let key = (TYPE_CHARACTER.to_string(), character_id.to_string());
+        let key = (StoryResourceType::Character, character_id.to_string());
         if let Some(&position) = self.index.get(&key)
             && !self.display_names[position]
                 .iter()
@@ -97,7 +93,6 @@ impl UsageAccumulator {
 struct CharacterStage {
     spotlight: String,
     slots: HashMap<String, String>,
-    seen: HashSet<String>,
 }
 
 impl CharacterStage {
@@ -107,9 +102,7 @@ impl CharacterStage {
             return;
         }
         self.slots.insert(slot.to_string(), id.to_string());
-        if self.seen.insert(id.to_string()) {
-            usages.add_resource(TYPE_CHARACTER, id);
-        }
+        usages.add_resource(StoryResourceType::Character, id);
     }
 
     fn focus(&mut self, slot: &str) {
@@ -167,35 +160,38 @@ pub fn extract_usages(lines: &[ParsedLine]) -> Vec<ResourceUsage> {
                 }
                 "charactercutin" => {
                     if !str_arg(args, "widgetID").is_empty() {
-                        usages.add_resource(TYPE_CHARACTER, str_arg(args, "name"));
+                        usages.add_resource(StoryResourceType::Character, str_arg(args, "name"));
                     }
                 }
                 "dialog" => stage.exit(),
-                "image" => usages.add_resource(TYPE_IMAGE, str_arg(args, "image")),
-                "background" => {
-                    usages.add_resource(TYPE_BACKGROUND, str_arg(args, "image"));
+                "image" | "cgitem" | "blocker" => {
+                    usages.add_resource(StoryResourceType::Image, str_arg(args, "image"));
                 }
-                "showitem" => usages.add_resource(TYPE_ITEM, str_arg(args, "image")),
-                "cgitem" | "blocker" => {
-                    usages.add_resource(TYPE_IMAGE, str_arg(args, "image"));
+                "background" => {
+                    usages.add_resource(StoryResourceType::Background, str_arg(args, "image"));
+                }
+                "showitem" => {
+                    usages.add_resource(StoryResourceType::Item, str_arg(args, "image"));
                 }
                 "avgdisplay" => {
                     let style = str_arg(args, "style").trim();
                     if style == "bg" || style == "5" {
-                        usages.add_resource(TYPE_BACKGROUND, str_arg(args, "name"));
+                        usages.add_resource(StoryResourceType::Background, str_arg(args, "name"));
                     }
                 }
                 "interlude" => {
                     let interlude_type = str_arg(args, "type").trim();
                     match interlude_type {
                         "bg" | "2" => {
-                            usages.add_resource(TYPE_BACKGROUND, str_arg(args, "name"));
+                            usages
+                                .add_resource(StoryResourceType::Background, str_arg(args, "name"));
                         }
                         "uichar" | "1" => {
-                            usages.add_resource(TYPE_IMAGE, str_arg(args, "name"));
+                            usages.add_resource(StoryResourceType::Image, str_arg(args, "name"));
                         }
                         "char" | "3" => {
-                            usages.add_resource(TYPE_CHARACTER, str_arg(args, "name"));
+                            usages
+                                .add_resource(StoryResourceType::Character, str_arg(args, "name"));
                         }
                         _ => {}
                     }
@@ -207,12 +203,12 @@ pub fn extract_usages(lines: &[ParsedLine]) -> Vec<ResourceUsage> {
                     let image_group = str_arg(args, "imagegroup").trim();
                     let cg_group = str_arg(args, "cggroup").trim();
                     let (resource_type, group) = if image_group.is_empty() {
-                        (TYPE_IMAGE, cg_group)
+                        (StoryResourceType::Image, cg_group)
                     } else {
                         let resource_type = if name == "largeimg" {
-                            TYPE_IMAGE
+                            StoryResourceType::Image
                         } else {
-                            TYPE_BACKGROUND
+                            StoryResourceType::Background
                         };
                         (resource_type, image_group)
                     };
@@ -238,10 +234,14 @@ mod tests {
         extract_usages(&parse_script(source))
     }
 
-    fn find<'a>(all: &'a [ResourceUsage], ty: &str, id: &str) -> &'a ResourceUsage {
+    fn find<'a>(
+        all: &'a [ResourceUsage],
+        resource_type: StoryResourceType,
+        id: &str,
+    ) -> &'a ResourceUsage {
         all.iter()
-            .find(|usage| usage.resource_type == ty && usage.resource_id == id)
-            .unwrap_or_else(|| panic!("missing {ty}/{id} in {all:?}"))
+            .find(|usage| usage.resource_type == resource_type && usage.resource_id == id)
+            .unwrap_or_else(|| panic!("missing {resource_type:?}/{id} in {all:?}"))
     }
 
     #[test]
@@ -279,27 +279,35 @@ mod tests {
 
         assert!(
             all.iter()
-                .any(|u| u.resource_type == "image" && u.resource_id == "ac1_0")
+                .any(|u| u.resource_type == StoryResourceType::Image && u.resource_id == "ac1_0")
         );
         // Image without an `image` parameter only hides the current one.
-        assert_eq!(all.iter().filter(|u| u.resource_type == "image").count(), 1);
-        assert!(
-            all.iter()
-                .any(|u| u.resource_type == "background" && u.resource_id == "bg_med")
-        );
         assert_eq!(
             all.iter()
-                .filter(|u| u.resource_type == "background")
+                .filter(|u| u.resource_type == StoryResourceType::Image)
                 .count(),
             1
         );
         assert!(
             all.iter()
-                .any(|u| u.resource_type == "item" && u.resource_id == "item_caster")
+                .any(|u| u.resource_type == StoryResourceType::Background
+                    && u.resource_id == "bg_med")
+        );
+        assert_eq!(
+            all.iter()
+                .filter(|u| u.resource_type == StoryResourceType::Background)
+                .count(),
+            1
         );
         assert!(
             all.iter()
-                .any(|u| u.resource_type == "item" && u.resource_id == "item_act70_1")
+                .any(|u| u.resource_type == StoryResourceType::Item
+                    && u.resource_id == "item_caster")
+        );
+        assert!(
+            all.iter()
+                .any(|u| u.resource_type == StoryResourceType::Item
+                    && u.resource_id == "item_act70_1")
         );
     }
 
@@ -309,7 +317,10 @@ mod tests {
         assert_eq!(all.len(), 2);
         assert_eq!(all[0].resource_id, "50_g22_1");
         assert_eq!(all[1].resource_id, "50_g22_2");
-        assert!(all.iter().all(|u| u.resource_type == "background"));
+        assert!(
+            all.iter()
+                .all(|u| u.resource_type == StoryResourceType::Background)
+        );
 
         let all = usages(r#"[gridbg(imagegroup="a/b/c")]"#);
         assert_eq!(all.len(), 3);
@@ -333,13 +344,13 @@ mod tests {
             r#"[CharacterCutin(widgetID="1", name="avg_cutin")]"#,
         ));
 
-        find(&all, TYPE_IMAGE, "cgitem_42_i11");
-        find(&all, TYPE_IMAGE, "blocker_mask");
-        find(&all, TYPE_BACKGROUND, "bg_avg");
-        find(&all, TYPE_BACKGROUND, "bg_interlude");
-        find(&all, TYPE_IMAGE, "ui_char");
-        find(&all, TYPE_CHARACTER, "avg_interlude#2$1");
-        find(&all, TYPE_CHARACTER, "avg_cutin");
+        find(&all, StoryResourceType::Image, "cgitem_42_i11");
+        find(&all, StoryResourceType::Image, "blocker_mask");
+        find(&all, StoryResourceType::Background, "bg_avg");
+        find(&all, StoryResourceType::Background, "bg_interlude");
+        find(&all, StoryResourceType::Image, "ui_char");
+        find(&all, StoryResourceType::Character, "avg_interlude#2$1");
+        find(&all, StoryResourceType::Character, "avg_cutin");
     }
 
     #[test]
@@ -352,13 +363,13 @@ mod tests {
             r#"[LargeImg(imagegroup="IMG_A/IMG_B")]"#,
         ));
 
-        find(&all, TYPE_BACKGROUND, "bg_a");
-        find(&all, TYPE_BACKGROUND, "bg_b");
+        find(&all, StoryResourceType::Background, "bg_a");
+        find(&all, StoryResourceType::Background, "bg_b");
         assert!(!all.iter().any(|usage| usage.resource_id == "cg_ignored"));
-        find(&all, TYPE_IMAGE, "cg_a");
-        find(&all, TYPE_IMAGE, "cg_b");
-        find(&all, TYPE_IMAGE, "img_a");
-        find(&all, TYPE_IMAGE, "img_b");
+        find(&all, StoryResourceType::Image, "cg_a");
+        find(&all, StoryResourceType::Image, "cg_b");
+        find(&all, StoryResourceType::Image, "img_a");
+        find(&all, StoryResourceType::Image, "img_b");
     }
 
     #[test]
@@ -385,8 +396,8 @@ mod tests {
             "\n",
         ));
 
-        let hunter = find(&all, "character", "avg_npc_009");
-        let korul = find(&all, "character", "avg_npc_003");
+        let hunter = find(&all, StoryResourceType::Character, "avg_npc_009");
+        let korul = find(&all, StoryResourceType::Character, "avg_npc_003");
         assert_eq!(hunter.display_names, vec!["赏金猎人"]);
         assert_eq!(korul.display_names, vec!["可萝尔"]);
     }
@@ -399,7 +410,7 @@ mod tests {
             r#"[name="赏金猎人"]   text"#,
             "\n",
         ));
-        let hunter = find(&all, "character", "avg_npc_009");
+        let hunter = find(&all, StoryResourceType::Character, "avg_npc_009");
         assert_eq!(hunter.display_names, Vec::<String>::new());
     }
 
@@ -410,7 +421,7 @@ mod tests {
             "\n",
             r#"[name="？？？"]   所以，得把你们全部解决掉才行？"#,
         ));
-        let granhi = find(&all, "character", "char_220_grani#5");
+        let granhi = find(&all, StoryResourceType::Character, "char_220_grani#5");
         assert_eq!(granhi.display_names, vec!["？？？"]);
     }
 
@@ -424,7 +435,7 @@ mod tests {
             r#"[name="赏金猎人"]   text"#,
             "\n",
         ));
-        let npc = find(&all, "character", "avg_npc_008");
+        let npc = find(&all, StoryResourceType::Character, "avg_npc_008");
         assert_eq!(npc.display_names, Vec::<String>::new());
     }
 
@@ -442,9 +453,9 @@ mod tests {
             r#"[charslot(slot="r")]"#,
             "\n",
         ));
-        let focused = find(&all, "character", "avg_npc_242");
+        let focused = find(&all, StoryResourceType::Character, "avg_npc_242");
         assert_eq!(focused.display_names, vec!["流浪者"]);
-        let left = find(&all, "character", "avg_npc_416_1#1$1");
+        let left = find(&all, StoryResourceType::Character, "avg_npc_416_1#1$1");
         assert_eq!(left.display_names, Vec::<String>::new());
     }
 
@@ -460,7 +471,7 @@ mod tests {
             r#"[name="赏金猎人"]   three"#,
             "\n",
         ));
-        let hunter = find(&all, "character", "avg_npc_009");
+        let hunter = find(&all, StoryResourceType::Character, "avg_npc_009");
         assert_eq!(hunter.display_names, vec!["赏金猎人", "粗暴的赏金猎人"]);
     }
 
@@ -476,7 +487,7 @@ mod tests {
             r#"[name="赏金猎人"]   text"#,
             "\n",
         ));
-        let hunter = find(&all, "character", "avg_npc_009");
+        let hunter = find(&all, StoryResourceType::Character, "avg_npc_009");
         assert_eq!(hunter.display_names, vec!["赏金猎人"]);
     }
 
@@ -495,10 +506,19 @@ mod tests {
             "\n",
         ));
 
-        assert_eq!(find(&all, "background", "bg_med").sort_order, 0);
-        assert_eq!(find(&all, "character", "avg_npc_009").sort_order, 1);
-        assert_eq!(find(&all, "image", "ac1_0").sort_order, 2);
-        assert_eq!(find(&all, "background", "bg_tower").sort_order, 3);
+        assert_eq!(
+            find(&all, StoryResourceType::Background, "bg_med").sort_order,
+            0
+        );
+        assert_eq!(
+            find(&all, StoryResourceType::Character, "avg_npc_009").sort_order,
+            1
+        );
+        assert_eq!(find(&all, StoryResourceType::Image, "ac1_0").sort_order, 2);
+        assert_eq!(
+            find(&all, StoryResourceType::Background, "bg_tower").sort_order,
+            3
+        );
     }
 
     #[test]
@@ -511,7 +531,7 @@ mod tests {
         ));
         // take("1", "") removes slot 1; slot 2 is the only character left, so
         // the no-focus rule spotlights it and the name is attributed.
-        let korul = find(&all, "character", "avg_npc_003");
+        let korul = find(&all, StoryResourceType::Character, "avg_npc_003");
         assert_eq!(korul.display_names, vec!["可萝尔"]);
     }
 }

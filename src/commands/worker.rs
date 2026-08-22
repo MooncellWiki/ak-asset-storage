@@ -80,8 +80,7 @@ pub async fn execute(
         database: database.clone(),
         file_path: item_demand_path.clone(),
     };
-    let item_demand_watcher = ItemDemandWatcher::new(item_demand_service, &item_demand_path)
-        .map_err(crate::AppError::Application)?;
+    let item_demand_watcher = ItemDemandWatcher::new(item_demand_service, &item_demand_path);
 
     let gamedata_ready_marker = gamedata_root.join("latest").join(".gamedata-ready.json");
     let story_usage_service = StoryUsageImportService {
@@ -89,8 +88,7 @@ pub async fn execute(
         gamedata_root: gamedata_root.clone(),
     };
     let gamedata_ready_watcher =
-        GameDataReadyWatcher::new(story_usage_service, &gamedata_ready_marker)
-            .map_err(crate::AppError::Application)?;
+        GameDataReadyWatcher::new(story_usage_service, &gamedata_ready_marker);
 
     info!("Worker is running. Press Ctrl+C to stop.");
     tokio::select! {

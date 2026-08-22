@@ -13,7 +13,7 @@ use crate::{
     database::model::{
         AssetMappingDetails, BundleDetails, ManifestNode, VersionDetails, VersionSummary,
     },
-    service::story_usage::extract::TYPE_CHARACTER,
+    database::row::StoryResourceType,
 };
 use axum::{
     Json, debug_handler,
@@ -233,17 +233,33 @@ mod cursor {
     use base64::{Engine as _, engine::general_purpose::URL_SAFE_NO_PAD};
     use serde::{Deserialize, Serialize};
 
-    use super::WebError;
+    use super::{StoryResourceType, WebError};
+
+    pub(super) trait CursorPayload {
+        fn is_valid(&self) -> bool;
+    }
 
     #[derive(Debug, Serialize, Deserialize, PartialEq, Eq)]
     pub(super) struct UsageCursor {
         pub script_path: String,
     }
 
+    impl CursorPayload for UsageCursor {
+        fn is_valid(&self) -> bool {
+            !self.script_path.contains('\0')
+        }
+    }
+
     #[derive(Debug, Serialize, Deserialize, PartialEq, Eq)]
     pub(super) struct ResourceCursor {
-        pub resource_type: String,
+        pub resource_type: StoryResourceType,
         pub resource_id: String,
+    }
+
+    impl CursorPayload for ResourceCursor {
+        fn is_valid(&self) -> bool {
+            !self.resource_id.contains('\0')
+        }
     }
 
     pub(super) fn encode<T: Serialize>(value: &T) -> String {
@@ -251,7 +267,7 @@ mod cursor {
         URL_SAFE_NO_PAD.encode(json)
     }
 
-    pub(super) fn decode<T: for<'de> Deserialize<'de>>(
+    pub(super) fn decode<T: for<'de> Deserialize<'de> + CursorPayload>(
         cursor: Option<&str>,
     ) -> Result<Option<T>, WebError> {
         let Some(cursor) = cursor.filter(|value| !value.is_empty()) else {
@@ -260,9 +276,12 @@ mod cursor {
         let json = URL_SAFE_NO_PAD
             .decode(cursor)
             .map_err(|_| WebError::BadRequest("invalid cursor".to_string()))?;
-        serde_json::from_slice(&json)
-            .map(Some)
-            .map_err(|_| WebError::BadRequest("invalid cursor".to_string()))
+        let decoded: T = serde_json::from_slice(&json)
+            .map_err(|_| WebError::BadRequest("invalid cursor".to_string()))?;
+        if !decoded.is_valid() {
+            return Err(WebError::BadRequest("invalid cursor".to_string()));
+        }
+        Ok(Some(decoded))
     }
 }
 
@@ -294,12 +313,6 @@ pub async fn get_story_resource_usages(
     State(state): State<AppState>,
     Query(query): Query<StoryResourceUsageQuery>,
 ) -> WebResult<Response> {
-    if !RESOURCE_TYPES.contains(&query.resource_type.as_str()) {
-        return Err(WebError::BadRequest(format!(
-            "type must be one of {}",
-            RESOURCE_TYPES.join(", ")
-        )));
-    }
     if query.id.contains('\0') {
         return Err(WebError::BadRequest(
             "id must not contain NUL characters".to_string(),
@@ -311,49 +324,49 @@ pub async fn get_story_resource_usages(
 
     // Fetch one extra row as a cheap has-next probe; a full page of exactly
     // `limit` rows does not prove another page exists.
-    let (usages, next_cursor) = if query.resource_type == TYPE_CHARACTER && !query.id.contains('#')
-    {
-        let rows = state
-            .database
-            .query_story_character_body_usages(&query.id, after_path, i64::from(limit) + 1)
-            .await?;
-        let next_cursor = page_cursor(&rows, limit, |row| cursor::UsageCursor {
-            script_path: row.script_path.clone(),
-        });
-        let usages = rows
-            .into_iter()
-            .take(limit as usize)
-            .map(|row| StoryResourceUsageItem {
-                script_path: row.script_path,
-                display_names: row.display_names,
-                faces: Some(row.faces),
-            })
-            .collect();
-        (usages, next_cursor)
-    } else {
-        let rows = state
-            .database
-            .query_story_resource_usages(
-                &query.resource_type,
-                &query.id,
-                after_path,
-                i64::from(limit) + 1,
-            )
-            .await?;
-        let next_cursor = page_cursor(&rows, limit, |row| cursor::UsageCursor {
-            script_path: row.script_path.clone(),
-        });
-        let usages = rows
-            .into_iter()
-            .take(limit as usize)
-            .map(|row| StoryResourceUsageItem {
-                script_path: row.script_path,
-                display_names: row.display_names,
-                faces: None,
-            })
-            .collect();
-        (usages, next_cursor)
-    };
+    let (usages, next_cursor) =
+        if query.resource_type == StoryResourceType::Character && !query.id.contains('#') {
+            let rows = state
+                .database
+                .query_story_character_body_usages(&query.id, after_path, i64::from(limit) + 1)
+                .await?;
+            let next_cursor = page_cursor(&rows, limit, |row| cursor::UsageCursor {
+                script_path: row.script_path.clone(),
+            });
+            let usages = rows
+                .into_iter()
+                .take(limit as usize)
+                .map(|row| StoryResourceUsageItem {
+                    script_path: row.script_path,
+                    display_names: row.display_names,
+                    faces: Some(row.faces),
+                })
+                .collect();
+            (usages, next_cursor)
+        } else {
+            let rows = state
+                .database
+                .query_story_resource_usages(
+                    query.resource_type,
+                    &query.id,
+                    after_path,
+                    i64::from(limit) + 1,
+                )
+                .await?;
+            let next_cursor = page_cursor(&rows, limit, |row| cursor::UsageCursor {
+                script_path: row.script_path.clone(),
+            });
+            let usages = rows
+                .into_iter()
+                .take(limit as usize)
+                .map(|row| StoryResourceUsageItem {
+                    script_path: row.script_path,
+                    display_names: row.display_names,
+                    faces: None,
+                })
+                .collect();
+            (usages, next_cursor)
+        };
 
     Ok(json(StoryResourceUsageResponse {
         usages,
@@ -381,14 +394,6 @@ pub async fn list_story_resources(
     State(state): State<AppState>,
     Query(query): Query<StoryResourceListQuery>,
 ) -> WebResult<Response> {
-    if let Some(resource_type) = query.resource_type.as_deref()
-        && !RESOURCE_TYPES.contains(&resource_type)
-    {
-        return Err(WebError::BadRequest(format!(
-            "type must be one of {}",
-            RESOURCE_TYPES.join(", ")
-        )));
-    }
     if query.q.as_deref().is_some_and(|value| value.contains('\0')) {
         return Err(WebError::BadRequest(
             "q must not contain NUL characters".to_string(),
@@ -407,7 +412,7 @@ pub async fn list_story_resources(
     let rows = state
         .database
         .list_story_resources(
-            query.resource_type.as_deref(),
+            query.resource_type,
             pattern.as_deref(),
             after
                 .as_ref()
@@ -417,7 +422,7 @@ pub async fn list_story_resources(
         .await?;
 
     let next_cursor = page_cursor(&rows, limit, |row| cursor::ResourceCursor {
-        resource_type: row.resource_type.clone(),
+        resource_type: row.resource_type,
         resource_id: row.resource_id.clone(),
     });
     Ok(json(StoryResourceListResponse {
@@ -434,7 +439,6 @@ pub async fn list_story_resources(
     }))
 }
 
-const RESOURCE_TYPES: [&str; 4] = ["background", "image", "item", "character"];
 const DEFAULT_PAGE_LIMIT: u32 = 50;
 const MAX_PAGE_LIMIT: u32 = 200;
 
@@ -502,7 +506,7 @@ mod tests {
     #[test]
     fn cursor_round_trips_ids_with_special_characters() {
         let cursor = cursor::ResourceCursor {
-            resource_type: "character".to_string(),
+            resource_type: StoryResourceType::Character,
             resource_id: "avg_npc_009#1$1".to_string(),
         };
         let encoded = cursor::encode(&cursor);
@@ -530,10 +534,24 @@ mod tests {
         );
         // A cursor from the other mode must not decode into this shape.
         let encoded = cursor::encode(&cursor::ResourceCursor {
-            resource_type: "image".to_string(),
+            resource_type: StoryResourceType::Image,
             resource_id: "ac1_0".to_string(),
         });
         assert!(cursor::decode::<cursor::UsageCursor>(Some(&encoded)).is_err());
+    }
+
+    #[test]
+    fn cursor_decode_rejects_nul_fields() {
+        let encoded = cursor::encode(&cursor::UsageCursor {
+            script_path: "bad\0path".to_string(),
+        });
+        assert!(cursor::decode::<cursor::UsageCursor>(Some(&encoded)).is_err());
+
+        let encoded = cursor::encode(&cursor::ResourceCursor {
+            resource_type: StoryResourceType::Image,
+            resource_id: "bad\0id".to_string(),
+        });
+        assert!(cursor::decode::<cursor::ResourceCursor>(Some(&encoded)).is_err());
     }
 
     #[test]

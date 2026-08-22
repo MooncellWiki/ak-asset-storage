@@ -1,5 +1,5 @@
 use crate::support::{self, TestEnv};
-use ak_asset_storage::database::row::StoryUsageRow;
+use ak_asset_storage::database::row::{StoryResourceType, StoryUsageRow};
 use axum::http::StatusCode;
 use std::{path::Path, time::Duration};
 use tokio::time::sleep;
@@ -109,7 +109,7 @@ fn publish_version(env: &TestEnv, res_version: &str) {
 
 async fn script_paths(
     database: &ak_asset_storage::database::Database,
-    resource_type: &str,
+    resource_type: StoryResourceType,
     resource_id: &str,
 ) -> Vec<String> {
     database
@@ -123,7 +123,7 @@ async fn script_paths(
 
 async fn wait_for_usages(
     database: &ak_asset_storage::database::Database,
-    resource_type: &str,
+    resource_type: StoryResourceType,
     resource_id: &str,
     expected_script: &str,
     timeout: Duration,
@@ -136,7 +136,7 @@ async fn wait_for_usages(
     })
     .await
     .map_err(|()| {
-        format!("usage rows for {resource_type}/{resource_id} did not appear within {timeout:?}")
+        format!("usage rows for {resource_type:?}/{resource_id} did not appear within {timeout:?}")
     })
 }
 
@@ -299,14 +299,14 @@ async fn failed_import_keeps_previous_snapshot() {
     assert!(!status.success(), "import should fail on invalid marker");
 
     let database = support::connect_database().await;
-    let paths = script_paths(&database, "background", "bg_test_1").await;
+    let paths = script_paths(&database, StoryResourceType::Background, "bg_test_1").await;
     assert_eq!(paths, vec!["activities/test/level_test_01_beg"]);
 
     // A transaction-level failure (duplicate PK) must roll back and keep the
     // previous snapshot readable.
     let duplicate = StoryUsageRow {
         script_path: "activities/test/level_test_01_beg".to_string(),
-        resource_type: "background".to_string(),
+        resource_type: StoryResourceType::Background,
         resource_id: "bg_test_1".to_string(),
         listing_id: "bg_test_1".to_string(),
         display_names: Vec::new(),
@@ -320,7 +320,7 @@ async fn failed_import_keeps_previous_snapshot() {
         "duplicate rows must violate the primary key"
     );
 
-    let paths = script_paths(&database, "background", "bg_test_1").await;
+    let paths = script_paths(&database, StoryResourceType::Background, "bg_test_1").await;
     assert_eq!(paths, vec!["activities/test/level_test_01_beg"]);
 }
 
@@ -334,7 +334,7 @@ async fn gamedata_ready_watcher_imports_and_follows_latest() {
     let database = support::connect_database().await;
     wait_for_usages(
         &database,
-        "background",
+        StoryResourceType::Background,
         "bg_test_1",
         "activities/test/level_test_01_beg",
         Duration::from_mins(2),
@@ -347,7 +347,7 @@ async fn gamedata_ready_watcher_imports_and_follows_latest() {
     publish_version(&env, V2_RES);
     wait_for_usages(
         &database,
-        "background",
+        StoryResourceType::Background,
         "bg_test_2",
         "obt/main/level_main_test",
         Duration::from_mins(3),
@@ -356,7 +356,7 @@ async fn gamedata_ready_watcher_imports_and_follows_latest() {
     .unwrap();
 
     sleep(Duration::from_secs(2)).await;
-    let old_paths = script_paths(&database, "background", "bg_test_1").await;
+    let old_paths = script_paths(&database, StoryResourceType::Background, "bg_test_1").await;
     assert!(
         old_paths.is_empty(),
         "old snapshot rows must be replaced after latest switch: {old_paths:?}"

@@ -1,4 +1,4 @@
-use crate::database::bundle::BundleFilter;
+use crate::database::{bundle::BundleFilter, row::StoryResourceType};
 use serde::Deserialize;
 use utoipa::{IntoParams, ToSchema};
 
@@ -6,7 +6,7 @@ use utoipa::{IntoParams, ToSchema};
 pub struct StoryResourceUsageQuery {
     /// Resource type: `background`, `image`, `item` or `character`.
     #[serde(rename = "type")]
-    pub resource_type: String,
+    pub resource_type: StoryResourceType,
     /// Percent-encoded exact resource id (may contain `/`, `#`, `$`).
     /// Characters accept two forms: `base#expression` matches the resolved
     /// `character.json` entry, while `base$body` (no `#`) matches scripts
@@ -23,7 +23,7 @@ pub struct StoryResourceListQuery {
     /// Restrict the listing to one resource type: `background`, `image`,
     /// `item` or `character`.
     #[serde(rename = "type")]
-    pub resource_type: Option<String>,
+    pub resource_type: Option<StoryResourceType>,
     /// Case-insensitive substring filter on the listing id. Face-overlay
     /// characters are listed at body granularity (`base$body`); standalone
     /// full-image characters keep their resolved expression ids.
@@ -38,7 +38,7 @@ pub struct StoryResourceListQuery {
 #[serde(rename_all = "camelCase")]
 pub struct StoryResourceSummary {
     #[serde(rename = "type")]
-    pub resource_type: String,
+    pub resource_type: StoryResourceType,
     /// Face-overlay characters use the body form `base$body`; standalone
     /// full-image characters use `base#expression`, and other types use their
     /// normalized image key.
