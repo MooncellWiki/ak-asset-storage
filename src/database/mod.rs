@@ -4,6 +4,7 @@ pub mod file;
 pub mod item_demand;
 pub mod model;
 pub mod row;
+pub mod story_usage;
 pub mod version;
 
 use crate::{AppError, AppResult, config::DatabaseConfig};

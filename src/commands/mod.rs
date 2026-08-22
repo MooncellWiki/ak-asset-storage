@@ -1,5 +1,6 @@
 mod import_item_demand;
 mod import_manifest;
+mod import_story_usage;
 mod seed;
 mod worker;
 
@@ -64,6 +65,10 @@ pub enum Commands {
         #[arg(short, long, default_value = "config.toml")]
         config: String,
     },
+    ImportStoryUsage {
+        #[arg(short, long, default_value = "config.toml")]
+        config: String,
+    },
     Version,
 }
 
@@ -118,6 +123,12 @@ pub async fn run(cli: Cli) -> Result<()> {
         Commands::ImportItemDemand { config } => {
             let (settings, _sentry) = init(&config)?;
             import_item_demand::execute(settings.as_ref())
+                .await
+                .map_err(anyhow::Error::from)
+        }
+        Commands::ImportStoryUsage { config } => {
+            let (settings, _sentry) = init(&config)?;
+            import_story_usage::execute(settings.as_ref())
                 .await
                 .map_err(anyhow::Error::from)
         }

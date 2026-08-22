@@ -180,6 +180,45 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/story-resource-usages": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["get_story_resource_usages"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/story-resources": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Lists distinct resources with their script counts, keyed by ascending
+         *     `(resource_type, listing id)` for cursor pagination. `type` filters and
+         *     `q` substring-matches (case-insensitive) when given. Face-overlay
+         *     characters list at body granularity (`base$body`, face suffix stripped);
+         *     standalone full-image characters keep their resolved expression ids.
+         */
+        get: operations["list_story_resources"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/version": {
         parameters: {
             query?: never;
@@ -258,11 +297,11 @@ export interface components {
         };
         DockerLaunchRequest: {
             client_version: string;
+            exclude?: string | null;
+            include?: string | null;
             prev_client_version: string;
             prev_res_version: string;
             res_version: string;
-            include?: string;
-            exclude?: string;
         };
         DockerLaunchResponse: {
             container_name: string;
@@ -275,6 +314,36 @@ export interface components {
             name: string;
             nodeType: string;
             path: string;
+        };
+        StoryResourceListResponse: {
+            nextCursor?: string | null;
+            resources: components["schemas"]["StoryResourceSummary"][];
+        };
+        StoryResourceSummary: {
+            /**
+             * @description Face-overlay characters use the body form `base$body`; standalone
+             *     full-image characters use `base#expression`, and other types use their
+             *     normalized image key.
+             */
+            id: string;
+            /** Format: int64 */
+            scriptCount: number;
+            type: components["schemas"]["StoryResourceType"];
+        };
+        /** @enum {string} */
+        StoryResourceType: "background" | "image" | "item" | "character";
+        StoryResourceUsageItem: {
+            displayNames: string[];
+            /**
+             * @description Resolved character expression ids (`base#expression`) this script uses.
+             *     Present only for character body queries (`base$body` id form).
+             */
+            faces?: string[] | null;
+            scriptPath: string;
+        };
+        StoryResourceUsageResponse: {
+            nextCursor?: string | null;
+            usages: components["schemas"]["StoryResourceUsageItem"][];
         };
         VersionDetails: {
             clientVersion: string;
@@ -566,6 +635,90 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["ManifestNode"][];
                 };
+            };
+        };
+    };
+    get_story_resource_usages: {
+        parameters: {
+            query: {
+                /** @description Resource type: `background`, `image`, `item` or `character`. */
+                type: components["schemas"]["StoryResourceType"];
+                /**
+                 * @description Percent-encoded exact resource id (may contain `/`, `#`, `$`).
+                 *     Characters accept two forms: `base#expression` matches the resolved
+                 *     `character.json` entry, while `base$body` (no `#`) matches scripts
+                 *     using any expression of the body (face-overlay characters only).
+                 */
+                id: string;
+                /** @description Page size, defaults to 50, at most 200. */
+                limit?: number | null;
+                /** @description Opaque cursor from a previous response (`nextCursor`). */
+                cursor?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Scripts using the resource */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StoryResourceUsageResponse"];
+                };
+            };
+            /** @description Invalid resource type, id, cursor or limit */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    list_story_resources: {
+        parameters: {
+            query?: {
+                /**
+                 * @description Restrict the listing to one resource type: `background`, `image`,
+                 *     `item` or `character`.
+                 */
+                type?: null | components["schemas"]["StoryResourceType"];
+                /**
+                 * @description Case-insensitive substring filter on the listing id. Face-overlay
+                 *     characters are listed at body granularity (`base$body`); standalone
+                 *     full-image characters keep their resolved expression ids.
+                 */
+                q?: string | null;
+                /** @description Page size, defaults to 50, at most 200. */
+                limit?: number | null;
+                /** @description Opaque cursor from a previous response (`nextCursor`). */
+                cursor?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description One page of resources with script counts */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StoryResourceListResponse"];
+                };
+            };
+            /** @description Invalid resource type, query, cursor or limit */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
         };
     };

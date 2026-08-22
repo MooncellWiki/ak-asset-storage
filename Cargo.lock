@@ -191,6 +191,7 @@ version = "0.23.1"
 dependencies = [
  "anyhow",
  "axum",
+ "base64 0.23.1",
  "bollard",
  "bytes",
  "chrono",
@@ -202,6 +203,7 @@ dependencies = [
  "mime_guess",
  "object_store",
  "octocrab",
+ "regex",
  "reqwest",
  "rust-embed",
  "rustls",
