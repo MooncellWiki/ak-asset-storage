@@ -6,47 +6,101 @@
       {
         "ordinal": 0,
         "name": "id!",
-        "type_info": "Int4"
+        "type_info": "Int4",
+        "origin": {
+          "Table": {
+            "table": "bundles",
+            "name": "id"
+          }
+        }
       },
       {
         "ordinal": 1,
         "name": "path!",
-        "type_info": "Varchar"
+        "type_info": "Varchar",
+        "origin": {
+          "Table": {
+            "table": "bundles",
+            "name": "path"
+          }
+        }
       },
       {
         "ordinal": 2,
         "name": "file_id!",
-        "type_info": "Int4"
+        "type_info": "Int4",
+        "origin": {
+          "Table": {
+            "table": "bundles",
+            "name": "file"
+          }
+        }
       },
       {
         "ordinal": 3,
         "name": "version_id!",
-        "type_info": "Int4"
+        "type_info": "Int4",
+        "origin": {
+          "Table": {
+            "table": "bundles",
+            "name": "version"
+          }
+        }
       },
       {
         "ordinal": 4,
         "name": "file_hash",
-        "type_info": "Bpchar"
+        "type_info": "Bpchar",
+        "origin": {
+          "Table": {
+            "table": "files",
+            "name": "hash"
+          }
+        }
       },
       {
         "ordinal": 5,
         "name": "file_size",
-        "type_info": "Int4"
+        "type_info": "Int4",
+        "origin": {
+          "Table": {
+            "table": "files",
+            "name": "size"
+          }
+        }
       },
       {
         "ordinal": 6,
         "name": "version_client",
-        "type_info": "Varchar"
+        "type_info": "Varchar",
+        "origin": {
+          "Table": {
+            "table": "versions",
+            "name": "client"
+          }
+        }
       },
       {
         "ordinal": 7,
         "name": "version_res",
-        "type_info": "Varchar"
+        "type_info": "Varchar",
+        "origin": {
+          "Table": {
+            "table": "versions",
+            "name": "res"
+          }
+        }
       },
       {
         "ordinal": 8,
         "name": "version_is_ready!",
-        "type_info": "Bool"
+        "type_info": "Bool",
+        "origin": {
+          "Table": {
+            "table": "versions",
+            "name": "is_ready"
+          }
+        }
       }
     ],
     "parameters": {

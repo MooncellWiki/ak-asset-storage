@@ -9,10 +9,12 @@ use crate::{
     runtime,
     service::{
         asset_download::AssetDownloadService, asset_mapping_import::AssetMappingImportService,
-        item_demand_import::ItemDemandImportService, version_check::VersionCheckService,
+        item_demand_import::ItemDemandImportService, story_usage::StoryUsageImportService,
+        version_check::VersionCheckService,
     },
     worker::{
-        item_demand_watcher::ItemDemandWatcher, manifest_watcher::ManifestWatcher, sync::SyncWorker,
+        gamedata_ready_watcher::GameDataReadyWatcher, item_demand_watcher::ItemDemandWatcher,
+        manifest_watcher::ManifestWatcher, sync::SyncWorker,
     },
 };
 use std::{path::PathBuf, time::Duration};
@@ -75,11 +77,18 @@ pub async fn execute(
         .join("raw")
         .join("itemDemand.json");
     let item_demand_service = ItemDemandImportService {
-        database,
+        database: database.clone(),
         file_path: item_demand_path.clone(),
     };
-    let item_demand_watcher = ItemDemandWatcher::new(item_demand_service, &item_demand_path)
-        .map_err(crate::AppError::Application)?;
+    let item_demand_watcher = ItemDemandWatcher::new(item_demand_service, &item_demand_path);
+
+    let gamedata_ready_marker = gamedata_root.join("latest").join(".gamedata-ready.json");
+    let story_usage_service = StoryUsageImportService {
+        database,
+        gamedata_root: gamedata_root.clone(),
+    };
+    let gamedata_ready_watcher =
+        GameDataReadyWatcher::new(story_usage_service, &gamedata_ready_marker);
 
     info!("Worker is running. Press Ctrl+C to stop.");
     tokio::select! {
@@ -92,6 +101,7 @@ pub async fn execute(
         }
     }
 
+    drop(gamedata_ready_watcher);
     drop(item_demand_watcher);
     drop(manifest_watcher);
     info!("Worker has stopped.");

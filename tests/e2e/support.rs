@@ -231,6 +231,26 @@ impl TestEnv {
         );
     }
 
+    pub async fn run_import_story_usage(&self) {
+        let status = self.try_import_story_usage().await;
+        assert!(
+            status.success(),
+            "import-story-usage command failed: {status}"
+        );
+    }
+
+    pub async fn try_import_story_usage(&self) -> std::process::ExitStatus {
+        build_binary_command()
+            .arg("import-story-usage")
+            .arg("-c")
+            .arg(&self.config_path)
+            .stdout(Stdio::inherit())
+            .stderr(Stdio::inherit())
+            .status()
+            .await
+            .unwrap()
+    }
+
     pub fn copy_item_demand_fixture<P: AsRef<StdPath>>(&self, source: P) {
         let target_dir = self.runtime_dir.join("asset/raw");
         fs::create_dir_all(&target_dir).unwrap();
@@ -974,7 +994,11 @@ async fn wait_for_http_success(url: &str) -> Result<(), ()> {
     .await
 }
 
-async fn wait_for<F, Fut>(timeout: Duration, interval: Duration, mut condition: F) -> Result<(), ()>
+pub async fn wait_for<F, Fut>(
+    timeout: Duration,
+    interval: Duration,
+    mut condition: F,
+) -> Result<(), ()>
 where
     F: FnMut() -> Fut,
     Fut: std::future::Future<Output = bool>,

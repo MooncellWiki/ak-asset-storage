@@ -1,0 +1,12 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "DELETE FROM story_resource_usages",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": []
+    },
+    "nullable": []
+  },
+  "hash": "2ea87620a8e9eb3edc1c033fbac6e16e2f795833575155cb012d5bff69dfc81c"
+}

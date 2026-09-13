@@ -6,32 +6,68 @@
       {
         "ordinal": 0,
         "name": "asset_name!",
-        "type_info": "Varchar"
+        "type_info": "Varchar",
+        "origin": {
+          "Table": {
+            "table": "asset_to_bundle_mappings",
+            "name": "asset_name"
+          }
+        }
       },
       {
         "ordinal": 1,
         "name": "bundle_path!",
-        "type_info": "Varchar"
+        "type_info": "Varchar",
+        "origin": {
+          "Table": {
+            "table": "asset_to_bundle_mappings",
+            "name": "bundle_path"
+          }
+        }
       },
       {
         "ordinal": 2,
         "name": "asset_path",
-        "type_info": "Varchar"
+        "type_info": "Varchar",
+        "origin": {
+          "Table": {
+            "table": "asset_to_bundle_mappings",
+            "name": "asset_path"
+          }
+        }
       },
       {
         "ordinal": 3,
         "name": "short_name",
-        "type_info": "Varchar"
+        "type_info": "Varchar",
+        "origin": {
+          "Table": {
+            "table": "asset_to_bundle_mappings",
+            "name": "short_name"
+          }
+        }
       },
       {
         "ordinal": 4,
         "name": "bundle_size?",
-        "type_info": "Int4"
+        "type_info": "Int4",
+        "origin": {
+          "Table": {
+            "table": "files",
+            "name": "size"
+          }
+        }
       },
       {
         "ordinal": 5,
         "name": "bundle_hash?",
-        "type_info": "Bpchar"
+        "type_info": "Bpchar",
+        "origin": {
+          "Table": {
+            "table": "files",
+            "name": "hash"
+          }
+        }
       }
     ],
     "parameters": {
@@ -45,8 +81,8 @@
       false,
       true,
       true,
-      false,
-      false
+      true,
+      true
     ]
   },
   "hash": "2bedbc6e314a548d23f6fe6665a5bb69ddafd9fdd34b2a5f7f46372209684658"

@@ -1,0 +1,12 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            INSERT INTO story_dataset (singleton, updated_at)\n            VALUES (TRUE, now())\n            ON CONFLICT (singleton) DO UPDATE SET updated_at = now()\n            ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": []
+    },
+    "nullable": []
+  },
+  "hash": "25453bc1e48c51861ad61abe5422b2fac84d33c716836e75c1c003f8f2676fc9"
+}

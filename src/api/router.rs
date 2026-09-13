@@ -21,6 +21,7 @@ use utoipa_scalar::{Scalar, Servable};
         (name = "files", description = "File system endpoints"),
         (name = "docker", description = "Docker container management endpoints"),
         (name = "manifest", description = "Manifest browser endpoints"),
+        (name = "story", description = "Story resource usage endpoints"),
     ),
 )]
 pub struct ApiDoc;
@@ -41,6 +42,8 @@ pub fn build_router(state: AppState) -> Router {
         .routes(routes!(handlers::get_manifest_detail))
         .routes(routes!(handlers::search_manifest))
         .routes(routes!(handlers::get_item_demand))
+        .routes(routes!(handlers::get_story_resource_usages))
+        .routes(routes!(handlers::list_story_resources))
         .routes(routes!(handlers::launch_container))
         .split_for_parts();
 
