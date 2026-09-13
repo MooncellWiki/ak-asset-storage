@@ -40,7 +40,6 @@ pub async fn execute(
         ak_api: ak_api.clone(),
         notification: notification.clone(),
         docker: None,
-        github: None,
     };
     let download = AssetDownloadService {
         database,
