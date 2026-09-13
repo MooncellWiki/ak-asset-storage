@@ -2,13 +2,26 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.24.0] - 2026-09-13
+
+[8106fb3](8106fb36426ff4ac72fb317e902b573117365e33)...[20f7f94](20f7f943824eff28db327e78cc8109a366f7deba)
+
+### 🚀 Features
+
+- Add story resource usage import and API (#173) ([d9f9d54](https://github.com/MooncellWiki/ak-asset-storage/commit/d9f9d548502138200bfbcb818c82bd575a17d4ac)), Co-authored-by:StarHeartHunt <starheart233@gmail.com>
+- Dispatch GitHub workflow on gamedata ready instead of new version (#174) ([20f7f94](https://github.com/MooncellWiki/ak-asset-storage/commit/20f7f943824eff28db327e78cc8109a366f7deba))
+
 ## [0.23.1] - 2026-08-08
 
-[2b259c1](2b259c1188be65125d0c3f4ebc049ef60ddd8b7e)...[256a665](256a6652a4e3fe592403de98643791e856996800)
+[2b259c1](2b259c1188be65125d0c3f4ebc049ef60ddd8b7e)...[8106fb3](8106fb36426ff4ac72fb317e902b573117365e33)
 
 ### 🐛 Bug Fixes
 
 - Strip dot prefix from embedded asset lookup paths ([256a665](https://github.com/MooncellWiki/ak-asset-storage/commit/256a6652a4e3fe592403de98643791e856996800))
+
+### ⚙️ Miscellaneous Tasks
+
+- Release 0.23.1 ([8106fb3](https://github.com/MooncellWiki/ak-asset-storage/commit/8106fb36426ff4ac72fb317e902b573117365e33))
 
 ## [0.23.0] - 2026-08-06
 
