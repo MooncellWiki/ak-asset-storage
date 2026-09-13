@@ -53,7 +53,6 @@ pub async fn execute(
             ak_api: ak_api.clone(),
             notification: notification.clone(),
             docker,
-            github,
         },
         AssetDownloadService {
             database: database.clone(),
@@ -88,7 +87,7 @@ pub async fn execute(
         gamedata_root: gamedata_root.clone(),
     };
     let gamedata_ready_watcher =
-        GameDataReadyWatcher::new(story_usage_service, &gamedata_ready_marker);
+        GameDataReadyWatcher::new(story_usage_service, github, &gamedata_ready_marker);
 
     info!("Worker is running. Press Ctrl+C to stop.");
     tokio::select! {

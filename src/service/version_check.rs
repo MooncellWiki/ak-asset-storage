@@ -4,9 +4,7 @@ use crate::{
         Database,
         row::{AssetMappingStatus, VersionRow},
     },
-    external::{
-        ak_api::AkApi, docker::DockerClient, github::GithubClient, notification::NotificationClient,
-    },
+    external::{ak_api::AkApi, docker::DockerClient, notification::NotificationClient},
     service::types::{HotUpdateList, RemoteVersion},
 };
 use tracing::{error, info, instrument};
@@ -17,7 +15,6 @@ pub struct VersionCheckService {
     pub ak_api: AkApi,
     pub notification: NotificationClient,
     pub docker: Option<DockerClient>,
-    pub github: Option<GithubClient>,
 }
 
 impl VersionCheckService {
@@ -86,14 +83,6 @@ impl VersionCheckService {
 
         self.database.create_version(version).await?;
         info!("new version created and ready for download");
-
-        if let Some(github) = &self.github {
-            info!("Attempting to dispatch GitHub workflow for new version");
-            match github.dispatch_workflow().await {
-                Ok(()) => info!("GitHub workflow dispatched successfully"),
-                Err(err) => error!("Failed to dispatch GitHub workflow: {err}"),
-            }
-        }
 
         if let Some(docker) = &self.docker
             && let Some(prev) = &prev
