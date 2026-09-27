@@ -7,6 +7,10 @@ pub enum AppError {
 
     #[error("Application error:\n{0}")]
     Application(#[from] anyhow::Error),
+
+    /// Caller-supplied input was rejected before touching any resource.
+    #[error("Invalid input: {0}")]
+    InvalidInput(String),
 }
 
 pub type AppResult<T> = std::result::Result<T, AppError>;

@@ -126,8 +126,11 @@ image_url = "your-docker-image:latest"
 container_name = "ak-asset-container"
 env_vars = [ "TZ=Asia/Shanghai" ]
 volume_mapping = [ "./data:/app/data" ]
-docker_host = "/var/run/docker.sock"
 network = "boot_default"
+username = "registry-username"
+password = "registry-password"
+# Raw socket path / unix://, or tcp:// / http:// for a filtering proxy
+docker_host = "/var/run/docker.sock"
 
 [torappu.github]
 owner = "your-username"
