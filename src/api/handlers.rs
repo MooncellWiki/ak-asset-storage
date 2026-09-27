@@ -183,8 +183,7 @@ pub async fn launch_container(
         .to_str()
         .map_err(|_| WebError::Unauthorized("Invalid torappu-auth header format".to_string()))?;
 
-    let expected_token = state.settings.torappu.token.as_str();
-    if auth_header != expected_token {
+    if !token_matches(auth_header, &state.settings.torappu.token) {
         return Err(WebError::Unauthorized(
             "Invalid authentication token".to_string(),
         ));
@@ -224,6 +223,17 @@ pub async fn launch_container(
         container_name,
         status: "launched".to_string(),
     }))
+}
+
+/// Constant-time token comparison so response timing does not leak how many
+/// leading bytes of a guess were correct. Length is compared first because
+/// `ct_eq` only accepts equal-length slices; an empty configured token is
+/// rejected at config load time.
+fn token_matches(provided: &str, expected: &str) -> bool {
+    use subtle::ConstantTimeEq;
+    let provided = provided.as_bytes();
+    let expected = expected.as_bytes();
+    !expected.is_empty() && provided.len() == expected.len() && bool::from(provided.ct_eq(expected))
 }
 
 /// Opaque pagination cursors: base64url(JSON), so a cursor survives being
@@ -552,6 +562,16 @@ mod tests {
             resource_id: "bad\0id".to_string(),
         });
         assert!(cursor::decode::<cursor::ResourceCursor>(Some(&encoded)).is_err());
+    }
+
+    #[test]
+    fn token_matches_requires_exact_non_empty_match() {
+        assert!(token_matches("secret", "secret"));
+        assert!(!token_matches("secret", "secret2"));
+        assert!(!token_matches("secre", "secret"));
+        assert!(!token_matches("Secret", "secret"));
+        assert!(!token_matches("", ""));
+        assert!(!token_matches("", "secret"));
     }
 
     #[test]

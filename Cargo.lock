@@ -213,6 +213,7 @@ dependencies = [
  "serde_variant",
  "sha256",
  "sqlx",
+ "subtle",
  "thiserror",
  "tokio",
  "toml",

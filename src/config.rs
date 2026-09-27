@@ -146,13 +146,69 @@ impl AppSettings {
     pub fn load(path: &Path) -> AppResult<Self> {
         info!(selected_path = ?path, "loading config");
         let content = fs::read_to_string(path).map_err(|err| AppError::Application(err.into()))?;
-        toml::from_str(&content).map_err(|err| AppError::Application(err.into()))
+        let settings: Self =
+            toml::from_str(&content).map_err(|err| AppError::Application(err.into()))?;
+        settings.validate()?;
+        Ok(settings)
+    }
+
+    /// Rejects configurations that would silently weaken security at runtime.
+    fn validate(&self) -> AppResult<()> {
+        if self.torappu.token.trim().is_empty() {
+            return Err(AppError::Application(anyhow::anyhow!(
+                "torappu.token must not be empty: it guards the Docker launch endpoint"
+            )));
+        }
+        Ok(())
     }
 }
 
-impl std::fmt::Display for AppSettings {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let content = toml::to_string(self).unwrap_or_default();
-        write!(f, "{content}")
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn settings_with_token(token: &str) -> AppSettings {
+        AppSettings {
+            logger: LoggerConfig::default(),
+            server: ServerConfig {
+                binding: default_binding(),
+                port: 5150,
+                host: "http://localhost".to_string(),
+            },
+            database: DatabaseConfig {
+                uri: "postgres://localhost/db".to_string(),
+                max_connections: None,
+                connection_timeout_seconds: None,
+            },
+            mailer: None,
+            ak: AkApiConfig {
+                conf_url: String::new(),
+                asset_url: String::new(),
+            },
+            s3: S3Config {
+                endpoint: String::new(),
+                access_key_id: String::new(),
+                secret_access_key: String::new(),
+                bucket_name: String::new(),
+                with_virtual_hosted_style_request: false,
+            },
+            sentry: SentryConfig {
+                dsn: String::new(),
+                traces_sample_rate: 0.0,
+            },
+            torappu: TorappuConfig {
+                token: token.to_string(),
+                asset_base_path: "/assets".to_string(),
+                docker: None,
+                github: None,
+            },
+        }
+    }
+
+    #[test]
+    fn validate_rejects_blank_torappu_token() {
+        assert!(settings_with_token("").validate().is_err());
+        assert!(settings_with_token("   ").validate().is_err());
+        assert!(settings_with_token("s3cret").validate().is_ok());
     }
 }

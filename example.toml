@@ -11,7 +11,7 @@ port = 5150
 host = "http://localhost"
 
 # Mailer Configuration
-[mailer.smtp]
+[mailer]
 host = "smtp.example.com"
 port = 465
 from_email = "sender@example.com"
@@ -51,7 +51,13 @@ asset_base_path = "/assets"
 image_url = "your-docker-image:latest"
 container_name = "ak-asset-container"
 env_vars = [ "TZ=Asia/Shanghai" ]
-volume_mapping = "./data:/app/data"
+volume_mapping = [ "./data:/app/data" ]
+network = "boot_default"
+username = "registry-username"
+password = "registry-password"
+# Prefer a filtering proxy (e.g. tecnativa/docker-socket-proxy with
+# CONTAINERS=1 IMAGES=1 POST=1) over handing the raw socket to this process:
+# docker_host = "tcp://docker-socket-proxy:2375"
 docker_host = "/var/run/docker.sock"
 
 # Optional GitHub Actions configuration for triggering workflows

@@ -19,6 +19,32 @@ use tracing::{info, warn};
 
 const MAX_IMAGE_PULL_RETRIES: usize = 3;
 const IMAGE_PULL_RETRY_DELAYS_SECS: [u64; MAX_IMAGE_PULL_RETRIES] = [1, 4, 8];
+const DOCKER_TIMEOUT_SECS: u64 = 120;
+
+/// Builds a client for `docker_host`. Besides a raw socket path or
+/// `unix://…`, `tcp://host:port` and `http://host:port` are accepted so the
+/// daemon can sit behind a filtering proxy (e.g. `docker-socket-proxy`)
+/// instead of the application holding the full-privilege socket itself.
+fn connect(docker_host: &str) -> AppResult<Docker> {
+    let result = if docker_host.starts_with("tcp://") || docker_host.starts_with("http://") {
+        Docker::connect_with_http(
+            docker_host,
+            DOCKER_TIMEOUT_SECS,
+            bollard::API_DEFAULT_VERSION,
+        )
+    } else if docker_host.starts_with("https://") || docker_host.starts_with("ssh://") {
+        return Err(AppError::ExternalService(anyhow!(
+            "unsupported docker_host scheme in {docker_host:?}: use unix://, tcp:// or http://"
+        )));
+    } else {
+        Docker::connect_with_unix(
+            docker_host,
+            DOCKER_TIMEOUT_SECS,
+            bollard::API_DEFAULT_VERSION,
+        )
+    };
+    result.map_err(|err| AppError::ExternalService(err.into()))
+}
 
 #[derive(Debug, Clone)]
 pub struct DockerClient {
@@ -28,9 +54,7 @@ pub struct DockerClient {
 
 impl DockerClient {
     pub fn new(config: DockerConfig) -> AppResult<Self> {
-        let docker =
-            Docker::connect_with_unix(&config.docker_host, 120, bollard::API_DEFAULT_VERSION)
-                .map_err(|err| AppError::ExternalService(err.into()))?;
+        let docker = connect(&config.docker_host)?;
         Ok(Self { docker, config })
     }
 

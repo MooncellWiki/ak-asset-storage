@@ -22,10 +22,16 @@ pub struct ApiErrorDetail {
 }
 
 impl From<WebError> for ApiErrorDetail {
+    /// Internal failures are reduced to a fixed message: the full error chain
+    /// (SQL, file paths, upstream responses) is logged in `into_response` and
+    /// must not be echoed back to anonymous callers.
     fn from(value: WebError) -> Self {
-        Self {
-            detail: value.to_string(),
-        }
+        let detail = match value {
+            WebError::CustomApiError(..) => "Internal Server Error".to_string(),
+            WebError::ServiceUnavailable(..) => "Service Unavailable".to_string(),
+            other => other.to_string(),
+        };
+        Self { detail }
     }
 }
 
@@ -34,6 +40,7 @@ impl From<AppError> for WebError {
         match err {
             err @ AppError::Application(..) => Self::CustomApiError(err),
             err @ AppError::ExternalService(..) => Self::ServiceUnavailable(err.into()),
+            AppError::InvalidInput(message) => Self::BadRequest(message),
         }
     }
 }

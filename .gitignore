@@ -21,6 +21,7 @@ target/
 .vite-ssg-dist
 .vite-ssg-temp
 *.local
+.env
 dist
 dist-ssr
 node_modules
