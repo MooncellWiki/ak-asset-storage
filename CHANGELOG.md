@@ -2,14 +2,26 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.24.1] - 2026-09-27
+
+[58acfc5](58acfc579ab13187125b32f417a4e18f76b1c624)...[e2fd0ca](e2fd0ca5279280a79dfab8473fb7a4b31a0e1bc1)
+
+### 🐛 Bug Fixes
+
+- Harden asset listing, docker launch auth and error responses (#175) ([e2fd0ca](https://github.com/MooncellWiki/ak-asset-storage/commit/e2fd0ca5279280a79dfab8473fb7a4b31a0e1bc1))
+
 ## [0.24.0] - 2026-09-13
 
-[8106fb3](8106fb36426ff4ac72fb317e902b573117365e33)...[20f7f94](20f7f943824eff28db327e78cc8109a366f7deba)
+[8106fb3](8106fb36426ff4ac72fb317e902b573117365e33)...[58acfc5](58acfc579ab13187125b32f417a4e18f76b1c624)
 
 ### 🚀 Features
 
 - Add story resource usage import and API (#173) ([d9f9d54](https://github.com/MooncellWiki/ak-asset-storage/commit/d9f9d548502138200bfbcb818c82bd575a17d4ac)), Co-authored-by:StarHeartHunt <starheart233@gmail.com>
 - Dispatch GitHub workflow on gamedata ready instead of new version (#174) ([20f7f94](https://github.com/MooncellWiki/ak-asset-storage/commit/20f7f943824eff28db327e78cc8109a366f7deba))
+
+### ⚙️ Miscellaneous Tasks
+
+- Release 0.24.0 ([58acfc5](https://github.com/MooncellWiki/ak-asset-storage/commit/58acfc579ab13187125b32f417a4e18f76b1c624))
 
 ## [0.23.1] - 2026-08-08
 
