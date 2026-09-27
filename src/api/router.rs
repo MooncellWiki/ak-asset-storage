@@ -80,13 +80,20 @@ pub fn build_router(state: AppState) -> Router {
             warn!("MCP endpoint enabled without auth_token; /mcp is publicly reachable");
         }
         let mcp_state = state.clone();
+        // The SDK's default only allows loopback Host headers (DNS rebinding
+        // protection for local servers), which would reject every request to
+        // a public deployment; default to accepting any Host, but let
+        // operators scope it with [mcp] allowed_hosts.
+        let mcp_config = match state.settings.mcp.allowed_hosts.as_ref() {
+            Some(hosts) if !hosts.is_empty() => {
+                StreamableHttpServerConfig::default().with_allowed_hosts(hosts.iter().cloned())
+            }
+            _ => StreamableHttpServerConfig::default().disable_allowed_hosts(),
+        };
         let mcp_service = StreamableHttpService::new(
             move || Ok(mcp::AkAssetMcpServer::new(mcp_state.clone())),
             Arc::new(LocalSessionManager::default()),
-            // The SDK's default only allows loopback Host headers (DNS
-            // rebinding protection for local servers); this deployment is a
-            // public service behind whatever proxy the operator runs.
-            StreamableHttpServerConfig::default().disable_allowed_hosts(),
+            mcp_config,
         );
         info!("MCP endpoint enabled at /mcp");
         let mcp_routes: Router<AppState> = Router::new().route_service("/mcp", mcp_service).layer(

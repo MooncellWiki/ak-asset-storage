@@ -32,6 +32,7 @@ use rmcp::{
     tool, tool_handler, tool_router,
 };
 use serde::{Deserialize, Serialize};
+use tracing::warn;
 
 const DEFAULT_PAGE_LIMIT: u32 = 50;
 const MAX_PAGE_LIMIT: u32 = 200;
@@ -190,7 +191,16 @@ impl<T> TruncatedResults<T> {
 }
 
 fn mcp_error(error: &AppError) -> ErrorData {
-    ErrorData::internal_error(error.to_string(), None)
+    match error {
+        // Rejected input is safe to echo back and recoverable.
+        AppError::InvalidInput(message) => bad_request(message.clone()),
+        // Everything else may carry SQL text or internals; log the details
+        // and return a fixed message, mirroring the REST error policy.
+        other => {
+            warn!(error = %other, "MCP tool failed");
+            ErrorData::internal_error("internal error".to_string(), None)
+        }
+    }
 }
 
 fn bad_request(message: impl Into<String>) -> ErrorData {
@@ -283,7 +293,8 @@ impl AkAssetMcpServer {
     }
 
     /// Search manifest entries by asset name substring and get the bundle
-    /// each asset lives in. The primary way to locate an asset.
+    /// each asset lives in. The primary way to locate an asset. Returns at
+    /// most 200 matches; refine `q` when the cap is hit.
     #[tool]
     async fn search_manifest(
         &self,
@@ -297,7 +308,7 @@ impl AkAssetMcpServer {
             .search_manifest(version_id, &params.q)
             .await
             .map_err(|error| mcp_error(&error))?;
-        json_result(TruncatedResults::new(nodes, MAX_PAGE_LIMIT))
+        json_result(nodes)
     }
 
     /// Browse the manifest directory tree one level at a time: given a
@@ -356,6 +367,9 @@ impl AkAssetMcpServer {
         let limit = page_limit(params.limit)?;
         if let Some(path) = params.path.as_deref() {
             ensure_no_nul("path", path)?;
+        }
+        if let Some(hash) = params.hash.as_deref() {
+            ensure_no_nul("hash", hash)?;
         }
         let version_id = self.resolve_optional_version_id(&params.version).await?;
         let bundles = self
@@ -658,11 +672,15 @@ pub async fn auth_middleware(
     else {
         return next.run(request).await;
     };
+    // Auth schemes are case-insensitive per RFC 7235, so accept `bearer`
+    // as well as `Bearer`.
     let authorized = request
         .headers()
         .get(header::AUTHORIZATION)
         .and_then(|value| value.to_str().ok())
-        .and_then(|value| value.strip_prefix("Bearer "))
+        .and_then(|value| value.split_once(' '))
+        .filter(|(scheme, _)| scheme.eq_ignore_ascii_case("bearer"))
+        .map(|(_, token)| token)
         .is_some_and(|provided| token_matches(provided, expected));
     if authorized {
         next.run(request).await

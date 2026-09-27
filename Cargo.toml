@@ -153,6 +153,8 @@ rustls = { version = "0.23.43", default-features = false, features = [
   "ring"
 ] }
 rmcp = { workspace = true }
+# Direct dependency: the JsonSchema derive emits `schemars::` paths that
+# don't resolve through rmcp's re-export.
 schemars = { workspace = true }
 
 [dev-dependencies]
