@@ -1,12 +1,16 @@
 #![allow(clippy::needless_for_each)]
 
 use crate::api::{
-    AppState, embed, handlers,
+    AppState, embed, handlers, mcp,
     middleware::{apply_axum_middleware, serve_dir_with_charset},
 };
 use axum::{Json, Router, handler::HandlerWithoutStateExt, routing::get};
-use std::path::PathBuf;
+use rmcp::transport::streamable_http_server::{
+    StreamableHttpServerConfig, StreamableHttpService, session::local::LocalSessionManager,
+};
+use std::{path::PathBuf, sync::Arc};
 use tower_http::services::ServeDir;
+use tracing::{info, warn};
 use utoipa::OpenApi;
 use utoipa_axum::{router::OpenApiRouter, routes};
 use utoipa_scalar::{Scalar, Servable};
@@ -63,7 +67,37 @@ pub fn build_router(state: AppState) -> Router {
         .nest_service(
             "/gamedata",
             serve_dir_with_charset(asset_path.join("gamedata")),
-        )
+        );
+
+    let router = if state.settings.mcp.enable {
+        if state
+            .settings
+            .mcp
+            .auth_token
+            .as_deref()
+            .is_none_or(str::is_empty)
+        {
+            warn!("MCP endpoint enabled without auth_token; /mcp is publicly reachable");
+        }
+        let mcp_state = state.clone();
+        let mcp_service = StreamableHttpService::new(
+            move || Ok(mcp::AkAssetMcpServer::new(mcp_state.clone())),
+            Arc::new(LocalSessionManager::default()),
+            // The SDK's default only allows loopback Host headers (DNS
+            // rebinding protection for local servers); this deployment is a
+            // public service behind whatever proxy the operator runs.
+            StreamableHttpServerConfig::default().disable_allowed_hosts(),
+        );
+        info!("MCP endpoint enabled at /mcp");
+        let mcp_routes: Router<AppState> = Router::new().route_service("/mcp", mcp_service).layer(
+            axum::middleware::from_fn_with_state(state.clone(), mcp::auth_middleware),
+        );
+        router.merge(mcp_routes)
+    } else {
+        router
+    };
+
+    let router = router
         .fallback_service(
             ServeDir::with_backend("", embed::EmbedBackend)
                 .fallback(embed::spa_index.into_service()),

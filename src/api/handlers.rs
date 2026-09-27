@@ -1,5 +1,6 @@
 use crate::{
     api::{
+        cursor,
         error::{WebError, WebResult},
         state::AppState,
         types::{
@@ -8,7 +9,7 @@ use crate::{
             StoryResourceListQuery, StoryResourceListResponse, StoryResourceSummary,
             StoryResourceUsageItem, StoryResourceUsageQuery, StoryResourceUsageResponse,
         },
-        utils::json,
+        utils::{escape_like, json},
     },
     database::model::{
         AssetMappingDetails, BundleDetails, ManifestNode, VersionDetails, VersionSummary,
@@ -229,83 +230,11 @@ pub async fn launch_container(
 /// leading bytes of a guess were correct. Length is compared first because
 /// `ct_eq` only accepts equal-length slices; an empty configured token is
 /// rejected at config load time.
-fn token_matches(provided: &str, expected: &str) -> bool {
+pub fn token_matches(provided: &str, expected: &str) -> bool {
     use subtle::ConstantTimeEq;
     let provided = provided.as_bytes();
     let expected = expected.as_bytes();
     !expected.is_empty() && provided.len() == expected.len() && bool::from(provided.ct_eq(expected))
-}
-
-/// Opaque pagination cursors: base64url(JSON), so a cursor survives being
-/// echoed back inside a query string regardless of the characters (`#`, `$`,
-/// `/`, spaces) embedded in ids and script paths.
-mod cursor {
-    use base64::{Engine as _, engine::general_purpose::URL_SAFE_NO_PAD};
-    use serde::{Deserialize, Serialize};
-
-    use super::{StoryResourceType, WebError};
-
-    pub(super) trait CursorPayload {
-        fn is_valid(&self) -> bool;
-    }
-
-    #[derive(Debug, Serialize, Deserialize, PartialEq, Eq)]
-    pub(super) struct UsageCursor {
-        pub script_path: String,
-    }
-
-    impl CursorPayload for UsageCursor {
-        fn is_valid(&self) -> bool {
-            !self.script_path.contains('\0')
-        }
-    }
-
-    #[derive(Debug, Serialize, Deserialize, PartialEq, Eq)]
-    pub(super) struct ResourceCursor {
-        pub resource_type: StoryResourceType,
-        pub resource_id: String,
-    }
-
-    impl CursorPayload for ResourceCursor {
-        fn is_valid(&self) -> bool {
-            !self.resource_id.contains('\0')
-        }
-    }
-
-    pub(super) fn encode<T: Serialize>(value: &T) -> String {
-        let json = serde_json::to_string(value).expect("cursor serialization is infallible");
-        URL_SAFE_NO_PAD.encode(json)
-    }
-
-    pub(super) fn decode<T: for<'de> Deserialize<'de> + CursorPayload>(
-        cursor: Option<&str>,
-    ) -> Result<Option<T>, WebError> {
-        let Some(cursor) = cursor.filter(|value| !value.is_empty()) else {
-            return Ok(None);
-        };
-        let json = URL_SAFE_NO_PAD
-            .decode(cursor)
-            .map_err(|_| WebError::BadRequest("invalid cursor".to_string()))?;
-        let decoded: T = serde_json::from_slice(&json)
-            .map_err(|_| WebError::BadRequest("invalid cursor".to_string()))?;
-        if !decoded.is_valid() {
-            return Err(WebError::BadRequest("invalid cursor".to_string()));
-        }
-        Ok(Some(decoded))
-    }
-}
-
-/// Escapes LIKE metacharacters so `q` matches a literal substring; the
-/// default LIKE/ILIKE escape character is the backslash.
-fn escape_like(input: &str) -> String {
-    let mut escaped = String::with_capacity(input.len());
-    for ch in input.chars() {
-        if matches!(ch, '%' | '_' | '\\') {
-            escaped.push('\\');
-        }
-        escaped.push(ch);
-    }
-    escaped
 }
 
 #[debug_handler]
