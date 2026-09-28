@@ -93,6 +93,8 @@ struct ListManifestChildrenParams {
     /// Parent directory path from a previous `list_manifest_children` or
     /// `search_manifest` result; empty or omitted lists the manifest root.
     dir: Option<String>,
+    /// Opaque `next_cursor` from the previous page; keep the directory and version unchanged.
+    cursor: Option<String>,
     /// Maximum number of entries returned (1-200, default 50).
     limit: Option<u32>,
     #[serde(flatten)]
@@ -129,6 +131,8 @@ struct ListFilesParams {
     path: Option<String>,
     /// Maximum number of entries returned (1-200, default 50).
     limit: Option<u32>,
+    /// Opaque `next_cursor` from the previous page; keep the path unchanged.
+    cursor: Option<String>,
 }
 
 #[derive(Deserialize, JsonSchema)]
@@ -188,6 +192,83 @@ impl<T> TruncatedResults<T> {
             truncated: total > limit as usize,
         }
     }
+}
+
+#[derive(Deserialize, Serialize, PartialEq, Eq)]
+enum DirectoryScope {
+    Files { path: String },
+    Manifest { dir: String, version_id: i32 },
+}
+
+#[derive(Deserialize, Serialize)]
+struct DirectoryCursor {
+    scope: DirectoryScope,
+    offset: usize,
+}
+
+impl cursor::CursorPayload for DirectoryCursor {
+    fn is_valid(&self) -> bool {
+        let path = match &self.scope {
+            DirectoryScope::Files { path } => path,
+            DirectoryScope::Manifest { dir, .. } => dir,
+        };
+        !path.contains('\0')
+    }
+}
+
+#[derive(Serialize)]
+struct DirectoryPage<T> {
+    results: Vec<T>,
+    total: usize,
+    truncated: bool,
+    next_cursor: Option<String>,
+}
+
+/// Both directory queries already return a deterministically sorted listing.
+/// Scope the offset to its directory/version so a cursor cannot silently skip
+/// entries in a different listing.
+fn directory_page<T>(
+    entries: Vec<T>,
+    limit: u32,
+    cursor_value: Option<&str>,
+    scope: DirectoryScope,
+) -> Result<DirectoryPage<T>, ErrorData> {
+    let after = decode_cursor::<DirectoryCursor>(cursor_value)?;
+    let offset = if let Some(after) = after {
+        if after.scope != scope {
+            return Err(bad_request(
+                "cursor does not match this directory or version",
+            ));
+        }
+        after.offset
+    } else {
+        0
+    };
+    let total = entries.len();
+    if offset > total {
+        return Err(bad_request(
+            "directory changed or cursor is out of range; restart without cursor",
+        ));
+    }
+    let results: Vec<_> = entries
+        .into_iter()
+        .skip(offset)
+        .take(limit as usize)
+        .collect();
+    let next_offset = offset + results.len();
+    let truncated = next_offset < total;
+    let next_cursor = truncated.then(|| {
+        cursor::encode(&DirectoryCursor {
+            scope,
+            offset: next_offset,
+        })
+    });
+    Ok(DirectoryPage {
+        results,
+        total,
+        truncated,
+        next_cursor,
+    })
 }
 
 fn mcp_error(error: &AppError) -> ErrorData {
@@ -312,7 +393,8 @@ impl AkAssetMcpServer {
     }
 
     /// Browse the manifest directory tree one level at a time: given a
-    /// directory path, list its files and subdirectories.
+    /// directory path, list its files and subdirectories. Pass `next_cursor`
+    /// back as `cursor` with the same directory and version to continue.
     #[tool]
     async fn list_manifest_children(
         &self,
@@ -328,7 +410,12 @@ impl AkAssetMcpServer {
             .list_manifest_children(version_id, &dir)
             .await
             .map_err(|error| mcp_error(&error))?;
-        json_result(TruncatedResults::new(nodes, limit))
+        json_result(directory_page(
+            nodes,
+            limit,
+            params.cursor.as_deref(),
+            DirectoryScope::Manifest { dir, version_id },
+        )?)
     }
 
     /// Get one manifest entry: which bundle contains the asset, and that
@@ -387,7 +474,8 @@ impl AkAssetMcpServer {
     }
 
     /// List the entries of one directory in the extracted raw asset tree,
-    /// e.g. `raw/chararts`. Omit `path` to list the root.
+    /// e.g. `raw/chararts`. Omit `path` to list the root. Pass `next_cursor`
+    /// back as `cursor` with the same path to continue.
     #[tool]
     async fn list_files(
         &self,
@@ -400,7 +488,12 @@ impl AkAssetMcpServer {
             .torappu
             .list_asset(&path)
             .map_err(|error| mcp_error(&error))?;
-        json_result(TruncatedResults::new(dir.children, limit))
+        json_result(directory_page(
+            dir.children,
+            limit,
+            params.cursor.as_deref(),
+            DirectoryScope::Files { path },
+        )?)
     }
 
     /// Search the extracted raw asset tree by path substring. Prefer this
@@ -729,6 +822,73 @@ mod tests {
         let results = TruncatedResults::new(vec![1], 2);
         assert_eq!(results.results, vec![1]);
         assert!(!results.truncated);
+    }
+
+    #[test]
+    fn directory_pages_visit_every_entry_once() {
+        for manifest in [false, true] {
+            for total in [0, 200, 201, 400, 401] {
+                let mut cursor = None;
+                let mut visited = Vec::new();
+                loop {
+                    let scope = if manifest {
+                        DirectoryScope::Manifest {
+                            dir: "chararts".into(),
+                            version_id: 1,
+                        }
+                    } else {
+                        DirectoryScope::Files {
+                            path: "raw/chararts".into(),
+                        }
+                    };
+                    let page = directory_page((0..total).collect(), 200, cursor.as_deref(), scope)
+                        .expect("valid page");
+                    assert_eq!(page.total, total);
+                    assert!(page.results.len() <= 200);
+                    visited.extend(page.results);
+                    assert_eq!(page.truncated, visited.len() < total);
+                    assert_eq!(page.next_cursor.is_some(), page.truncated);
+                    cursor = page.next_cursor;
+                    if cursor.is_none() {
+                        break;
+                    }
+                    assert!(!visited.is_empty());
+                }
+                assert_eq!(visited, (0..total).collect::<Vec<_>>());
+            }
+        }
+    }
+
+    #[test]
+    fn directory_pages_reject_invalid_or_mismatched_cursors() {
+        let scope = || DirectoryScope::Manifest {
+            dir: "chararts".into(),
+            version_id: 1,
+        };
+        let first = directory_page(vec![1, 2], 1, None, scope()).expect("first page");
+        for other_scope in [
+            DirectoryScope::Manifest {
+                dir: "other".into(),
+                version_id: 1,
+            },
+            DirectoryScope::Manifest {
+                dir: "chararts".into(),
+                version_id: 2,
+            },
+            DirectoryScope::Files {
+                path: "chararts".into(),
+            },
+        ] {
+            assert!(
+                directory_page(vec![1, 2], 1, first.next_cursor.as_deref(), other_scope).is_err()
+            );
+        }
+        assert!(directory_page(vec![1, 2], 1, Some("invalid!"), scope()).is_err());
+        let out_of_range = cursor::encode(&DirectoryCursor {
+            scope: scope(),
+            offset: usize::MAX,
+        });
+        assert!(directory_page(vec![1, 2], 1, Some(&out_of_range), scope()).is_err());
     }
 
     #[test]
