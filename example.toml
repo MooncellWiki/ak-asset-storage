@@ -47,12 +47,6 @@ traces_sample_rate = 1.0
 # asset directory — all read-only tools.
 [mcp]
 enable = false
-# Optional bearer token. When set, clients must send
-# `Authorization: Bearer <token>`. Leave unset only for localhost deployments.
-# auth_token = "change-me"
-# Optional allowlist of Host headers accepted on /mcp (e.g. for
-# asset-storage.example.com). Unset accepts any Host.
-# allowed_hosts = ["asset-storage.example.com"]
 
 # Optional Torappu configuration
 [torappu]

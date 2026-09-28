@@ -10,7 +10,7 @@ use rmcp::transport::streamable_http_server::{
 };
 use std::{path::PathBuf, sync::Arc};
 use tower_http::services::ServeDir;
-use tracing::{info, warn};
+use tracing::info;
 use utoipa::OpenApi;
 use utoipa_axum::{router::OpenApiRouter, routes};
 use utoipa_scalar::{Scalar, Servable};
@@ -70,36 +70,17 @@ pub fn build_router(state: AppState) -> Router {
         );
 
     let router = if state.settings.mcp.enable {
-        if state
-            .settings
-            .mcp
-            .auth_token
-            .as_deref()
-            .is_none_or(str::is_empty)
-        {
-            warn!("MCP endpoint enabled without auth_token; /mcp is publicly reachable");
-        }
         let mcp_state = state.clone();
-        // The SDK's default only allows loopback Host headers (DNS rebinding
-        // protection for local servers), which would reject every request to
-        // a public deployment; default to accepting any Host, but let
-        // operators scope it with [mcp] allowed_hosts.
-        let mcp_config = match state.settings.mcp.allowed_hosts.as_ref() {
-            Some(hosts) if !hosts.is_empty() => {
-                StreamableHttpServerConfig::default().with_allowed_hosts(hosts.iter().cloned())
-            }
-            _ => StreamableHttpServerConfig::default().disable_allowed_hosts(),
-        };
+        // Host restrictions are enforced by the gateway, not the SDK's
+        // default loopback-only allowlist.
+        let mcp_config = StreamableHttpServerConfig::default().disable_allowed_hosts();
         let mcp_service = StreamableHttpService::new(
             move || Ok(mcp::AkAssetMcpServer::new(mcp_state.clone())),
             Arc::new(LocalSessionManager::default()),
             mcp_config,
         );
         info!("MCP endpoint enabled at /mcp");
-        let mcp_routes: Router<AppState> = Router::new().route_service("/mcp", mcp_service).layer(
-            axum::middleware::from_fn_with_state(state.clone(), mcp::auth_middleware),
-        );
-        router.merge(mcp_routes)
+        router.route_service("/mcp", mcp_service)
     } else {
         router
     };

@@ -8,7 +8,6 @@ use crate::{
     api::{
         cursor::{self, ResourceCursor, UsageCursor},
         error::WebError,
-        handlers::token_matches,
         state::AppState,
         types::{
             StoryResourceListResponse, StoryResourceSummary, StoryResourceUsageItem,
@@ -17,12 +16,6 @@ use crate::{
         utils::escape_like,
     },
     database::{bundle::BundleFilter, row::StoryResourceType},
-};
-use axum::{
-    extract::{Request, State},
-    http::{StatusCode, header},
-    middleware::Next,
-    response::{IntoResponse, Response},
 };
 use rmcp::{
     ErrorData, ServerHandler,
@@ -746,39 +739,6 @@ impl ServerHandler for AkAssetMcpServer {
             env!("CARGO_PKG_VERSION"),
         ))
         .with_instructions(INSTRUCTIONS.to_string())
-    }
-}
-
-/// Bearer-token guard for `/mcp`. Unconfigured (or empty) tokens leave the
-/// endpoint open — the tools only mirror the already-public read API.
-pub async fn auth_middleware(
-    State(state): State<AppState>,
-    request: Request,
-    next: Next,
-) -> Response {
-    let Some(expected) = state
-        .settings
-        .mcp
-        .auth_token
-        .as_deref()
-        .filter(|token| !token.is_empty())
-    else {
-        return next.run(request).await;
-    };
-    // Auth schemes are case-insensitive per RFC 7235, so accept `bearer`
-    // as well as `Bearer`.
-    let authorized = request
-        .headers()
-        .get(header::AUTHORIZATION)
-        .and_then(|value| value.to_str().ok())
-        .and_then(|value| value.split_once(' '))
-        .filter(|(scheme, _)| scheme.eq_ignore_ascii_case("bearer"))
-        .map(|(_, token)| token)
-        .is_some_and(|provided| token_matches(provided, expected));
-    if authorized {
-        next.run(request).await
-    } else {
-        StatusCode::UNAUTHORIZED.into_response()
     }
 }
 

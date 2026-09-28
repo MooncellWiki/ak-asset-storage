@@ -230,7 +230,7 @@ pub async fn launch_container(
 /// leading bytes of a guess were correct. Length is compared first because
 /// `ct_eq` only accepts equal-length slices; an empty configured token is
 /// rejected at config load time.
-pub fn token_matches(provided: &str, expected: &str) -> bool {
+fn token_matches(provided: &str, expected: &str) -> bool {
     use subtle::ConstantTimeEq;
     let provided = provided.as_bytes();
     let expected = expected.as_bytes();

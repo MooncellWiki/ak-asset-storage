@@ -116,14 +116,6 @@ pub struct TorappuConfig {
 pub struct McpConfig {
     #[serde(default)]
     pub enable: bool,
-    /// When set, `/mcp` requires `Authorization: Bearer <auth_token>`.
-    #[serde(default)]
-    pub auth_token: Option<String>,
-    /// Restrict `/mcp` to these Host headers (hostnames or `host:port`).
-    /// When unset, any Host is accepted — this service is public behind the
-    /// operator's own proxy, and the data is already served at `/api/v1`.
-    #[serde(default)]
-    pub allowed_hosts: Option<Vec<String>>,
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
