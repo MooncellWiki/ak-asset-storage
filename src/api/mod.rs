@@ -6,6 +6,7 @@ mod mcp;
 mod middleware;
 mod router;
 mod state;
+mod story;
 mod types;
 mod utils;
 

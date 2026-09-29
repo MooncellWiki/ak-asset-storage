@@ -9,13 +9,13 @@ use crate::{
         cursor::{self, ResourceCursor, UsageCursor},
         error::WebError,
         state::AppState,
-        types::{
-            StoryResourceListResponse, StoryResourceSummary, StoryResourceUsageItem,
-            StoryResourceUsageResponse,
-        },
+        story,
         utils::escape_like,
     },
-    database::{bundle::BundleFilter, row::StoryResourceType},
+    database::{
+        bundle::BundleFilter,
+        row::{AssetMappingStatus, StoryResourceType, VersionRow},
+    },
 };
 use rmcp::{
     ErrorData, ServerHandler,
@@ -27,25 +27,27 @@ use rmcp::{
 use serde::{Deserialize, Serialize};
 use tracing::warn;
 
-const DEFAULT_PAGE_LIMIT: u32 = 50;
-const MAX_PAGE_LIMIT: u32 = 200;
-
 const INSTRUCTIONS: &str = "\
 This server indexes Arknights game assets.
 - Every game `version` (a client/res version pair) owns `bundles` (asset
   bundle files identified by path, hash and size) and a manifest tree that
-  maps each asset name to the bundle containing it.
-- Call `list_versions` first to discover versions; version-aware tools accept
-  `version_id` or `res_version` and default to the latest version.
-- `search_manifest` finds which bundle contains an asset; asset names follow
-  game conventions such as `chararts/...`, `avg_npc_009#1` (the `#` suffix is
-  an expression/face id) or `b_ac1_0` for audio.
-- Story tools index story scripts: `list_story_resources` lists resources of
-  one type (`background`, `image`, `item`, `character`) and
-  `get_story_resource_usages` finds the scripts that use one. Characters come
-  in two id forms: `base#expression` for one expression, `base$body` (no `#`)
-  for every expression of the body.
-- `list_files`/`search_files` browse the extracted raw asset directory.
+  maps each asset name to the bundle containing it. Not every version has
+  an imported manifest yet; `list_versions` (ready_only) shows the status.
+- Version-aware tools accept `version_id` or `res_version` and default to
+  the latest version whose manifest is imported (status `ready`).
+- `search_manifest` finds which bundle contains an asset. Manifest names
+  are paths like `arts/characters/char_002_amiya/...`,
+  `avg/characters/avg_npc_009`, `avg/images/ac1_0` or
+  `audio/sound_beta_2/music/.../m_avg_n_1`; a `#` segment appears in some
+  skin names (e.g. `illust_char_002_amiya_epoque#4`).
+- Story tools index story scripts: `list_story_resources` lists resources
+  of one type (`background`, `image`, `item`, `character`) and
+  `get_story_resource_usages` finds the scripts that use one. Always use
+  ids exactly as `list_story_resources` returns them: characters are either
+  `base#expression` or the body form `base$body`.
+- `list_files`/`search_files` browse the extracted raw asset directory
+  (e.g. `raw/char_arts`).
+- `get_item_demand` looks up demand by Chinese item name (e.g. `固源岩`).
 All tools are read-only.";
 
 #[derive(Clone)]
@@ -64,18 +66,28 @@ impl AkAssetMcpServer {
 }
 
 /// `version_id` wins over `res_version`; when neither is given, tools that
-/// need a version fall back to the latest one.
+/// need a version fall back to the latest one with an imported manifest.
 #[derive(Deserialize, JsonSchema)]
 struct VersionSelector {
-    /// Numeric version id from `list_versions`. Takes precedence over `res_version`.
+    /// Numeric version id from `list_versions`; validated against the
+    /// database. Takes precedence over `res_version`.
     version_id: Option<i32>,
-    /// Resource version string from `list_versions`, e.g. `24-10-08-...`.
+    /// Resource version string from `list_versions`, e.g. `25-01-01-...`.
     res_version: Option<String>,
 }
 
 #[derive(Deserialize, JsonSchema)]
+struct ListVersionsParams {
+    /// Only include versions whose manifest import finished (status `ready`).
+    ready_only: Option<bool>,
+    /// Maximum number of versions returned (1-200, default 50).
+    limit: Option<u32>,
+}
+
+#[derive(Deserialize, JsonSchema)]
 struct SearchManifestParams {
-    /// Case-insensitive substring of the asset name, e.g. `avg_npc_009` or `chararts`.
+    /// Case-insensitive substring of the asset name, e.g. `avg_npc_009` or
+    /// `char_002_amiya`.
     q: String,
     #[serde(flatten)]
     version: VersionSelector,
@@ -110,7 +122,6 @@ struct SearchBundlesParams {
     hash: Option<String>,
     /// Bundle file id.
     file_id: Option<i32>,
-    /// Restrict to one version; omit to search all versions.
     #[serde(flatten)]
     version: VersionSelector,
     /// Maximum number of bundles returned (1-200, default 50).
@@ -119,7 +130,7 @@ struct SearchBundlesParams {
 
 #[derive(Deserialize, JsonSchema)]
 struct ListFilesParams {
-    /// Directory below the raw asset root, e.g. `raw/chararts`; empty or
+    /// Directory below the raw asset root, e.g. `raw/char_arts`; empty or
     /// omitted lists the root. Must be relative without `..`.
     path: Option<String>,
     /// Maximum number of entries returned (1-200, default 50).
@@ -152,8 +163,9 @@ struct ListStoryResourcesParams {
 struct GetStoryResourceUsagesParams {
     /// Resource type: `background`, `image`, `item` or `character`.
     resource_type: String,
-    /// Exact resource id. Characters accept `base#expression` for one
-    /// expression or `base$body` (no `#`) for every expression of the body.
+    /// Exact resource id as returned by `list_story_resources`. Characters
+    /// are `base#expression` for one expression or the body form `base$body`
+    /// for every expression of the body.
     id: String,
     /// Opaque cursor from a previous response (`next_cursor`).
     cursor: Option<String>,
@@ -163,8 +175,23 @@ struct GetStoryResourceUsagesParams {
 
 #[derive(Deserialize, JsonSchema)]
 struct GetItemDemandParams {
-    /// Item name, e.g. `2001` for a material id.
+    /// Item name in Chinese, e.g. `固源岩` or `技巧概要·卷3`.
     item_name: String,
+}
+
+/// Version details for the MCP surface: the REST `hot_update_list` raw
+/// string is megabytes, so it is replaced by per-key entry counts.
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct McpVersionDetails {
+    id: i32,
+    client_version: String,
+    res_version: String,
+    is_ready: bool,
+    asset_mapping_status: String,
+    /// Per-key summary of the hot-update list: array values become
+    /// `{"count": n}`, scalar values pass through.
+    hot_update_summary: Option<serde_json::Value>,
 }
 
 /// Wraps an unbounded query result, cutting it at `limit` so a single tool
@@ -292,16 +319,6 @@ fn json_result<T: Serialize>(value: T) -> Result<CallToolResult, ErrorData> {
     Ok(CallToolResult::success(vec![ContentBlock::json(value)?]))
 }
 
-fn page_limit(limit: Option<u32>) -> Result<u32, ErrorData> {
-    let limit = limit.unwrap_or(DEFAULT_PAGE_LIMIT);
-    if !(1..=MAX_PAGE_LIMIT).contains(&limit) {
-        return Err(bad_request(format!(
-            "limit must be between 1 and {MAX_PAGE_LIMIT}"
-        )));
-    }
-    Ok(limit)
-}
-
 fn ensure_no_nul(field: &str, value: &str) -> Result<(), ErrorData> {
     if value.contains('\0') {
         return Err(bad_request(format!(
@@ -323,47 +340,110 @@ fn parse_resource_type(value: &str) -> Result<StoryResourceType, ErrorData> {
     }
 }
 
+/// A character id that is neither the expression form (`base#expression`)
+/// nor the body form (`base$body`) — most likely a manifest-style bare name
+/// that will silently match nothing.
+fn is_bare_character_id(id: &str) -> bool {
+    !id.contains('#') && !id.contains('$')
+}
+
 fn decode_cursor<T: for<'de> Deserialize<'de> + cursor::CursorPayload>(
     cursor_value: Option<&str>,
 ) -> Result<Option<T>, ErrorData> {
     cursor::decode(cursor_value).map_err(|err: WebError| bad_request(err.to_string()))
 }
 
+/// The version a selector resolved to.
+struct ResolvedVersion {
+    id: i32,
+    status: AssetMappingStatus,
+}
+
+impl ResolvedVersion {
+    fn from_row(row: &VersionRow) -> Option<Self> {
+        Some(Self {
+            id: row.id?,
+            status: row.asset_mapping_status,
+        })
+    }
+}
+
+/// Recoverable-miss message for a version selector that matched nothing.
+fn version_miss_message(version: &VersionSelector) -> String {
+    version.version_id.map_or_else(
+        || {
+            version.res_version.as_deref().map_or_else(
+                || "no version with an imported manifest yet".to_owned(),
+                |res_version| {
+                    format!("no version with res_version {res_version:?}; call list_versions")
+                },
+            )
+        },
+        |id| format!("version {id} not found; call list_versions for ids"),
+    )
+}
+
+/// `isError` result for a version whose manifest import has not finished.
+fn manifest_unready_error(version: &ResolvedVersion) -> Option<CallToolResult> {
+    (version.status != AssetMappingStatus::Ready).then(|| {
+        not_found(format!(
+            "version {} has no imported manifest yet (status: {}); pick a ready version from list_versions",
+            version.id,
+            version.status.as_str()
+        ))
+    })
+}
+
 #[tool_router]
 impl AkAssetMcpServer {
-    /// List every game resource version with its numeric id, client/res
-    /// version strings, readiness and manifest import status. Start here to
-    /// pick a version for other tools.
+    /// List game resource versions, newest first, with their numeric id,
+    /// client/res version strings, readiness and manifest import status.
+    /// Start here to pick a version for other tools; pass `ready_only` to
+    /// list only versions with an imported manifest.
     #[tool]
-    async fn list_versions(&self) -> Result<CallToolResult, ErrorData> {
-        let versions = self
+    async fn list_versions(
+        &self,
+        Parameters(params): Parameters<ListVersionsParams>,
+    ) -> Result<CallToolResult, ErrorData> {
+        let limit = story::page_limit(params.limit).map_err(|error| mcp_error(&error))?;
+        let mut versions = self
             .state
             .database
             .query_versions()
             .await
             .map_err(|error| mcp_error(&error))?;
-        json_result(versions)
+        versions.reverse();
+        if params.ready_only.unwrap_or(false) {
+            versions.retain(|version| version.asset_mapping_status == "ready");
+        }
+        json_result(TruncatedResults::new(versions, limit))
     }
 
-    /// Get one version's details, including its hot-update list.
+    /// Get one version's details. The hot-update list is summarized to
+    /// per-key entry counts — the raw list is megabytes. Defaults to the
+    /// latest version with an imported manifest.
     #[tool]
     async fn get_version(
         &self,
         Parameters(version): Parameters<VersionSelector>,
     ) -> Result<CallToolResult, ErrorData> {
-        let id = self.resolve_version_id(&version).await?;
-        let details = self
-            .state
-            .database
-            .query_version_detail_by_id(id)
-            .await
-            .map_err(|error| mcp_error(&error))?
-            .ok_or_else(|| {
-                bad_request(format!(
-                    "version {id} not found; call list_versions for ids"
-                ))
-            })?;
-        json_result(details)
+        let Some(row) = self.fetch_version(&version).await? else {
+            return Ok(not_found(version_miss_message(&version)));
+        };
+        let Some(id) = row.id else {
+            return Err(ErrorData::internal_error(
+                "version row without id".to_string(),
+                None,
+            ));
+        };
+        json_result(McpVersionDetails {
+            id,
+            client_version: row.client,
+            res_version: row.res,
+            is_ready: row.is_ready,
+            asset_mapping_status: row.asset_mapping_status.as_str().to_string(),
+            hot_update_summary: summarize_hot_update_list(&row.hot_update_list),
+        })
     }
 
     /// Search manifest entries by asset name substring and get the bundle
@@ -375,11 +455,16 @@ impl AkAssetMcpServer {
         Parameters(params): Parameters<SearchManifestParams>,
     ) -> Result<CallToolResult, ErrorData> {
         ensure_no_nul("q", &params.q)?;
-        let version_id = self.resolve_version_id(&params.version).await?;
+        let Some(version) = self.resolve_version(&params.version).await? else {
+            return Ok(not_found(version_miss_message(&params.version)));
+        };
+        if let Some(error) = manifest_unready_error(&version) {
+            return Ok(error);
+        }
         let nodes = self
             .state
             .database
-            .search_manifest(version_id, &params.q)
+            .search_manifest(version.id, &params.q)
             .await
             .map_err(|error| mcp_error(&error))?;
         json_result(nodes)
@@ -393,21 +478,29 @@ impl AkAssetMcpServer {
         &self,
         Parameters(params): Parameters<ListManifestChildrenParams>,
     ) -> Result<CallToolResult, ErrorData> {
-        let limit = page_limit(params.limit)?;
+        let limit = story::page_limit(params.limit).map_err(|error| mcp_error(&error))?;
         let dir = params.dir.unwrap_or_default();
         ensure_no_nul("dir", &dir)?;
-        let version_id = self.resolve_version_id(&params.version).await?;
+        let Some(version) = self.resolve_version(&params.version).await? else {
+            return Ok(not_found(version_miss_message(&params.version)));
+        };
+        if let Some(error) = manifest_unready_error(&version) {
+            return Ok(error);
+        }
         let nodes = self
             .state
             .database
-            .list_manifest_children(version_id, &dir)
+            .list_manifest_children(version.id, &dir)
             .await
             .map_err(|error| mcp_error(&error))?;
         json_result(directory_page(
             nodes,
             limit,
             params.cursor.as_deref(),
-            DirectoryScope::Manifest { dir, version_id },
+            DirectoryScope::Manifest {
+                dir,
+                version_id: version.id,
+            },
         )?)
     }
 
@@ -421,11 +514,16 @@ impl AkAssetMcpServer {
     ) -> Result<CallToolResult, ErrorData> {
         let asset_name = params.asset_name;
         ensure_no_nul("asset_name", &asset_name)?;
-        let version_id = self.resolve_version_id(&params.version).await?;
+        let Some(version) = self.resolve_version(&params.version).await? else {
+            return Ok(not_found(version_miss_message(&params.version)));
+        };
+        if let Some(error) = manifest_unready_error(&version) {
+            return Ok(error);
+        }
         let Some(detail) = self
             .state
             .database
-            .get_asset_mapping_detail(version_id, &asset_name)
+            .get_asset_mapping_detail(version.id, &asset_name)
             .await
             .map_err(|error| mcp_error(&error))?
         else {
@@ -436,45 +534,70 @@ impl AkAssetMcpServer {
         json_result(detail)
     }
 
-    /// Filter bundles by path substring, exact hash, file id and/or version.
-    /// At least one of `path`, `hash`, `file_id` or a version should be
-    /// given, otherwise every bundle in the database matches.
+    /// Filter bundles by path substring, exact hash, file id and/or an
+    /// explicit version, newest version first. At least one of `path`,
+    /// `hash`, `file_id` or `version_id`/`res_version` is required — without
+    /// a filter every bundle in the database matches.
     #[tool]
     async fn search_bundles(
         &self,
         Parameters(params): Parameters<SearchBundlesParams>,
     ) -> Result<CallToolResult, ErrorData> {
-        let limit = page_limit(params.limit)?;
+        let limit = story::page_limit(params.limit).map_err(|error| mcp_error(&error))?;
         if let Some(path) = params.path.as_deref() {
             ensure_no_nul("path", path)?;
         }
         if let Some(hash) = params.hash.as_deref() {
             ensure_no_nul("hash", hash)?;
         }
-        let version_id = self.resolve_optional_version_id(&params.version).await?;
+        let explicit_version =
+            params.version.version_id.is_some() || params.version.res_version.is_some();
+        let version_filter = if explicit_version {
+            let Some(version) = self.resolve_version(&params.version).await? else {
+                return Ok(not_found(version_miss_message(&params.version)));
+            };
+            Some(version.id)
+        } else {
+            None
+        };
+        if version_filter.is_none()
+            && params.path.is_none()
+            && params.hash.is_none()
+            && params.file_id.is_none()
+        {
+            return Err(bad_request(
+                "provide at least one of path, hash, file_id or an explicit version; \
+                 without a filter every bundle in the database matches",
+            ));
+        }
+        // limit + 1 rows so `truncated` reflects whether more matches exist
+        // beyond the page, without ever loading them.
         let bundles = self
             .state
             .database
-            .query_bundles_with_details(&BundleFilter {
-                path: params.path,
-                hash: params.hash,
-                file: params.file_id,
-                version: version_id,
-            })
+            .query_bundles_with_details_limited(
+                &BundleFilter {
+                    path: params.path,
+                    hash: params.hash,
+                    file: params.file_id,
+                    version: version_filter,
+                },
+                i64::from(limit) + 1,
+            )
             .await
             .map_err(|error| mcp_error(&error))?;
         json_result(TruncatedResults::new(bundles, limit))
     }
 
     /// List the entries of one directory in the extracted raw asset tree,
-    /// e.g. `raw/chararts`. Omit `path` to list the root. Pass `next_cursor`
+    /// e.g. `raw/char_arts`. Omit `path` to list the root. Pass `next_cursor`
     /// back as `cursor` with the same path to continue.
     #[tool]
     async fn list_files(
         &self,
         Parameters(params): Parameters<ListFilesParams>,
     ) -> Result<CallToolResult, ErrorData> {
-        let limit = page_limit(params.limit)?;
+        let limit = story::page_limit(params.limit).map_err(|error| mcp_error(&error))?;
         let path = params.path.unwrap_or_default();
         let dir = self
             .state
@@ -496,7 +619,7 @@ impl AkAssetMcpServer {
         &self,
         Parameters(params): Parameters<SearchFilesParams>,
     ) -> Result<CallToolResult, ErrorData> {
-        let limit = page_limit(params.limit)?;
+        let limit = story::page_limit(params.limit).map_err(|error| mcp_error(&error))?;
         ensure_no_nul("q", &params.q)?;
         let entries = self
             .state
@@ -519,7 +642,7 @@ impl AkAssetMcpServer {
             .as_deref()
             .map(parse_resource_type)
             .transpose()?;
-        let limit = page_limit(params.limit)?;
+        let limit = story::page_limit(params.limit).map_err(|error| mcp_error(&error))?;
         if let Some(q) = params.q.as_deref() {
             ensure_no_nul("q", q)?;
         }
@@ -529,39 +652,17 @@ impl AkAssetMcpServer {
             .filter(|value| !value.is_empty())
             .map(escape_like);
         let after = decode_cursor::<ResourceCursor>(params.cursor.as_deref())?;
-
-        // Fetch one extra row as a cheap has-next probe; a full page of
-        // exactly `limit` rows does not prove another page exists.
-        let rows = self
-            .state
-            .database
-            .list_story_resources(
-                resource_type,
-                pattern.as_deref(),
-                after
-                    .as_ref()
-                    .map(|cursor| (cursor.resource_type.as_str(), cursor.resource_id.as_str())),
-                i64::from(limit) + 1,
-            )
-            .await
-            .map_err(|error| mcp_error(&error))?;
-
-        let next_cursor = page_cursor(&rows, limit, |row| ResourceCursor {
-            resource_type: row.resource_type,
-            resource_id: row.resource_id.clone(),
-        });
-        let response = StoryResourceListResponse {
-            resources: rows
-                .into_iter()
-                .take(limit as usize)
-                .map(|row| StoryResourceSummary {
-                    resource_type: row.resource_type,
-                    id: row.resource_id,
-                    script_count: row.script_count,
-                })
-                .collect(),
-            next_cursor,
-        };
+        let response = story::list_story_resources_page(
+            &self.state.database,
+            resource_type,
+            pattern.as_deref(),
+            after
+                .as_ref()
+                .map(|cursor| (cursor.resource_type.as_str(), cursor.resource_id.as_str())),
+            limit,
+        )
+        .await
+        .map_err(|error| mcp_error(&error))?;
         json_result(response)
     }
 
@@ -575,64 +676,27 @@ impl AkAssetMcpServer {
         Parameters(params): Parameters<GetStoryResourceUsagesParams>,
     ) -> Result<CallToolResult, ErrorData> {
         let resource_type = parse_resource_type(&params.resource_type)?;
-        let limit = page_limit(params.limit)?;
+        let limit = story::page_limit(params.limit).map_err(|error| mcp_error(&error))?;
         ensure_no_nul("id", &params.id)?;
+        if resource_type == StoryResourceType::Character && is_bare_character_id(&params.id) {
+            return Ok(not_found(format!(
+                "{:?} is not a valid character id; use list_story_resources to get the exact id \
+                 — characters are either `base#expression` or the body form `base$body`",
+                params.id
+            )));
+        }
         let after = decode_cursor::<UsageCursor>(params.cursor.as_deref())?;
         let after_path = after.as_ref().map(|cursor| cursor.script_path.as_str());
-
-        // Same character special case as the REST endpoint: a body-form id
-        // (no `#`) aggregates every expression of the body.
-        let (usages, next_cursor) =
-            if resource_type == StoryResourceType::Character && !params.id.contains('#') {
-                let rows = self
-                    .state
-                    .database
-                    .query_story_character_body_usages(&params.id, after_path, i64::from(limit) + 1)
-                    .await
-                    .map_err(|error| mcp_error(&error))?;
-                let next_cursor = page_cursor(&rows, limit, |row| UsageCursor {
-                    script_path: row.script_path.clone(),
-                });
-                let usages = rows
-                    .into_iter()
-                    .take(limit as usize)
-                    .map(|row| StoryResourceUsageItem {
-                        script_path: row.script_path,
-                        display_names: row.display_names,
-                        faces: Some(row.faces),
-                    })
-                    .collect();
-                (usages, next_cursor)
-            } else {
-                let rows = self
-                    .state
-                    .database
-                    .query_story_resource_usages(
-                        resource_type,
-                        &params.id,
-                        after_path,
-                        i64::from(limit) + 1,
-                    )
-                    .await
-                    .map_err(|error| mcp_error(&error))?;
-                let next_cursor = page_cursor(&rows, limit, |row| UsageCursor {
-                    script_path: row.script_path.clone(),
-                });
-                let usages = rows
-                    .into_iter()
-                    .take(limit as usize)
-                    .map(|row| StoryResourceUsageItem {
-                        script_path: row.script_path,
-                        display_names: row.display_names,
-                        faces: None,
-                    })
-                    .collect();
-                (usages, next_cursor)
-            };
-        json_result(StoryResourceUsageResponse {
-            usages,
-            next_cursor,
-        })
+        let response = story::story_resource_usages_page(
+            &self.state.database,
+            resource_type,
+            &params.id,
+            after_path,
+            limit,
+        )
+        .await
+        .map_err(|error| mcp_error(&error))?;
+        json_result(response)
     }
 
     /// Get the aggregated demand for one item across game systems (returned
@@ -659,69 +723,66 @@ impl AkAssetMcpServer {
         )
     }
 
-    /// Resolves the version selector to a database id, defaulting to the
-    /// latest version when no selector is given.
-    async fn resolve_version_id(&self, version: &VersionSelector) -> Result<i32, ErrorData> {
-        if let Some(id) = version.version_id {
-            return Ok(id);
-        }
-        if let Some(res_version) = version.res_version.as_deref() {
-            return self.resolve_res_version(res_version).await;
-        }
-        self.state
-            .database
-            .get_latest_version()
-            .await
-            .map_err(|error| mcp_error(&error))?
-            .and_then(|row| row.id)
-            .ok_or_else(|| {
-                bad_request("no version available yet; import a manifest first".to_string())
-            })
-    }
-
-    /// Like `resolve_version_id`, but returns `None` when no selector was
-    /// given (queries spanning all versions).
-    async fn resolve_optional_version_id(
+    /// Fetches the selected version row: by id, by res version, or the
+    /// latest one with an imported manifest. `None` means the selector
+    /// matched nothing (recoverable).
+    async fn fetch_version(
         &self,
         version: &VersionSelector,
-    ) -> Result<Option<i32>, ErrorData> {
+    ) -> Result<Option<VersionRow>, ErrorData> {
         if let Some(id) = version.version_id {
-            return Ok(Some(id));
+            return self
+                .state
+                .database
+                .get_version_by_id(id)
+                .await
+                .map_err(|error| mcp_error(&error));
         }
-        match version.res_version.as_deref() {
-            Some(res_version) => self.resolve_res_version(res_version).await.map(Some),
-            None => Ok(None),
+        if let Some(res_version) = version.res_version.as_deref() {
+            ensure_no_nul("res_version", res_version)?;
+            return self
+                .state
+                .database
+                .get_version_by_res(res_version)
+                .await
+                .map_err(|error| mcp_error(&error));
         }
-    }
-
-    async fn resolve_res_version(&self, res_version: &str) -> Result<i32, ErrorData> {
-        ensure_no_nul("res_version", res_version)?;
         self.state
             .database
-            .get_version_by_res(res_version)
+            .get_latest_ready_version()
             .await
-            .map_err(|error| mcp_error(&error))?
-            .and_then(|row| row.id)
-            .ok_or_else(|| {
-                bad_request(format!(
-                    "no version with res_version {res_version:?}; call list_versions"
-                ))
-            })
+            .map_err(|error| mcp_error(&error))
+    }
+
+    /// Like `fetch_version`, reduced to what version-scoped queries need.
+    async fn resolve_version(
+        &self,
+        version: &VersionSelector,
+    ) -> Result<Option<ResolvedVersion>, ErrorData> {
+        Ok(self
+            .fetch_version(version)
+            .await?
+            .as_ref()
+            .and_then(ResolvedVersion::from_row))
     }
 }
 
-/// Builds the opaque cursor for the next page from an over-fetched page of
-/// `limit + 1` rows; `None` when the page is the last one.
-fn page_cursor<R, C: serde::Serialize>(
-    rows: &[R],
-    limit: u32,
-    make: impl Fn(&R) -> C,
-) -> Option<String> {
-    if rows.len() <= limit as usize {
+/// Reduces the raw hot-update list JSON to per-key entry counts (arrays) and
+/// pass-through scalars; `None` when the stored value is not a JSON object.
+fn summarize_hot_update_list(raw: &str) -> Option<serde_json::Value> {
+    let value: serde_json::Value = serde_json::from_str(raw).ok()?;
+    let serde_json::Value::Object(map) = value else {
         return None;
+    };
+    let mut summary = serde_json::Map::new();
+    for (key, value) in map {
+        let value = match value {
+            serde_json::Value::Array(items) => serde_json::json!({ "count": items.len() }),
+            other => other,
+        };
+        summary.insert(key, value);
     }
-    rows.get(limit as usize - 1)
-        .map(|row| cursor::encode(&make(row)))
+    Some(serde_json::Value::Object(summary))
 }
 
 #[tool_handler(router = self.tool_router)]
@@ -745,18 +806,6 @@ impl ServerHandler for AkAssetMcpServer {
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn page_limit_defaults_and_bounds() {
-        assert_eq!(page_limit(None).expect("default"), DEFAULT_PAGE_LIMIT);
-        assert_eq!(page_limit(Some(1)).expect("min"), 1);
-        assert_eq!(
-            page_limit(Some(MAX_PAGE_LIMIT)).expect("max"),
-            MAX_PAGE_LIMIT
-        );
-        assert!(page_limit(Some(0)).is_err());
-        assert!(page_limit(Some(MAX_PAGE_LIMIT + 1)).is_err());
-    }
 
     #[test]
     fn parse_resource_type_accepts_known_types_only() {
@@ -798,7 +847,7 @@ mod tests {
                         }
                     } else {
                         DirectoryScope::Files {
-                            path: "raw/chararts".into(),
+                            path: "raw/char_arts".into(),
                         }
                     };
                     let page = directory_page((0..total).collect(), 200, cursor.as_deref(), scope)
@@ -854,22 +903,63 @@ mod tests {
     #[test]
     fn version_selector_flattens_into_tool_arguments() {
         let params: SearchManifestParams = serde_json::from_value(serde_json::json!({
-            "q": "chararts",
-            "res_version": "24-10-08"
+            "q": "avg_npc_009",
+            "res_version": "25-01-01-10-00-00-000000"
         }))
         .expect("flatten");
-        assert_eq!(params.q, "chararts");
+        assert_eq!(params.q, "avg_npc_009");
         assert_eq!(
             params.version.res_version.as_deref(),
-            Some("24-10-08".trim())
+            Some("25-01-01-10-00-00-000000")
         );
         assert!(params.version.version_id.is_none());
     }
 
     #[test]
-    fn page_cursor_emits_cursor_only_when_more_pages() {
-        let rows = vec!["a", "b", "c"];
-        assert!(page_cursor(&rows, 2, |row| row.to_string()).is_some());
-        assert!(page_cursor(&rows, 3, |row| row.to_string()).is_none());
+    fn bare_character_ids_are_flagged() {
+        assert!(is_bare_character_id("avg_npc_009"));
+        assert!(!is_bare_character_id("avg_npc_009#avg_npc_009"));
+        assert!(!is_bare_character_id("avg_npc_009$body"));
+    }
+
+    #[test]
+    fn hot_update_summary_counts_arrays_and_keeps_scalars() {
+        let summary = summarize_hot_update_list(
+            r#"{"abInfos":[{"a":1},{"a":2}],"packInfos":[1],"versionId":"25-01-01","time":1}"#,
+        )
+        .expect("parses");
+        assert_eq!(
+            summary,
+            serde_json::json!({
+                "abInfos": {"count": 2},
+                "packInfos": {"count": 1},
+                "versionId": "25-01-01",
+                "time": 1
+            })
+        );
+        assert!(summarize_hot_update_list("[]").is_none());
+        assert!(summarize_hot_update_list("not json").is_none());
+    }
+
+    #[test]
+    fn miss_messages_point_at_list_versions() {
+        let message = version_miss_message(&VersionSelector {
+            version_id: Some(42),
+            res_version: None,
+        });
+        assert!(message.contains("42"), "{message}");
+        assert!(message.contains("list_versions"), "{message}");
+
+        let message = version_miss_message(&VersionSelector {
+            version_id: None,
+            res_version: Some("bogus".to_string()),
+        });
+        assert!(message.contains("bogus"), "{message}");
+
+        let message = version_miss_message(&VersionSelector {
+            version_id: None,
+            res_version: None,
+        });
+        assert!(message.contains("imported manifest"), "{message}");
     }
 }

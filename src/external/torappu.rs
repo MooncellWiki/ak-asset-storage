@@ -42,7 +42,23 @@ impl TorappuClient {
     pub fn list_asset(&self, path: &str) -> AppResult<AssetDirInfo> {
         let target_path = self.asset_base_path.join(relative_asset_path(path)?);
         let mut children = Vec::new();
-        let entries = std::fs::read_dir(&target_path).context("Failed to read directory")?;
+        // A missing/non-directory path is caller input to reject, not an
+        // internal failure — the message must guide the caller (model or
+        // frontend) to a directory that exists.
+        let entries = match std::fs::read_dir(&target_path) {
+            Ok(entries) => entries,
+            Err(err)
+                if matches!(
+                    err.kind(),
+                    std::io::ErrorKind::NotFound | std::io::ErrorKind::NotADirectory
+                ) =>
+            {
+                return Err(AppError::InvalidInput(format!(
+                    "no directory at {path:?}; list its parent to see valid names"
+                )));
+            }
+            Err(err) => return Err(AppError::Application(err.into())),
+        };
         for entry in entries {
             let entry = entry.context("Failed to read directory entry")?;
             children.push(AssetEntry::new(&entry.path(), &self.asset_base_path)?);
