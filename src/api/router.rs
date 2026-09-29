@@ -1,12 +1,16 @@
 #![allow(clippy::needless_for_each)]
 
 use crate::api::{
-    AppState, embed, handlers,
+    AppState, embed, handlers, mcp,
     middleware::{apply_axum_middleware, serve_dir_with_charset},
 };
 use axum::{Json, Router, handler::HandlerWithoutStateExt, routing::get};
-use std::path::PathBuf;
+use rmcp::transport::streamable_http_server::{
+    StreamableHttpServerConfig, StreamableHttpService, session::local::LocalSessionManager,
+};
+use std::{path::PathBuf, sync::Arc};
 use tower_http::services::ServeDir;
+use tracing::info;
 use utoipa::OpenApi;
 use utoipa_axum::{router::OpenApiRouter, routes};
 use utoipa_scalar::{Scalar, Servable};
@@ -63,7 +67,25 @@ pub fn build_router(state: AppState) -> Router {
         .nest_service(
             "/gamedata",
             serve_dir_with_charset(asset_path.join("gamedata")),
-        )
+        );
+
+    let router = if state.settings.mcp.enable {
+        let mcp_state = state.clone();
+        // Host restrictions are enforced by the gateway, not the SDK's
+        // default loopback-only allowlist.
+        let mcp_config = StreamableHttpServerConfig::default().disable_allowed_hosts();
+        let mcp_service = StreamableHttpService::new(
+            move || Ok(mcp::AkAssetMcpServer::new(mcp_state.clone())),
+            Arc::new(LocalSessionManager::default()),
+            mcp_config,
+        );
+        info!("MCP endpoint enabled at /mcp");
+        router.route_service("/mcp", mcp_service)
+    } else {
+        router
+    };
+
+    let router = router
         .fallback_service(
             ServeDir::with_backend("", embed::EmbedBackend)
                 .fallback(embed::spa_index.into_service()),

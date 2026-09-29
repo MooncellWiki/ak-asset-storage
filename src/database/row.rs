@@ -97,3 +97,14 @@ pub enum AssetMappingStatus {
     Importing,
     Ready,
 }
+
+impl AssetMappingStatus {
+    #[must_use]
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::Pending => "pending",
+            Self::Importing => "importing",
+            Self::Ready => "ready",
+        }
+    }
+}

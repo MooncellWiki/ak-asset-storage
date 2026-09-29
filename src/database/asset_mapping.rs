@@ -159,10 +159,13 @@ WHERE m.version_id = $1 AND m.asset_name = $2 AND m.node_type IN ('file', 'both'
         .map_err(|err| AppError::ExternalService(err.into()))
     }
 
+    /// `query` is matched literally (LIKE metacharacters must be pre-escaped
+    /// by the caller); `limit` bounds the result.
     pub async fn search_manifest(
         &self,
         version_id: i32,
         query: &str,
+        limit: i64,
     ) -> AppResult<Vec<ManifestNode>> {
         let pattern = format!("%{query}%");
         query_as!(
@@ -175,10 +178,11 @@ SELECT
 FROM asset_to_bundle_mappings
 WHERE version_id = $1 AND node_type IN ('file', 'both') AND asset_name ILIKE $2
 ORDER BY asset_name
-LIMIT 200
+LIMIT $3
             "#,
             version_id,
-            pattern
+            pattern,
+            limit
         )
         .fetch_all(self.pool())
         .await

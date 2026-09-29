@@ -1,19 +1,20 @@
 use crate::{
     api::{
+        cursor,
         error::{WebError, WebResult},
         state::AppState,
+        story,
         types::{
             AssetSearchQuery, BundleListQuery, DockerLaunchRequest, DockerLaunchResponse, Health,
             ManifestChildrenQuery, ManifestDetailQuery, ManifestSearchQuery,
-            StoryResourceListQuery, StoryResourceListResponse, StoryResourceSummary,
-            StoryResourceUsageItem, StoryResourceUsageQuery, StoryResourceUsageResponse,
+            StoryResourceListQuery, StoryResourceListResponse, StoryResourceUsageQuery,
+            StoryResourceUsageResponse,
         },
-        utils::json,
+        utils::{escape_like, json},
     },
     database::model::{
         AssetMappingDetails, BundleDetails, ManifestNode, VersionDetails, VersionSummary,
     },
-    database::row::StoryResourceType,
 };
 use axum::{
     Json, debug_handler,
@@ -129,7 +130,11 @@ pub async fn search_manifest(
     Ok(json(
         state
             .database
-            .search_manifest(version_id, &params.q)
+            .search_manifest(
+                version_id,
+                &escape_like(&params.q),
+                i64::from(story::MAX_PAGE_LIMIT),
+            )
             .await?,
     ))
 }
@@ -236,78 +241,6 @@ fn token_matches(provided: &str, expected: &str) -> bool {
     !expected.is_empty() && provided.len() == expected.len() && bool::from(provided.ct_eq(expected))
 }
 
-/// Opaque pagination cursors: base64url(JSON), so a cursor survives being
-/// echoed back inside a query string regardless of the characters (`#`, `$`,
-/// `/`, spaces) embedded in ids and script paths.
-mod cursor {
-    use base64::{Engine as _, engine::general_purpose::URL_SAFE_NO_PAD};
-    use serde::{Deserialize, Serialize};
-
-    use super::{StoryResourceType, WebError};
-
-    pub(super) trait CursorPayload {
-        fn is_valid(&self) -> bool;
-    }
-
-    #[derive(Debug, Serialize, Deserialize, PartialEq, Eq)]
-    pub(super) struct UsageCursor {
-        pub script_path: String,
-    }
-
-    impl CursorPayload for UsageCursor {
-        fn is_valid(&self) -> bool {
-            !self.script_path.contains('\0')
-        }
-    }
-
-    #[derive(Debug, Serialize, Deserialize, PartialEq, Eq)]
-    pub(super) struct ResourceCursor {
-        pub resource_type: StoryResourceType,
-        pub resource_id: String,
-    }
-
-    impl CursorPayload for ResourceCursor {
-        fn is_valid(&self) -> bool {
-            !self.resource_id.contains('\0')
-        }
-    }
-
-    pub(super) fn encode<T: Serialize>(value: &T) -> String {
-        let json = serde_json::to_string(value).expect("cursor serialization is infallible");
-        URL_SAFE_NO_PAD.encode(json)
-    }
-
-    pub(super) fn decode<T: for<'de> Deserialize<'de> + CursorPayload>(
-        cursor: Option<&str>,
-    ) -> Result<Option<T>, WebError> {
-        let Some(cursor) = cursor.filter(|value| !value.is_empty()) else {
-            return Ok(None);
-        };
-        let json = URL_SAFE_NO_PAD
-            .decode(cursor)
-            .map_err(|_| WebError::BadRequest("invalid cursor".to_string()))?;
-        let decoded: T = serde_json::from_slice(&json)
-            .map_err(|_| WebError::BadRequest("invalid cursor".to_string()))?;
-        if !decoded.is_valid() {
-            return Err(WebError::BadRequest("invalid cursor".to_string()));
-        }
-        Ok(Some(decoded))
-    }
-}
-
-/// Escapes LIKE metacharacters so `q` matches a literal substring; the
-/// default LIKE/ILIKE escape character is the backslash.
-fn escape_like(input: &str) -> String {
-    let mut escaped = String::with_capacity(input.len());
-    for ch in input.chars() {
-        if matches!(ch, '%' | '_' | '\\') {
-            escaped.push('\\');
-        }
-        escaped.push(ch);
-    }
-    escaped
-}
-
 #[debug_handler]
 #[utoipa::path(
     get,
@@ -328,60 +261,19 @@ pub async fn get_story_resource_usages(
             "id must not contain NUL characters".to_string(),
         ));
     }
-    let limit = page_limit(query.limit)?;
+    let limit = story::page_limit(query.limit).map_err(WebError::from)?;
     let after = cursor::decode::<cursor::UsageCursor>(query.cursor.as_deref())?;
     let after_path = after.as_ref().map(|c| c.script_path.as_str());
 
-    // Fetch one extra row as a cheap has-next probe; a full page of exactly
-    // `limit` rows does not prove another page exists.
-    let (usages, next_cursor) =
-        if query.resource_type == StoryResourceType::Character && !query.id.contains('#') {
-            let rows = state
-                .database
-                .query_story_character_body_usages(&query.id, after_path, i64::from(limit) + 1)
-                .await?;
-            let next_cursor = page_cursor(&rows, limit, |row| cursor::UsageCursor {
-                script_path: row.script_path.clone(),
-            });
-            let usages = rows
-                .into_iter()
-                .take(limit as usize)
-                .map(|row| StoryResourceUsageItem {
-                    script_path: row.script_path,
-                    display_names: row.display_names,
-                    faces: Some(row.faces),
-                })
-                .collect();
-            (usages, next_cursor)
-        } else {
-            let rows = state
-                .database
-                .query_story_resource_usages(
-                    query.resource_type,
-                    &query.id,
-                    after_path,
-                    i64::from(limit) + 1,
-                )
-                .await?;
-            let next_cursor = page_cursor(&rows, limit, |row| cursor::UsageCursor {
-                script_path: row.script_path.clone(),
-            });
-            let usages = rows
-                .into_iter()
-                .take(limit as usize)
-                .map(|row| StoryResourceUsageItem {
-                    script_path: row.script_path,
-                    display_names: row.display_names,
-                    faces: None,
-                })
-                .collect();
-            (usages, next_cursor)
-        };
-
-    Ok(json(StoryResourceUsageResponse {
-        usages,
-        next_cursor,
-    }))
+    let response = story::story_resource_usages_page(
+        &state.database,
+        query.resource_type,
+        &query.id,
+        after_path,
+        limit,
+    )
+    .await?;
+    Ok(json(response))
 }
 
 /// Lists distinct resources with their script counts, keyed by ascending
@@ -409,7 +301,7 @@ pub async fn list_story_resources(
             "q must not contain NUL characters".to_string(),
         ));
     }
-    let limit = page_limit(query.limit)?;
+    let limit = story::page_limit(query.limit).map_err(WebError::from)?;
     let pattern = query
         .q
         .as_deref()
@@ -417,63 +309,17 @@ pub async fn list_story_resources(
         .map(escape_like);
     let after = cursor::decode::<cursor::ResourceCursor>(query.cursor.as_deref())?;
 
-    // Fetch one extra row as a cheap has-next probe; a full page of exactly
-    // `limit` rows does not prove another page exists.
-    let rows = state
-        .database
-        .list_story_resources(
-            query.resource_type,
-            pattern.as_deref(),
-            after
-                .as_ref()
-                .map(|c| (c.resource_type.as_str(), c.resource_id.as_str())),
-            i64::from(limit) + 1,
-        )
-        .await?;
-
-    let next_cursor = page_cursor(&rows, limit, |row| cursor::ResourceCursor {
-        resource_type: row.resource_type,
-        resource_id: row.resource_id.clone(),
-    });
-    Ok(json(StoryResourceListResponse {
-        resources: rows
-            .into_iter()
-            .take(limit as usize)
-            .map(|row| StoryResourceSummary {
-                resource_type: row.resource_type,
-                id: row.resource_id,
-                script_count: row.script_count,
-            })
-            .collect(),
-        next_cursor,
-    }))
-}
-
-const DEFAULT_PAGE_LIMIT: u32 = 50;
-const MAX_PAGE_LIMIT: u32 = 200;
-
-fn page_limit(limit: Option<u32>) -> Result<u32, WebError> {
-    let limit = limit.unwrap_or(DEFAULT_PAGE_LIMIT);
-    if !(1..=MAX_PAGE_LIMIT).contains(&limit) {
-        return Err(WebError::BadRequest(format!(
-            "limit must be between 1 and {MAX_PAGE_LIMIT}"
-        )));
-    }
-    Ok(limit)
-}
-
-/// Builds the opaque cursor for the next page from an over-fetched page of
-/// `limit + 1` rows; `None` when the page is the last one.
-fn page_cursor<R, C: serde::Serialize>(
-    rows: &[R],
-    limit: u32,
-    make: impl Fn(&R) -> C,
-) -> Option<String> {
-    if rows.len() <= limit as usize {
-        return None;
-    }
-    rows.get(limit as usize - 1)
-        .map(|row| cursor::encode(&make(row)))
+    let response = story::list_story_resources_page(
+        &state.database,
+        query.resource_type,
+        pattern.as_deref(),
+        after
+            .as_ref()
+            .map(|c| (c.resource_type.as_str(), c.resource_id.as_str())),
+        limit,
+    )
+    .await?;
+    Ok(json(response))
 }
 
 #[debug_handler]
@@ -512,6 +358,7 @@ pub async fn list_root_asset(State(state): State<AppState>) -> WebResult<Respons
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::database::row::StoryResourceType;
 
     #[test]
     fn cursor_round_trips_ids_with_special_characters() {

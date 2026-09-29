@@ -109,6 +109,15 @@ pub struct TorappuConfig {
     pub github: Option<GithubConfig>,
 }
 
+/// MCP (Model Context Protocol) endpoint configuration. The endpoint only
+/// mirrors the public read-only queries, but stays opt-in so existing
+/// deployments keep serving exactly the routes they had before.
+#[derive(Debug, Clone, Default, Deserialize, Serialize)]
+pub struct McpConfig {
+    #[serde(default)]
+    pub enable: bool,
+}
+
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct DockerConfig {
     pub image_url: String,
@@ -140,6 +149,8 @@ pub struct AppSettings {
     pub s3: S3Config,
     pub sentry: SentryConfig,
     pub torappu: TorappuConfig,
+    #[serde(default)]
+    pub mcp: McpConfig,
 }
 
 impl AppSettings {
@@ -202,6 +213,7 @@ mod tests {
                 docker: None,
                 github: None,
             },
+            mcp: McpConfig::default(),
         }
     }
 

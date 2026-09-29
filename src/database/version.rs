@@ -105,6 +105,31 @@ impl Database {
         }))
     }
 
+    /// Newest version whose manifest import finished. Version-aware read
+    /// paths prefer this so the minutes-long window between a version being
+    /// discovered (`pending`) and its manifest being imported does not look
+    /// like "resource does not exist".
+    pub async fn get_latest_ready_version(&self) -> AppResult<Option<VersionRow>> {
+        let result = sqlx::query!(
+            "SELECT id, res, client, is_ready, hot_update_list, asset_mapping_status AS \"asset_mapping_status!: AssetMappingStatus\" FROM versions WHERE asset_mapping_status = $1 ORDER BY id DESC LIMIT 1",
+            AssetMappingStatus::Ready as AssetMappingStatus
+        )
+        .fetch_optional(self.pool())
+        .await
+        .map_err(|err| AppError::ExternalService(err.into()))?;
+
+        Ok(result.map(|row| {
+            build_version(
+                row.id,
+                row.res,
+                row.client,
+                row.is_ready,
+                &row.hot_update_list,
+                row.asset_mapping_status,
+            )
+        }))
+    }
+
     pub async fn is_client_and_res_exist(&self, client: &str, res: &str) -> AppResult<bool> {
         let result = sqlx::query!(
             "SELECT id FROM versions WHERE client = $1 AND res = $2",

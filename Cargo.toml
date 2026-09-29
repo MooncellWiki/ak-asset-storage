@@ -104,6 +104,12 @@ octocrab = "0.54.1"
 base64 = "0.23.1"
 mimalloc = "0.1.52"
 subtle = "2.6.1"
+rmcp = { version = "3.4.1", features = [
+  "server",
+  "macros",
+  "transport-streamable-http-server",
+] }
+schemars = "1.2.2"
 
 [dependencies]
 serde = { workspace = true }
@@ -144,8 +150,12 @@ base64 = { workspace = true }
 mimalloc = { workspace = true }
 rustls = { version = "0.23.43", default-features = false, features = [
   "std",
-  "ring" 
+  "ring"
 ] }
+rmcp = { workspace = true }
+# Direct dependency: the JsonSchema derive emits `schemars::` paths that
+# don't resolve through rmcp's re-export.
+schemars = { workspace = true }
 
 [dev-dependencies]
 serde = { workspace = true }

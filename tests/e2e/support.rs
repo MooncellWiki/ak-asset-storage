@@ -731,7 +731,10 @@ pub async fn assert_manifest_fixture_imported(database: &Database, version_id: i
     );
 
     assert_manifest_children(
-        &database.search_manifest(version_id, "amiya").await.unwrap(),
+        &database
+            .search_manifest(version_id, "amiya", 200)
+            .await
+            .unwrap(),
         &[(
             "char_002_amiya_1",
             "arts/charportraits/char_002_amiya_1",
