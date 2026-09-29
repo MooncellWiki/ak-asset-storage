@@ -6,6 +6,8 @@ use sqlx::{query, query_as};
 
 #[derive(Debug, Clone)]
 pub struct BundleFilter {
+    /// Path substring; callers must pre-escape LIKE metacharacters (`_`,
+    /// `%`, `\`) so the value matches literally.
     pub path: Option<String>,
     pub hash: Option<String>,
     pub file: Option<i32>,

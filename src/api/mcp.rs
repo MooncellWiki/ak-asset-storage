@@ -116,14 +116,19 @@ struct GetManifestDetailParams {
 
 #[derive(Deserialize, JsonSchema)]
 struct SearchBundlesParams {
-    /// Substring matched against bundle paths.
+    /// Substring matched against bundle paths (matched literally).
     path: Option<String>,
     /// Exact bundle file hash.
     hash: Option<String>,
     /// Bundle file id.
     file_id: Option<i32>,
-    #[serde(flatten)]
-    version: VersionSelector,
+    /// Restrict to this version id. Unlike the other tools, omitting both
+    /// `version_id` and `res_version` searches every version — then one of
+    /// `path`/`hash`/`file_id` is required.
+    version_id: Option<i32>,
+    /// Restrict to this res version string; `version_id` wins when both
+    /// are given.
+    res_version: Option<String>,
     /// Maximum number of bundles returned (1-200, default 50).
     limit: Option<u32>,
 }
@@ -447,8 +452,9 @@ impl AkAssetMcpServer {
     }
 
     /// Search manifest entries by asset name substring and get the bundle
-    /// each asset lives in. The primary way to locate an asset. Returns at
-    /// most 200 matches; refine `q` when the cap is hit.
+    /// each asset lives in. The primary way to locate an asset. `q` matches
+    /// literally; returns at most 200 matches, with `truncated` set when
+    /// that cap was hit — refine `q` then.
     #[tool]
     async fn search_manifest(
         &self,
@@ -461,13 +467,19 @@ impl AkAssetMcpServer {
         if let Some(error) = manifest_unready_error(&version) {
             return Ok(error);
         }
+        // One row past the cap as the has-more probe, same trick as the
+        // paginated tools.
         let nodes = self
             .state
             .database
-            .search_manifest(version.id, &params.q)
+            .search_manifest(
+                version.id,
+                &escape_like(&params.q),
+                i64::from(story::MAX_PAGE_LIMIT) + 1,
+            )
             .await
             .map_err(|error| mcp_error(&error))?;
-        json_result(nodes)
+        json_result(TruncatedResults::new(nodes, story::MAX_PAGE_LIMIT))
     }
 
     /// Browse the manifest directory tree one level at a time: given a
@@ -534,10 +546,10 @@ impl AkAssetMcpServer {
         json_result(detail)
     }
 
-    /// Filter bundles by path substring, exact hash, file id and/or an
-    /// explicit version, newest version first. At least one of `path`,
-    /// `hash`, `file_id` or `version_id`/`res_version` is required — without
-    /// a filter every bundle in the database matches.
+    /// Filter bundles by path substring (matched literally), exact hash,
+    /// file id and/or an explicit version, newest version first. At least
+    /// one of `path`, `hash`, `file_id` or `version_id`/`res_version` is
+    /// required — omitting the version searches every version.
     #[tool]
     async fn search_bundles(
         &self,
@@ -550,11 +562,14 @@ impl AkAssetMcpServer {
         if let Some(hash) = params.hash.as_deref() {
             ensure_no_nul("hash", hash)?;
         }
-        let explicit_version =
-            params.version.version_id.is_some() || params.version.res_version.is_some();
+        let selector = VersionSelector {
+            version_id: params.version_id,
+            res_version: params.res_version,
+        };
+        let explicit_version = selector.version_id.is_some() || selector.res_version.is_some();
         let version_filter = if explicit_version {
-            let Some(version) = self.resolve_version(&params.version).await? else {
-                return Ok(not_found(version_miss_message(&params.version)));
+            let Some(version) = self.resolve_version(&selector).await? else {
+                return Ok(not_found(version_miss_message(&selector)));
             };
             Some(version.id)
         } else {
@@ -577,7 +592,7 @@ impl AkAssetMcpServer {
             .database
             .query_bundles_with_details_limited(
                 &BundleFilter {
-                    path: params.path,
+                    path: params.path.as_deref().map(escape_like),
                     hash: params.hash,
                     file: params.file_id,
                     version: version_filter,
@@ -913,6 +928,18 @@ mod tests {
             Some("25-01-01-10-00-00-000000")
         );
         assert!(params.version.version_id.is_none());
+    }
+
+    #[test]
+    fn search_bundles_params_take_top_level_version_fields() {
+        let params: SearchBundlesParams = serde_json::from_value(serde_json::json!({
+            "path": "ab_avg",
+            "version_id": 7
+        }))
+        .expect("top-level version fields");
+        assert_eq!(params.version_id, Some(7));
+        assert!(params.res_version.is_none());
+        assert_eq!(params.path.as_deref(), Some("ab_avg"));
     }
 
     #[test]

@@ -130,7 +130,11 @@ pub async fn search_manifest(
     Ok(json(
         state
             .database
-            .search_manifest(version_id, &params.q)
+            .search_manifest(
+                version_id,
+                &escape_like(&params.q),
+                i64::from(story::MAX_PAGE_LIMIT),
+            )
             .await?,
     ))
 }

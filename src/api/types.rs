@@ -1,4 +1,7 @@
-use crate::database::{bundle::BundleFilter, row::StoryResourceType};
+use crate::{
+    api::utils::escape_like,
+    database::{bundle::BundleFilter, row::StoryResourceType},
+};
 use serde::Deserialize;
 use utoipa::{IntoParams, ToSchema};
 
@@ -101,7 +104,8 @@ pub struct BundleListQuery {
 impl From<BundleListQuery> for BundleFilter {
     fn from(value: BundleListQuery) -> Self {
         Self {
-            path: value.path,
+            // Escape LIKE metacharacters so the substring matches literally.
+            path: value.path.as_deref().map(escape_like),
             hash: value.hash,
             file: value.file,
             version: value.version,
