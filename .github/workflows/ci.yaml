@@ -79,6 +79,11 @@ jobs:
       - name: Build frontend
         shell: bash
         run: pnpm run build
+      # The plocate search tests need real updatedb/plocate binaries and fail
+      # (instead of skipping) when CI is set and they are missing.
+      - name: Install plocate
+        shell: bash
+        run: sudo apt-get update && sudo apt-get install -y plocate
       - name: Run cargo test
         shell: bash
         run: cargo test --all-features -- --nocapture

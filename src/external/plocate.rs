@@ -85,14 +85,23 @@ impl PlocateIndex {
     }
 
     /// Rebuild the database. Blocking (subprocess + filesystem scan); call
-    /// from `spawn_blocking`. The system `updatedb.conf` is bypassed so the
-    /// result only depends on the flags below; pruning targets the database
-    /// file itself (not its directory) so the database location can never
-    /// exclude surrounding assets from the index.
+    /// from `spawn_blocking`. Every prune setting of the system
+    /// `updatedb.conf` is overridden so the result only depends on the flags
+    /// below — its defaults skip network/FUSE filesystems (`PRUNEFS`) and
+    /// paths such as `/tmp` (`PRUNEPATHS`), which would silently drop an
+    /// asset volume. Explicit empty lists are used instead of
+    /// `--config-file /dev/null`, which only exists since plocate 1.1.24;
+    /// the runtime image (Debian 13) ships 1.1.23. Pruning targets the
+    /// database file itself (not its directory) so the database location can
+    /// never exclude surrounding assets from the index.
     pub fn update(&self) -> AppResult<()> {
         let output = Command::new("updatedb")
-            .arg("--config-file")
-            .arg("/dev/null")
+            .arg("--prunefs")
+            .arg("")
+            .arg("--prunenames")
+            .arg("")
+            .arg("--prunepaths")
+            .arg("")
             .arg("--require-visibility")
             .arg("no")
             .arg("--prune-bind-mounts")
@@ -131,11 +140,10 @@ impl PlocateIndex {
         limit: usize,
         keep: &dyn Fn(&str) -> bool,
     ) -> AppResult<Vec<PathBuf>> {
-        if !self.database_path.is_file() {
-            return Err(AppError::ExternalService(anyhow::anyhow!(
-                "plocate database {} does not exist yet; the periodic updatedb task has not finished a first build",
-                self.database_path.display()
-            )));
+        if !self.is_built() {
+            return Err(AppError::Unavailable(
+                "search index is not built yet; retry shortly".to_string(),
+            ));
         }
         let mut child = Command::new("plocate")
             .arg("--database")
@@ -153,53 +161,22 @@ impl PlocateIndex {
             .take()
             .context("plocate stdout was not piped")
             .map_err(AppError::Application)?;
-        let mut reader = BufReader::new(stdout);
-        let mut kept = Vec::new();
-        let mut line = Vec::new();
-        let mut collected_enough = false;
-        loop {
-            line.clear();
-            let read = reader
-                .read_until(0, &mut line)
-                .context("failed to read plocate output")
-                .map_err(AppError::Application)?;
-            if read == 0 {
-                break;
-            }
-            if line.last() == Some(&0) {
-                line.pop();
-            }
-            let Ok(candidate) = std::str::from_utf8(&line) else {
-                debug!(path = ?line, "skipping non-UTF-8 plocate match");
-                continue;
-            };
-            if !Path::new(candidate).starts_with(&self.asset_root) {
-                debug!(
-                    path = candidate,
-                    "skipping plocate match outside the asset root"
-                );
-                continue;
-            }
-            if keep(candidate) {
-                kept.push(PathBuf::from(candidate));
-                if kept.len() >= limit {
-                    collected_enough = true;
-                    break;
-                }
-            }
-        }
-        drop(reader);
-        if collected_enough {
-            // Stop the enumeration instead of draining the remaining matches.
+        let matches = read_matches(BufReader::new(stdout), &self.asset_root, limit, keep);
+        // Stop the enumeration instead of draining the remaining matches once
+        // enough are kept. A read error kills it too, so no plocate process is
+        // left running or unreaped after this call.
+        let stopped_early = matches.as_ref().map_or(true, |kept| kept.len() >= limit);
+        if stopped_early {
             let _ = child.kill();
         }
         let status = child
             .wait()
             .context("failed to wait for plocate")
             .map_err(AppError::Application)?;
+        let kept = matches?;
         // plocate exits 1 both for "no matches" and for real errors; only
         // the latter writes to stderr. Skip the check when we killed it.
-        if !collected_enough && !status.success() {
+        if !stopped_early && !status.success() {
             let mut stderr = String::new();
             if let Some(mut pipe) = child.stderr.take() {
                 let _ = pipe.read_to_string(&mut stderr);
@@ -220,6 +197,70 @@ impl PlocateIndex {
     pub const fn search_limit(&self) -> usize {
         self.search_limit
     }
+
+    /// Whether a database exists to query. updatedb installs it with an
+    /// atomic rename, so once present it never disappears between builds.
+    #[must_use]
+    pub fn is_built(&self) -> bool {
+        self.database_path.is_file()
+    }
+}
+
+/// Reads plocate's NUL-separated output, keeping candidates under
+/// `asset_root` that pass `keep`, until `limit` are kept or output ends.
+fn read_matches(
+    mut reader: impl BufRead,
+    asset_root: &Path,
+    limit: usize,
+    keep: &dyn Fn(&str) -> bool,
+) -> AppResult<Vec<PathBuf>> {
+    let mut kept = Vec::new();
+    let mut line = Vec::new();
+    loop {
+        line.clear();
+        let read = reader
+            .read_until(0, &mut line)
+            .context("failed to read plocate output")
+            .map_err(AppError::Application)?;
+        if read == 0 {
+            return Ok(kept);
+        }
+        if line.last() == Some(&0) {
+            line.pop();
+        }
+        let Ok(candidate) = std::str::from_utf8(&line) else {
+            debug!(path = ?line, "skipping non-UTF-8 plocate match");
+            continue;
+        };
+        if !Path::new(candidate).starts_with(asset_root) {
+            debug!(
+                path = candidate,
+                "skipping plocate match outside the asset root"
+            );
+            continue;
+        }
+        if keep(candidate) {
+            kept.push(PathBuf::from(candidate));
+            if kept.len() >= limit {
+                return Ok(kept);
+            }
+        }
+    }
+}
+
+/// Whether `updatedb`/`plocate` are installed, for tests that need them.
+/// They skip when the binaries are missing, except under CI (which installs
+/// them): a silent skip there once hid an updatedb flag that the runtime
+/// image rejects.
+#[cfg(test)]
+pub(crate) fn binaries_available_for_tests() -> bool {
+    let available = Command::new("updatedb").arg("--version").output().is_ok()
+        && Command::new("plocate").arg("--version").output().is_ok();
+    assert!(
+        available || std::env::var_os("CI").is_none(),
+        "updatedb/plocate must be installed when CI is set"
+    );
+    available
 }
 
 /// plocate treats a pattern containing unescaped `*`, `?` or `[` as a glob
@@ -276,11 +317,6 @@ pub fn spawn_update_task(index: PlocateIndex, interval: Duration) {
 mod tests {
     use super::*;
 
-    fn binaries_available() -> bool {
-        Command::new("updatedb").arg("--version").output().is_ok()
-            && Command::new("plocate").arg("--version").output().is_ok()
-    }
-
     fn tempdir(tag: &str) -> PathBuf {
         let dir = std::env::temp_dir().join(format!(
             "ak-asset-storage-plocate-{tag}-{}-{}",
@@ -320,7 +356,7 @@ mod tests {
 
     #[test]
     fn update_and_lookup_round_trip() {
-        if !binaries_available() {
+        if !binaries_available_for_tests() {
             return;
         }
         let root = tempdir("roundtrip");
@@ -357,7 +393,7 @@ mod tests {
 
     #[test]
     fn glob_metacharacters_in_queries_stay_literal() {
-        if !binaries_available() {
+        if !binaries_available_for_tests() {
             return;
         }
         let root = tempdir("glob");
@@ -384,7 +420,7 @@ mod tests {
 
     #[test]
     fn limit_applies_after_filtering() {
-        if !binaries_available() {
+        if !binaries_available_for_tests() {
             return;
         }
         let root = tempdir("limit");
@@ -432,7 +468,7 @@ mod tests {
 
     #[test]
     fn database_inside_the_asset_root_still_indexes_everything() {
-        if !binaries_available() {
+        if !binaries_available_for_tests() {
             return;
         }
         let root = tempdir("rootdb");
@@ -451,8 +487,8 @@ mod tests {
     }
 
     #[test]
-    fn lookup_without_database_is_an_external_error() {
-        if !binaries_available() {
+    fn lookup_without_database_is_unavailable() {
+        if !binaries_available_for_tests() {
             return;
         }
         let root = tempdir("nodb");
@@ -466,16 +502,17 @@ mod tests {
             ..test_config()
         };
         let index = PlocateIndex::new(&root, &config).unwrap();
+        assert!(!index.is_built());
         let err = index
             .lookup_filtered("anything", 10, &|_| true)
             .unwrap_err();
-        assert!(matches!(err, AppError::ExternalService(_)), "{err:?}");
+        assert!(matches!(err, AppError::Unavailable(_)), "{err:?}");
         std::fs::remove_dir_all(&root).unwrap();
     }
 
     #[test]
     fn update_is_incremental_and_survives_a_second_run() {
-        if !binaries_available() {
+        if !binaries_available_for_tests() {
             return;
         }
         let root = tempdir("incremental");

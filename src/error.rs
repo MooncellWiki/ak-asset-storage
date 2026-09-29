@@ -11,6 +11,12 @@ pub enum AppError {
     /// Caller-supplied input was rejected before touching any resource.
     #[error("Invalid input: {0}")]
     InvalidInput(String),
+
+    /// A transient condition (search capacity exhausted, index not built
+    /// yet) the caller should back off from and retry. The message is fixed
+    /// text written by us, so it is safe to echo back.
+    #[error("Temporarily unavailable: {0}")]
+    Unavailable(String),
 }
 
 pub type AppResult<T> = std::result::Result<T, AppError>;

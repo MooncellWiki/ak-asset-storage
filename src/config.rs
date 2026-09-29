@@ -238,9 +238,17 @@ impl AppSettings {
                 )));
             }
             if plocate.search_limit == 0 {
-                // plocate treats `--limit 0` as unlimited.
                 return Err(AppError::Application(anyhow::anyhow!(
-                    "torappu.plocate.search_limit must be at least 1 (0 would disable the cap)"
+                    "torappu.plocate.search_limit must be at least 1"
+                )));
+            }
+            // updatedb records absolute paths, so a relative database path
+            // would never match its own `--add-single-prunepath` entry.
+            if let Some(database_path) = &plocate.database_path
+                && !Path::new(database_path).is_absolute()
+            {
+                return Err(AppError::Application(anyhow::anyhow!(
+                    "torappu.plocate.database_path must be an absolute path"
                 )));
             }
         }
@@ -344,6 +352,16 @@ mod tests {
         settings.torappu.plocate.enabled = false;
         settings.torappu.plocate.update_interval_seconds = 0;
         settings.torappu.plocate.search_limit = 0;
+        assert!(settings.validate().is_ok());
+    }
+
+    #[test]
+    fn validate_requires_an_absolute_plocate_database_path() {
+        let mut settings = settings_with_token("s3cret");
+        settings.torappu.plocate.database_path = Some("data/plocate.db".to_string());
+        assert!(settings.validate().is_err());
+
+        settings.torappu.plocate.database_path = Some("/var/lib/plocate.db".to_string());
         assert!(settings.validate().is_ok());
     }
 }

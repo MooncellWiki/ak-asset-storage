@@ -39,7 +39,9 @@ impl From<AppError> for WebError {
     fn from(err: AppError) -> Self {
         match err {
             err @ AppError::Application(..) => Self::CustomApiError(err),
-            err @ AppError::ExternalService(..) => Self::ServiceUnavailable(err.into()),
+            err @ (AppError::ExternalService(..) | AppError::Unavailable(..)) => {
+                Self::ServiceUnavailable(err.into())
+            }
             AppError::InvalidInput(message) => Self::BadRequest(message),
         }
     }

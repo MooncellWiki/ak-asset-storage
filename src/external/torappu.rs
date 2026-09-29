@@ -7,10 +7,7 @@ use crate::{
     },
 };
 use anyhow::Context;
-use std::{
-    path::{Component, Path, PathBuf},
-    str::from_utf8,
-};
+use std::path::{Component, Path, PathBuf};
 use tracing::debug;
 use walkdir::WalkDir;
 
@@ -150,7 +147,13 @@ impl TorappuClient {
             ));
         }
         if let Some(index) = &self.plocate {
-            return Self::search_via_plocate(index, query);
+            if index.is_built() {
+                return Self::search_via_plocate(index, query);
+            }
+            // Until the first build lands (or while builds keep failing),
+            // keep search working through the slow walk instead of failing
+            // every request.
+            debug!("plocate index not built yet; falling back to walking the tree");
         }
         self.search_by_walking(query)
     }
@@ -247,9 +250,6 @@ impl TorappuClient {
             if !within_one_directory(&path, query) {
                 continue;
             }
-            if from_utf8(path.as_bytes()).is_err() {
-                continue;
-            }
             result.push(AssetEntry::new(entry.path(), &self.asset_base_path)?);
         }
         Ok(result)
@@ -297,30 +297,23 @@ mod tests {
         std::fs::remove_dir_all(&root).unwrap();
     }
 
-    fn plocate_binaries_available() -> bool {
-        std::process::Command::new("updatedb")
-            .arg("--version")
-            .output()
-            .is_ok()
-            && std::process::Command::new("plocate")
-                .arg("--version")
-                .output()
-                .is_ok()
-    }
-
-    fn plocate_client(root: &Path) -> TorappuClient {
+    fn unbuilt_plocate_client(root: &Path) -> TorappuClient {
         let config = crate::config::PlocateConfig {
             enabled: true,
             database_path: None,
             update_interval_seconds: 600,
             search_limit: 1000,
         };
-        let index = PlocateIndex::new(root, &config).unwrap();
-        index.update().unwrap();
         TorappuClient {
             asset_base_path: root.to_path_buf(),
-            plocate: Some(index),
+            plocate: Some(PlocateIndex::new(root, &config).unwrap()),
         }
+    }
+
+    fn plocate_client(root: &Path) -> TorappuClient {
+        let client = unbuilt_plocate_client(root);
+        client.plocate.as_ref().unwrap().update().unwrap();
+        client
     }
 
     fn search_paths(client: &TorappuClient, query: &str) -> Vec<String> {
@@ -336,7 +329,7 @@ mod tests {
 
     #[test]
     fn plocate_search_resolves_the_gamedata_latest_alias() {
-        if !plocate_binaries_available() {
+        if !crate::external::plocate::binaries_available_for_tests() {
             return;
         }
         let root = tempdir();
@@ -370,8 +363,26 @@ mod tests {
     }
 
     #[test]
+    fn plocate_search_walks_the_tree_until_the_index_is_built() {
+        if !crate::external::plocate::binaries_available_for_tests() {
+            return;
+        }
+        let root = tempdir();
+        std::fs::create_dir_all(root.join("raw")).unwrap();
+        std::fs::write(root.join("raw/avg_npc_009.png"), b"x").unwrap();
+        let client = unbuilt_plocate_client(&root);
+
+        assert_eq!(
+            search_paths(&client, "avg_npc_009"),
+            vec!["raw/avg_npc_009.png".to_string()]
+        );
+
+        std::fs::remove_dir_all(&root).unwrap();
+    }
+
+    #[test]
     fn plocate_search_treats_queries_as_literal_substrings() {
-        if !plocate_binaries_available() {
+        if !crate::external::plocate::binaries_available_for_tests() {
             return;
         }
         let root = tempdir();

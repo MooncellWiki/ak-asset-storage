@@ -300,17 +300,14 @@ fn mcp_error(error: &AppError) -> ErrorData {
     match error {
         // Rejected input is safe to echo back and recoverable.
         AppError::InvalidInput(message) => bad_request(message.clone()),
-        // Transient capacity/index failures (search budget exhausted, first
-        // index build pending) are retryable; a distinct code in the
-        // JSON-RPC server-error range lets clients back off and retry
-        // instead of treating the call as permanently failed.
-        err @ AppError::ExternalService(..) => {
-            warn!(error = %err, "MCP tool temporarily unavailable");
-            ErrorData::new(
-                ErrorCode(-32003),
-                "search busy or index not ready; retry shortly".to_string(),
-                None,
-            )
+        // Transient conditions (search budget exhausted, index not built yet)
+        // are retryable; a distinct code in the JSON-RPC server-error range
+        // lets clients back off and retry instead of treating the call as
+        // permanently failed. Database and upstream failures
+        // (`ExternalService`) are not retry hints and fall through below.
+        AppError::Unavailable(message) => {
+            warn!(reason = %message, "MCP tool temporarily unavailable");
+            ErrorData::new(ErrorCode(-32003), message.clone(), None)
         }
         // Everything else may carry SQL text or internals; log the details
         // and return a fixed message, mirroring the REST error policy.
@@ -857,6 +854,23 @@ mod tests {
         ));
         assert!(parse_resource_type("Background").is_err());
         assert!(parse_resource_type("audio").is_err());
+    }
+
+    #[test]
+    fn mcp_error_only_marks_transient_conditions_retryable() {
+        let busy = mcp_error(&AppError::Unavailable(
+            "search capacity is busy".to_string(),
+        ));
+        assert_eq!(busy.code, ErrorCode(-32003));
+        assert_eq!(busy.message, "search capacity is busy");
+
+        // Database/upstream failures are `ExternalService`; they must keep
+        // the fixed internal-error reply, not the retryable search hint.
+        let database = mcp_error(&AppError::ExternalService(anyhow::anyhow!(
+            "relation \"versions\" does not exist"
+        )));
+        assert_eq!(database.code, ErrorCode::INTERNAL_ERROR);
+        assert_eq!(database.message, "internal error");
     }
 
     #[test]

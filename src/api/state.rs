@@ -37,11 +37,11 @@ impl SearchGate {
         }
     }
 
-    /// Fails with `AppError::ExternalService` (503 at the REST layer) when
-    /// all permits are taken.
+    /// Fails with `AppError::Unavailable` (503 at the REST layer, a
+    /// retryable error over MCP) when all permits are taken.
     pub fn try_acquire(&self) -> AppResult<OwnedSemaphorePermit> {
         self.permits.clone().try_acquire_owned().map_err(|_| {
-            AppError::ExternalService(anyhow::anyhow!("search capacity is busy; retry shortly"))
+            AppError::Unavailable("search capacity is busy; retry shortly".to_string())
         })
     }
 }
@@ -109,7 +109,7 @@ mod tests {
         let first = gate.try_acquire().expect("first permit");
         let second = gate.try_acquire().expect("second permit");
         let err = gate.try_acquire().unwrap_err();
-        assert!(matches!(err, AppError::ExternalService(_)), "{err:?}");
+        assert!(matches!(err, AppError::Unavailable(_)), "{err:?}");
         drop(first);
         assert!(gate.try_acquire().is_ok(), "dropped permit is reusable");
         drop(second);
