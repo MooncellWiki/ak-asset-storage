@@ -1,8 +1,9 @@
 use crate::{AppError, AppResult, config::PlocateConfig};
 use anyhow::Context;
 use std::{
+    io::{BufRead, BufReader, Read as _},
     path::{Path, PathBuf},
-    process::Command,
+    process::{Command, Stdio},
     time::{Duration, Instant},
 };
 use tracing::{debug, info, warn};
@@ -13,8 +14,9 @@ use tracing::{debug, info, warn};
 /// unchanged directories are skipped) and installs the result with an atomic
 /// rename, so a failed build keeps the previous database and searches never
 /// observe a half-written one. Searches therefore return a snapshot as of the
-/// last successful build, not the live tree. The database directory itself is
-/// pruned from the index.
+/// last successful build, not the live tree. Only the database file itself is
+/// pruned from the index, so a custom database location inside the asset
+/// tree cannot silently exclude assets.
 #[derive(Debug, Clone)]
 pub struct PlocateIndex {
     asset_root: PathBuf,
@@ -84,13 +86,10 @@ impl PlocateIndex {
 
     /// Rebuild the database. Blocking (subprocess + filesystem scan); call
     /// from `spawn_blocking`. The system `updatedb.conf` is bypassed so the
-    /// result only depends on the flags below, and the database directory is
-    /// pruned to keep the index (and its rewrite churn) out of itself.
+    /// result only depends on the flags below; pruning targets the database
+    /// file itself (not its directory) so the database location can never
+    /// exclude surrounding assets from the index.
     pub fn update(&self) -> AppResult<()> {
-        let prune_dir = self
-            .database_path
-            .parent()
-            .unwrap_or_else(|| Path::new("/"));
         let output = Command::new("updatedb")
             .arg("--config-file")
             .arg("/dev/null")
@@ -103,7 +102,7 @@ impl PlocateIndex {
             .arg("--output")
             .arg(&self.database_path)
             .arg("--add-single-prunepath")
-            .arg(prune_dir)
+            .arg(&self.database_path)
             .output()
             .context("failed to spawn updatedb")
             .map_err(AppError::Application)?;
@@ -117,55 +116,130 @@ impl PlocateIndex {
         Ok(())
     }
 
-    /// Look up raw path matches for `query`. Blocking (subprocess); call from
-    /// `spawn_blocking`. Returns at most `search_limit` absolute paths; the
-    /// caller applies entry-level filtering and metadata lookups.
-    pub fn lookup(&self, query: &str) -> AppResult<Vec<PathBuf>> {
+    /// Look up matches for `query` under the asset root. Blocking
+    /// (subprocess); call from `spawn_blocking`.
+    ///
+    /// Streams plocate's output and applies `keep` to each candidate path,
+    /// returning the first `limit` candidates that pass — so the limit is
+    /// enforced after caller-side filtering and cannot be consumed by
+    /// candidates that the caller would discard anyway. Once enough
+    /// candidates are collected the subprocess is killed instead of being
+    /// allowed to enumerate the remaining matches.
+    pub fn lookup_filtered(
+        &self,
+        query: &str,
+        limit: usize,
+        keep: &dyn Fn(&str) -> bool,
+    ) -> AppResult<Vec<PathBuf>> {
         if !self.database_path.is_file() {
             return Err(AppError::ExternalService(anyhow::anyhow!(
                 "plocate database {} does not exist yet; the periodic updatedb task has not finished a first build",
                 self.database_path.display()
             )));
         }
-        let output = Command::new("plocate")
+        let mut child = Command::new("plocate")
             .arg("--database")
             .arg(&self.database_path)
-            .arg("--limit")
-            .arg(self.search_limit.to_string())
             .arg("--null")
             .arg("--")
-            .arg(query)
-            .output()
+            .arg(escape_glob_metacharacters(query))
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
+            .spawn()
             .context("failed to spawn plocate")
             .map_err(AppError::Application)?;
-        // plocate exits 1 both for "no matches" and for real errors; only
-        // the latter writes to stderr.
-        if !output.status.success() && !output.stderr.is_empty() {
-            return Err(AppError::Application(anyhow::anyhow!(
-                "plocate exited with {}: {}",
-                output.status,
-                String::from_utf8_lossy(&output.stderr).trim()
-            )));
-        }
-        let stdout = output.stdout;
-        let mut paths = Vec::new();
-        for raw in stdout.split(|byte| *byte == 0) {
-            if raw.is_empty() {
-                continue;
+        let stdout = child
+            .stdout
+            .take()
+            .context("plocate stdout was not piped")
+            .map_err(AppError::Application)?;
+        let mut reader = BufReader::new(stdout);
+        let mut kept = Vec::new();
+        let mut line = Vec::new();
+        let mut collected_enough = false;
+        loop {
+            line.clear();
+            let read = reader
+                .read_until(0, &mut line)
+                .context("failed to read plocate output")
+                .map_err(AppError::Application)?;
+            if read == 0 {
+                break;
             }
-            let Ok(path) = std::str::from_utf8(raw) else {
-                debug!(path = ?raw, "skipping non-UTF-8 plocate match");
+            if line.last() == Some(&0) {
+                line.pop();
+            }
+            let Ok(candidate) = std::str::from_utf8(&line) else {
+                debug!(path = ?line, "skipping non-UTF-8 plocate match");
                 continue;
             };
-            let path = Path::new(path);
-            if !path.starts_with(&self.asset_root) {
-                debug!(path = %path.display(), "skipping plocate match outside the asset root");
+            if !Path::new(candidate).starts_with(&self.asset_root) {
+                debug!(
+                    path = candidate,
+                    "skipping plocate match outside the asset root"
+                );
                 continue;
             }
-            paths.push(path.to_path_buf());
+            if keep(candidate) {
+                kept.push(PathBuf::from(candidate));
+                if kept.len() >= limit {
+                    collected_enough = true;
+                    break;
+                }
+            }
         }
-        Ok(paths)
+        drop(reader);
+        if collected_enough {
+            // Stop the enumeration instead of draining the remaining matches.
+            let _ = child.kill();
+        }
+        let status = child
+            .wait()
+            .context("failed to wait for plocate")
+            .map_err(AppError::Application)?;
+        // plocate exits 1 both for "no matches" and for real errors; only
+        // the latter writes to stderr. Skip the check when we killed it.
+        if !collected_enough && !status.success() {
+            let mut stderr = String::new();
+            if let Some(mut pipe) = child.stderr.take() {
+                let _ = pipe.read_to_string(&mut stderr);
+            }
+            if !stderr.trim().is_empty() {
+                return Err(AppError::Application(anyhow::anyhow!(
+                    "plocate exited with {}: {}",
+                    status,
+                    stderr.trim()
+                )));
+            }
+        }
+        Ok(kept)
     }
+
+    /// Configured upper bound on entries returned per search.
+    #[must_use]
+    pub const fn search_limit(&self) -> usize {
+        self.search_limit
+    }
+}
+
+/// plocate treats a pattern containing unescaped `*`, `?` or `[` as a glob
+/// (verified against plocate 1.1), so a literal query like `portrait[1]`
+/// would be read as a character class and match nothing. Escaping those
+/// three keeps every query a literal substring match.
+///
+/// Known limitation: plocate (1.1) has no reliable way to express a literal
+/// backslash in a pattern — neither `x\y` nor `x\\y` matches a filename
+/// containing one — so queries containing `\` are best-effort. Game asset
+/// paths do not contain backslashes.
+fn escape_glob_metacharacters(query: &str) -> String {
+    let mut escaped = String::with_capacity(query.len());
+    for ch in query.chars() {
+        if matches!(ch, '*' | '?' | '[') {
+            escaped.push('\\');
+        }
+        escaped.push(ch);
+    }
+    escaped
 }
 
 /// Periodically refresh the index for the lifetime of the server process.
@@ -229,6 +303,21 @@ mod tests {
         }
     }
 
+    fn lookup_all(index: &PlocateIndex, query: &str) -> Vec<String> {
+        index
+            .lookup_filtered(query, 1000, &|_| true)
+            .unwrap()
+            .iter()
+            .map(|path| {
+                path.strip_prefix(index.asset_root())
+                    .unwrap()
+                    .to_str()
+                    .unwrap()
+                    .to_string()
+            })
+            .collect()
+    }
+
     #[test]
     fn update_and_lookup_round_trip() {
         if !binaries_available() {
@@ -240,20 +329,12 @@ mod tests {
         std::fs::write(root.join("raw/char_100/sub/avg_npc_009_2.png"), b"x").unwrap();
         std::fs::write(root.join("raw/char_100/sub/deeper/avg_npc_009_3.png"), b"x").unwrap();
         std::fs::create_dir_all(root.join(".catalog")).unwrap();
-        std::fs::write(root.join(".catalog/leaked"), b"x").unwrap();
+        std::fs::write(root.join(".catalog/sidecar"), b"x").unwrap();
 
         let index = PlocateIndex::new(&root, &test_config()).unwrap();
         index.update().unwrap();
 
-        let matches = index.lookup("avg_npc_009").unwrap();
-        let relative = |path: &Path| {
-            path.strip_prefix(&index.asset_root)
-                .unwrap()
-                .to_str()
-                .unwrap()
-                .to_string()
-        };
-        let mut found: Vec<String> = matches.iter().map(|path| relative(path)).collect();
+        let mut found = lookup_all(&index, "avg_npc_009");
         found.sort();
         assert_eq!(
             found,
@@ -264,11 +345,108 @@ mod tests {
             ]
         );
 
-        // The pruned database directory must not be indexed.
-        assert!(index.lookup("leaked").unwrap().is_empty());
+        // Only the database file itself is pruned; sibling files stay
+        // searchable, and the database does not match itself.
+        assert_eq!(lookup_all(&index, "sidecar").len(), 1);
+        assert!(lookup_all(&index, "plocate.db").is_empty());
         // Misses are empty results, not errors.
-        assert!(index.lookup("zzz_no_match_zzz").unwrap().is_empty());
+        assert!(lookup_all(&index, "zzz_no_match_zzz").is_empty());
 
+        std::fs::remove_dir_all(&root).unwrap();
+    }
+
+    #[test]
+    fn glob_metacharacters_in_queries_stay_literal() {
+        if !binaries_available() {
+            return;
+        }
+        let root = tempdir("glob");
+        std::fs::create_dir_all(root.join("raw")).unwrap();
+        std::fs::write(root.join("raw/portrait[1].png"), b"x").unwrap();
+        std::fs::write(root.join("raw/star*name.png"), b"x").unwrap();
+        std::fs::write(root.join("raw/question?mark.png"), b"x").unwrap();
+        std::fs::write(root.join("raw/plain.png"), b"x").unwrap();
+
+        let index = PlocateIndex::new(&root, &test_config()).unwrap();
+        index.update().unwrap();
+
+        // Without escaping, plocate would read these as fnmatch globs and
+        // find nothing.
+        assert_eq!(lookup_all(&index, "portrait[1]").len(), 1);
+        assert_eq!(lookup_all(&index, "star*name").len(), 1);
+        assert_eq!(lookup_all(&index, "question?mark").len(), 1);
+        // An actual glob must not silently widen the match set either: the
+        // escaped `star*` only matches the literal star file.
+        assert_eq!(lookup_all(&index, "star*").len(), 1);
+
+        std::fs::remove_dir_all(&root).unwrap();
+    }
+
+    #[test]
+    fn limit_applies_after_filtering() {
+        if !binaries_available() {
+            return;
+        }
+        let root = tempdir("limit");
+        // Sorted raw order: `aa_match` (kept), `aa_match/sub` (kept — one
+        // slash after the match), `aa_match/sub/deeper` and the files below
+        // it (filtered — two or more slashes), then `zz/zz_match.png`
+        // (kept). A limit applied before filtering would be consumed by the
+        // deep descendants and hide the zz match even at this size.
+        for deep in ["aa_match/sub/deeper/f1.png", "aa_match/sub/deeper/f2.png"] {
+            std::fs::create_dir_all(root.join(deep).parent().unwrap()).unwrap();
+            std::fs::write(root.join(deep), b"x").unwrap();
+        }
+        std::fs::create_dir_all(root.join("zz")).unwrap();
+        std::fs::write(root.join("zz/zz_match.png"), b"x").unwrap();
+
+        let index = PlocateIndex::new(&root, &test_config()).unwrap();
+        index.update().unwrap();
+
+        let kept = index
+            .lookup_filtered("match", 3, &|candidate| {
+                crate::external::torappu::within_one_directory(candidate, "match")
+            })
+            .unwrap();
+        let relative: Vec<String> = kept
+            .iter()
+            .map(|path| {
+                path.strip_prefix(index.asset_root())
+                    .unwrap()
+                    .to_str()
+                    .unwrap()
+                    .to_string()
+            })
+            .collect();
+        assert_eq!(
+            relative,
+            vec![
+                "aa_match".to_string(),
+                "aa_match/sub".to_string(),
+                "zz/zz_match.png".to_string(),
+            ]
+        );
+
+        std::fs::remove_dir_all(&root).unwrap();
+    }
+
+    #[test]
+    fn database_inside_the_asset_root_still_indexes_everything() {
+        if !binaries_available() {
+            return;
+        }
+        let root = tempdir("rootdb");
+        std::fs::create_dir_all(root.join("raw")).unwrap();
+        std::fs::write(root.join("raw/avg_npc_009.png"), b"x").unwrap();
+
+        let config = PlocateConfig {
+            database_path: Some(root.join("index.db").to_str().unwrap().to_string()),
+            ..test_config()
+        };
+        let index = PlocateIndex::new(&root, &config).unwrap();
+        index.update().unwrap();
+
+        assert_eq!(lookup_all(&index, "avg_npc_009").len(), 1);
         std::fs::remove_dir_all(&root).unwrap();
     }
 
@@ -288,7 +466,9 @@ mod tests {
             ..test_config()
         };
         let index = PlocateIndex::new(&root, &config).unwrap();
-        let err = index.lookup("anything").unwrap_err();
+        let err = index
+            .lookup_filtered("anything", 10, &|_| true)
+            .unwrap_err();
         assert!(matches!(err, AppError::ExternalService(_)), "{err:?}");
         std::fs::remove_dir_all(&root).unwrap();
     }
@@ -307,7 +487,7 @@ mod tests {
         std::fs::write(root.join("gamedata/v1/two.json"), b"x").unwrap();
         index.update().unwrap();
 
-        assert_eq!(index.lookup("two.json").unwrap().len(), 1);
+        assert_eq!(lookup_all(&index, "two.json").len(), 1);
         std::fs::remove_dir_all(&root).unwrap();
     }
 }

@@ -17,6 +17,18 @@ pub struct AssetEntry {
 
 impl AssetEntry {
     pub fn new(target_path: &Path, base_path: &Path) -> AppResult<Self> {
+        let relative = target_path
+            .strip_prefix(base_path)
+            .context("Failed to strip base path")?
+            .to_str()
+            .context("Failed to convert target path to string")?;
+        Self::from_parts(target_path, relative)
+    }
+
+    /// Metadata and file name come from `target_path`, but the reported
+    /// relative path is `relative_path` as given — used for alias (symlink)
+    /// spellings such as `gamedata/latest/...` whose canonical path differs.
+    pub fn from_parts(target_path: &Path, relative_path: &str) -> AppResult<Self> {
         let meta = std::fs::metadata(target_path).context("Failed to retrieve metadata")?;
         let name = target_path
             .file_name()
@@ -29,12 +41,7 @@ impl AssetEntry {
 
         Ok(Self {
             name,
-            path: target_path
-                .strip_prefix(base_path)
-                .context("Failed to strip base path")?
-                .to_str()
-                .context("Failed to convert target path to string")?
-                .to_string(),
+            path: relative_path.to_string(),
             size: meta.len(),
             is_dir: meta.is_dir(),
             create_at: create_at.to_rfc3339(),

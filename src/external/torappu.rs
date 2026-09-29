@@ -59,6 +59,55 @@ pub fn within_one_directory(path: &str, query: &str) -> bool {
     path[pos + query.len()..].matches('/').count() < 2
 }
 
+/// The `gamedata/latest` symlink points at the current game data version.
+/// updatedb does not follow symlinks, so searches naming the alias get a
+/// second lookup leg against the resolved target with results mapped back
+/// to the alias spelling — matching the previous walk-based behavior.
+const GAMEDATA_LATEST: &str = "gamedata/latest";
+
+/// Resolves `<asset_root>/gamedata/latest` to its canonical absolute target
+/// and the target's path relative to the asset root. Returns `None` when
+/// the alias is absent or escapes the root.
+fn resolve_gamedata_latest(asset_root: &Path) -> Option<(PathBuf, String)> {
+    let link = asset_root.join(GAMEDATA_LATEST);
+    let target = std::fs::read_link(&link).ok()?;
+    let resolved = if target.is_absolute() {
+        target
+    } else {
+        match link.parent() {
+            Some(parent) => parent.join(target),
+            None => target,
+        }
+    };
+    let resolved = resolved.canonicalize().ok()?;
+    let relative = resolved
+        .strip_prefix(asset_root)
+        .ok()?
+        .to_str()?
+        .to_string();
+    Some((resolved, relative))
+}
+
+/// Rewrites `latest` path segments in the query to the alias target's final
+/// segment, e.g. `latest/character` becomes `24-07/character`. Segments that
+/// merely contain "latest" as a substring are left alone.
+fn replace_latest_segments(query: &str, replacement: &str) -> Option<String> {
+    let mut rewritten = String::with_capacity(query.len());
+    let mut changed = false;
+    for (idx, segment) in query.split('/').enumerate() {
+        if idx > 0 {
+            rewritten.push('/');
+        }
+        if segment == "latest" {
+            rewritten.push_str(replacement);
+            changed = true;
+        } else {
+            rewritten.push_str(segment);
+        }
+    }
+    changed.then_some(rewritten)
+}
+
 impl TorappuClient {
     pub fn list_asset(&self, path: &str) -> AppResult<AssetDirInfo> {
         let target_path = self.asset_base_path.join(relative_asset_path(path)?);
@@ -107,17 +156,80 @@ impl TorappuClient {
     }
 
     /// Results come from the plocate snapshot; entries that no longer exist
-    /// on disk (deleted after the last build) are skipped.
+    /// on disk (deleted after the last build) are skipped. The entry limit is
+    /// applied to the filtered result set, and queries naming the
+    /// `gamedata/latest` alias additionally search through the resolved
+    /// target.
     fn search_via_plocate(index: &PlocateIndex, query: &str) -> AppResult<Vec<AssetEntry>> {
+        let limit = index.search_limit();
+        let canonical = index.lookup_filtered(query, limit, &|candidate| {
+            within_one_directory(candidate, query)
+        })?;
         let mut result = Vec::new();
-        for path in index.lookup(query)? {
-            if !within_one_directory(&path.to_string_lossy(), query) {
-                continue;
-            }
+        for path in canonical {
             match AssetEntry::new(&path, index.asset_root()) {
                 Ok(entry) => result.push(entry),
                 Err(err) => {
                     debug!(path = %path.display(), error = %err, "skipping plocate match");
+                }
+            }
+        }
+
+        // Alias leg: the index stores only canonical version paths, so a
+        // query naming `latest` is retried against the resolved target and
+        // hits are mapped back to the alias spelling.
+        if query.split('/').any(|segment| segment == "latest") {
+            let Some((target, target_relative)) = resolve_gamedata_latest(index.asset_root())
+            else {
+                debug!("query names gamedata/latest but the alias does not resolve");
+                return Ok(result);
+            };
+            let Some(version_segment) = target_relative.rsplit('/').next() else {
+                return Ok(result);
+            };
+            let Some(rewritten) = replace_latest_segments(query, version_segment) else {
+                return Ok(result);
+            };
+            let alias_root = format!(
+                "{}/{}",
+                index.asset_root().to_string_lossy(),
+                GAMEDATA_LATEST
+            );
+            let target_str = target.to_string_lossy().into_owned();
+            let remaining = limit.saturating_sub(result.len());
+            if remaining == 0 {
+                return Ok(result);
+            }
+            let remapped = index.lookup_filtered(&rewritten, remaining, &|candidate| {
+                candidate
+                    .strip_prefix(target_str.as_str())
+                    .is_some_and(|rest| {
+                        // `rest` keeps a leading '/', which the alias root
+                        // already ends with.
+                        let rest = rest.strip_prefix('/').unwrap_or(rest);
+                        within_one_directory(&format!("{alias_root}/{rest}"), query)
+                    })
+            })?;
+            for path in remapped {
+                let Ok(rest) = path
+                    .strip_prefix(&target)
+                    .map(|rest| rest.to_string_lossy().into_owned())
+                else {
+                    continue;
+                };
+                // `Path::strip_prefix` drops the separator, unlike the
+                // `str` version used in the keep closure above. The alias
+                // target itself is skipped: the canonical leg already
+                // reports it as the `gamedata/latest` symlink entry.
+                if rest.is_empty() {
+                    continue;
+                }
+                let alias_relative = format!("{GAMEDATA_LATEST}/{rest}");
+                match AssetEntry::from_parts(&path, &alias_relative) {
+                    Ok(entry) => result.push(entry),
+                    Err(err) => {
+                        debug!(path = %path.display(), error = %err, "skipping alias match");
+                    }
                 }
             }
         }
@@ -182,6 +294,101 @@ mod tests {
 
         let err = client.list_asset("../secret").unwrap_err();
         assert!(matches!(err, AppError::InvalidInput(_)), "{err:?}");
+        std::fs::remove_dir_all(&root).unwrap();
+    }
+
+    fn plocate_binaries_available() -> bool {
+        std::process::Command::new("updatedb")
+            .arg("--version")
+            .output()
+            .is_ok()
+            && std::process::Command::new("plocate")
+                .arg("--version")
+                .output()
+                .is_ok()
+    }
+
+    fn plocate_client(root: &Path) -> TorappuClient {
+        let config = crate::config::PlocateConfig {
+            enabled: true,
+            database_path: None,
+            update_interval_seconds: 600,
+            search_limit: 1000,
+        };
+        let index = PlocateIndex::new(root, &config).unwrap();
+        index.update().unwrap();
+        TorappuClient {
+            asset_base_path: root.to_path_buf(),
+            plocate: Some(index),
+        }
+    }
+
+    fn search_paths(client: &TorappuClient, query: &str) -> Vec<String> {
+        let mut paths = client
+            .search_assets_by_path(query)
+            .unwrap()
+            .into_iter()
+            .map(|entry| entry.path)
+            .collect::<Vec<_>>();
+        paths.sort();
+        paths
+    }
+
+    #[test]
+    fn plocate_search_resolves_the_gamedata_latest_alias() {
+        if !plocate_binaries_available() {
+            return;
+        }
+        let root = tempdir();
+        std::fs::create_dir_all(root.join("gamedata/v1")).unwrap();
+        std::fs::write(root.join("gamedata/v1/character_table.json"), b"x").unwrap();
+        std::os::unix::fs::symlink("v1", root.join("gamedata/latest")).unwrap();
+        let client = plocate_client(&root);
+
+        // updatedb does not follow the symlink; the alias leg must still
+        // return matches under the `latest` spelling.
+        let found = search_paths(&client, "latest/character");
+        assert_eq!(
+            found,
+            vec!["gamedata/latest/character_table.json".to_string()]
+        );
+
+        let found = search_paths(&client, "gamedata/latest");
+        assert_eq!(
+            found,
+            vec![
+                "gamedata/latest".to_string(),
+                "gamedata/latest/character_table.json".to_string(),
+            ]
+        );
+
+        // Canonical spellings keep working through the same index.
+        let found = search_paths(&client, "v1/character");
+        assert_eq!(found, vec!["gamedata/v1/character_table.json".to_string()]);
+
+        std::fs::remove_dir_all(&root).unwrap();
+    }
+
+    #[test]
+    fn plocate_search_treats_queries_as_literal_substrings() {
+        if !plocate_binaries_available() {
+            return;
+        }
+        let root = tempdir();
+        std::fs::create_dir_all(root.join("raw")).unwrap();
+        std::fs::write(root.join("raw/portrait[1].png"), b"x").unwrap();
+        std::fs::write(root.join("raw/plain.png"), b"x").unwrap();
+        let client = plocate_client(&root);
+
+        assert_eq!(
+            search_paths(&client, "portrait[1]"),
+            vec!["raw/portrait[1].png".to_string()]
+        );
+        assert_eq!(
+            search_paths(&client, "plain"),
+            vec!["raw/plain.png".to_string()]
+        );
+
         std::fs::remove_dir_all(&root).unwrap();
     }
 
