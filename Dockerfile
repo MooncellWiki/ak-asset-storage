@@ -14,6 +14,7 @@ RUN cd dist && ls -la
 RUN cargo build --all --release
 
 FROM debian:13
-RUN apt-get update && apt-get -y install ca-certificates
+# plocate provides `updatedb`/`plocate` for the asset search index
+RUN apt-get update && apt-get -y install ca-certificates plocate
 WORKDIR /app
 COPY --from=build-stage /app/target/release/ak-asset-storage /app

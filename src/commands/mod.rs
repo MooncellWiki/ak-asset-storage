@@ -4,7 +4,7 @@ mod import_story_usage;
 mod seed;
 mod worker;
 
-use crate::{api, config::AppSettings, runtime};
+use crate::{api, config::AppSettings, external::plocate, runtime};
 use anyhow::Result;
 use clap::Parser;
 use std::{
@@ -84,6 +84,14 @@ pub async fn run(cli: Cli) -> Result<()> {
             let (settings, _sentry) = init(&config)?;
             let state = api::AppState::from_settings(settings.clone()).await?;
             state.database.migrate().await?;
+            if let Some(index) = state.torappu.plocate.clone() {
+                plocate::spawn_update_task(
+                    index,
+                    std::time::Duration::from_secs(
+                        settings.torappu.plocate.update_interval_seconds,
+                    ),
+                );
+            }
             let listener = tokio::net::TcpListener::bind(settings.server.full_url()).await?;
             info!("Server is running on {}", settings.server.full_url());
             axum::serve(listener, api::build_router(state))

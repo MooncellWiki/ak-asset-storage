@@ -1,4 +1,5 @@
 use crate::{
+    AppError,
     api::{
         cursor,
         error::{WebError, WebResult},
@@ -334,7 +335,19 @@ pub async fn search_assets_by_path(
     State(state): State<AppState>,
     Query(AssetSearchQuery { path }): Query<AssetSearchQuery>,
 ) -> WebResult<Response> {
-    Ok(json(state.torappu.search_assets_by_path(&path)?))
+    // Reject before any work when the shared search budget is exhausted;
+    // the permit moves into the blocking task so it is held until the
+    // search finishes (issue #177).
+    let permit = state.search_gate.try_acquire()?;
+    let torappu = state.torappu.clone();
+    let entries = tokio::task::spawn_blocking(move || {
+        let _permit = permit;
+        torappu.search_assets_by_path(&path)
+    })
+    .await
+    .map_err(|err| WebError::CustomApiError(AppError::Application(err.into())))?
+    .map_err(WebError::from)?;
+    Ok(json(entries))
 }
 
 #[utoipa::path(

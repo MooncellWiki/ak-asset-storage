@@ -52,6 +52,22 @@ enable = false
 [torappu]
 token = "your-torappu-token-here"
 asset_base_path = "/assets"
+# Maximum asset searches (REST + MCP combined, any backend) running at once;
+# excess requests fail fast with 503 instead of queueing.
+search_concurrency = 4
+
+# Asset search backend (enabled by default). File search queries a plocate
+# database that a background task refreshes with updatedb every
+# update_interval_seconds, instead of walking the whole tree per request.
+# Requires the plocate package (preinstalled in the published Docker image);
+# set enabled = false to fall back to the legacy tree-walking search.
+[torappu.plocate]
+enabled = true
+update_interval_seconds = 600
+search_limit = 10000
+# database_path = "/var/lib/ak-asset-storage/plocate.db"
+# Default: <asset_base_path>/.catalog/plocate.db — must be writable by this
+# process, so point it elsewhere if the asset volume is mounted read-only.
 
 # Optional Docker configuration for launching containers on new version detection
 [torappu.docker]

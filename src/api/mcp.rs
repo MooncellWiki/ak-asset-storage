@@ -20,7 +20,7 @@ use crate::{
 use rmcp::{
     ErrorData, ServerHandler,
     handler::server::{router::tool::ToolRouter, wrapper::Parameters},
-    model::{CallToolResult, ContentBlock},
+    model::{CallToolResult, ContentBlock, ErrorCode},
     schemars::JsonSchema,
     tool, tool_handler, tool_router,
 };
@@ -300,6 +300,18 @@ fn mcp_error(error: &AppError) -> ErrorData {
     match error {
         // Rejected input is safe to echo back and recoverable.
         AppError::InvalidInput(message) => bad_request(message.clone()),
+        // Transient capacity/index failures (search budget exhausted, first
+        // index build pending) are retryable; a distinct code in the
+        // JSON-RPC server-error range lets clients back off and retry
+        // instead of treating the call as permanently failed.
+        err @ AppError::ExternalService(..) => {
+            warn!(error = %err, "MCP tool temporarily unavailable");
+            ErrorData::new(
+                ErrorCode(-32003),
+                "search busy or index not ready; retry shortly".to_string(),
+                None,
+            )
+        }
         // Everything else may carry SQL text or internals; log the details
         // and return a fixed message, mirroring the REST error policy.
         other => {
@@ -636,11 +648,22 @@ impl AkAssetMcpServer {
     ) -> Result<CallToolResult, ErrorData> {
         let limit = story::page_limit(params.limit).map_err(|error| mcp_error(&error))?;
         ensure_no_nul("q", &params.q)?;
-        let entries = self
+        // Fail fast when the shared search budget (also used by REST) is
+        // exhausted; the permit moves into the blocking task so it is held
+        // until the search finishes.
+        let permit = self
             .state
-            .torappu
-            .search_assets_by_path(&params.q)
+            .search_gate
+            .try_acquire()
             .map_err(|error| mcp_error(&error))?;
+        let torappu = self.state.torappu.clone();
+        let entries = tokio::task::spawn_blocking(move || {
+            let _permit = permit;
+            torappu.search_assets_by_path(&params.q)
+        })
+        .await
+        .map_err(|error| mcp_error(&AppError::Application(error.into())))?
+        .map_err(|error| mcp_error(&error))?;
         json_result(TruncatedResults::new(entries, limit))
     }
 
