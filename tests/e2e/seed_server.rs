@@ -1,5 +1,5 @@
 use crate::support::{BundleDetails, TestEnv, VersionDetails, VersionSummary};
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 
 #[tokio::test]
 #[ignore = "manual e2e test requiring docker, rc, and fixture assets"]

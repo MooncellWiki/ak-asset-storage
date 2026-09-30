@@ -314,11 +314,13 @@ impl TestEnv {
         let mut all = Vec::new();
         let mut cursor = None;
         loop {
-            let path = match &cursor {
-                Some(cursor) => format!("/api/v1/bundle?{query}&limit=2&cursor={cursor}"),
-                None => format!("/api/v1/bundle?{query}&limit=2"),
-            };
-            let (status, page): (_, BundleListResponse) = self.get_json(&path).await;
+            let cursor_suffix = cursor
+                .as_ref()
+                .map(|cursor| format!("&cursor={cursor}"))
+                .unwrap_or_default();
+            let (status, page): (_, BundleListResponse) = self
+                .get_json(&format!("/api/v1/bundle?{query}&limit=2{cursor_suffix}"))
+                .await;
             assert_eq!(status, StatusCode::OK);
             let done = page.next_cursor.is_none();
             all.extend(page.bundles);
@@ -647,6 +649,7 @@ const fn all_bundles_filter() -> BundleFilter {
 /// assertions see exactly what the paginated query returns.
 async fn all_bundles(database: &Database, filter: &BundleFilter) -> Vec<BundleDetailsRow> {
     const PAGE: i64 = 100;
+    let page_len = usize::try_from(PAGE).expect("PAGE fits usize");
     let mut all = Vec::new();
     let mut after: Option<(i32, String, i32)> = None;
     loop {
@@ -660,7 +663,7 @@ async fn all_bundles(database: &Database, filter: &BundleFilter) -> Vec<BundleDe
             )
             .await
             .unwrap();
-        let last_page = page.len() < PAGE as usize;
+        let last_page = page.len() < page_len;
         if let Some(last) = page.last() {
             after = Some((last.version_id, last.path.clone(), last.id));
         }
