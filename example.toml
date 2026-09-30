@@ -52,6 +52,24 @@ enable = false
 [torappu]
 token = "your-torappu-token-here"
 asset_base_path = "/assets"
+# Maximum asset searches (REST + MCP combined) running at once;
+# excess requests fail fast with 503 instead of queueing.
+search_concurrency = 4
+
+# File search requires plocate (preinstalled in the published Docker image).
+# The first index build starts with the server; until it finishes, search
+# returns 503. Failed refreshes keep the previous index. There is no tree walk.
+# REST and MCP return { results, truncated }: default 100, maximum 200 entries,
+# with no pagination or total count. Narrow the query when truncated is true.
+[torappu.plocate]
+update_interval_seconds = 600
+# database_path = "/var/lib/ak-asset-storage/plocate.db"
+# Default: /var/lib/ak-asset-storage/plocate.db. Custom paths must also be
+# outside the asset tree.
+# The parent directory must be writable by this process. Mount it separately
+# to preserve the index across container replacements; otherwise it is rebuilt.
+# Search excludes gamedata/latest and its descendants;
+# use versioned gamedata paths when searching.
 
 # Optional Docker configuration for launching containers on new version detection
 [torappu.docker]

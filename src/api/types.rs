@@ -75,7 +75,10 @@ pub struct StoryResourceUsageResponse {
 
 #[derive(Debug, Deserialize, IntoParams)]
 pub struct AssetSearchQuery {
+    /// Case-sensitive literal substring of the relative asset path.
     pub path: String,
+    /// Maximum entries returned (1-200, default 100). No pagination.
+    pub limit: Option<u32>,
 }
 
 #[derive(Debug, Deserialize, IntoParams)]

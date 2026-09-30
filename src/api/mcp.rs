@@ -20,7 +20,7 @@ use crate::{
 use rmcp::{
     ErrorData, ServerHandler,
     handler::server::{router::tool::ToolRouter, wrapper::Parameters},
-    model::{CallToolResult, ContentBlock},
+    model::{CallToolResult, ContentBlock, ErrorCode},
     schemars::JsonSchema,
     tool, tool_handler, tool_router,
 };
@@ -146,9 +146,9 @@ struct ListFilesParams {
 
 #[derive(Deserialize, JsonSchema)]
 struct SearchFilesParams {
-    /// Substring matched against raw asset paths.
+    /// Case-sensitive literal substring of the relative asset path.
     q: String,
-    /// Maximum number of entries returned (1-200, default 50).
+    /// Maximum entries returned (1-200, default 100). No pagination.
     limit: Option<u32>,
 }
 
@@ -300,6 +300,15 @@ fn mcp_error(error: &AppError) -> ErrorData {
     match error {
         // Rejected input is safe to echo back and recoverable.
         AppError::InvalidInput(message) => bad_request(message.clone()),
+        // Transient conditions (search budget exhausted, index not built yet)
+        // are retryable; a distinct code in the JSON-RPC server-error range
+        // lets clients back off and retry instead of treating the call as
+        // permanently failed. Database and upstream failures
+        // (`ExternalService`) are not retry hints and fall through below.
+        AppError::Unavailable(message) => {
+            warn!(reason = %message, "MCP tool temporarily unavailable");
+            ErrorData::new(ErrorCode(-32003), message.clone(), None)
+        }
         // Everything else may carry SQL text or internals; log the details
         // and return a fixed message, mirroring the REST error policy.
         other => {
@@ -627,21 +636,32 @@ impl AkAssetMcpServer {
         )?)
     }
 
-    /// Search the extracted raw asset tree by path substring. Prefer this
-    /// over walking directories with `list_files` when hunting one file.
+    /// Search extracted assets by relative path substring, at any depth.
+    /// Excludes gamedata/latest. Returns results and truncated, without a
+    /// total or pagination; narrow q when truncated is true.
     #[tool]
     async fn search_files(
         &self,
         Parameters(params): Parameters<SearchFilesParams>,
     ) -> Result<CallToolResult, ErrorData> {
-        let limit = story::page_limit(params.limit).map_err(|error| mcp_error(&error))?;
         ensure_no_nul("q", &params.q)?;
-        let entries = self
+        // Fail fast when the shared search budget (also used by REST) is
+        // exhausted; the permit moves into the blocking task so it is held
+        // until the search finishes.
+        let permit = self
             .state
-            .torappu
-            .search_assets_by_path(&params.q)
+            .search_gate
+            .try_acquire()
             .map_err(|error| mcp_error(&error))?;
-        json_result(TruncatedResults::new(entries, limit))
+        let index = self.state.plocate.clone();
+        let entries = tokio::task::spawn_blocking(move || {
+            let _permit = permit;
+            index.search(&params.q, params.limit)
+        })
+        .await
+        .map_err(|error| mcp_error(&AppError::Application(error.into())))?
+        .map_err(|error| mcp_error(&error))?;
+        json_result(entries)
     }
 
     /// List story resources (backgrounds, images, items, characters) with the
@@ -834,6 +854,23 @@ mod tests {
         ));
         assert!(parse_resource_type("Background").is_err());
         assert!(parse_resource_type("audio").is_err());
+    }
+
+    #[test]
+    fn mcp_error_only_marks_transient_conditions_retryable() {
+        let busy = mcp_error(&AppError::Unavailable(
+            "search capacity is busy".to_string(),
+        ));
+        assert_eq!(busy.code, ErrorCode(-32003));
+        assert_eq!(busy.message, "search capacity is busy");
+
+        // Database/upstream failures are `ExternalService`; they must keep
+        // the fixed internal-error reply, not the retryable search hint.
+        let database = mcp_error(&AppError::ExternalService(anyhow::anyhow!(
+            "relation \"versions\" does not exist"
+        )));
+        assert_eq!(database.code, ErrorCode::INTERNAL_ERROR);
+        assert_eq!(database.message, "internal error");
     }
 
     #[test]

@@ -107,6 +107,48 @@ pub struct TorappuConfig {
     pub asset_base_path: String,
     pub docker: Option<DockerConfig>,
     pub github: Option<GithubConfig>,
+    #[serde(default)]
+    pub plocate: PlocateConfig,
+    /// Maximum search requests (REST and MCP combined)
+    /// executing at once; excess requests fail fast with 503 instead of
+    /// queueing.
+    #[serde(default = "default_search_concurrency")]
+    pub search_concurrency: usize,
+}
+
+const fn default_search_concurrency() -> usize {
+    4
+}
+
+/// plocate-backed asset search configuration.
+///
+/// Queries hit a plocate database refreshed by a background updatedb task
+/// instead of walking the whole tree per request. Requires the `plocate`
+/// package (preinstalled in the published Docker image).
+#[derive(Debug, Clone, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct PlocateConfig {
+    /// Absolute path outside the asset tree. Defaults to
+    /// `/var/lib/ak-asset-storage/plocate.db`.
+    /// The directory must be writable by this process; mount it separately
+    /// to preserve the index when replacing the container.
+    #[serde(default)]
+    pub database_path: Option<String>,
+    #[serde(default = "default_plocate_update_interval_seconds")]
+    pub update_interval_seconds: u64,
+}
+
+impl Default for PlocateConfig {
+    fn default() -> Self {
+        Self {
+            database_path: None,
+            update_interval_seconds: default_plocate_update_interval_seconds(),
+        }
+    }
+}
+
+const fn default_plocate_update_interval_seconds() -> u64 {
+    600
 }
 
 /// MCP (Model Context Protocol) endpoint configuration. The endpoint only
@@ -170,6 +212,25 @@ impl AppSettings {
                 "torappu.token must not be empty: it guards the Docker launch endpoint"
             )));
         }
+        if self.torappu.search_concurrency == 0 {
+            return Err(AppError::Application(anyhow::anyhow!(
+                "torappu.search_concurrency must be at least 1"
+            )));
+        }
+        let plocate = &self.torappu.plocate;
+        if plocate.update_interval_seconds == 0 {
+            return Err(AppError::Application(anyhow::anyhow!(
+                "torappu.plocate.update_interval_seconds must be at least 1"
+            )));
+        }
+        // Keep the index location independent of the server working directory.
+        if let Some(database_path) = &plocate.database_path
+            && !Path::new(database_path).is_absolute()
+        {
+            return Err(AppError::Application(anyhow::anyhow!(
+                "torappu.plocate.database_path must be an absolute path"
+            )));
+        }
         Ok(())
     }
 }
@@ -212,6 +273,8 @@ mod tests {
                 asset_base_path: "/assets".to_string(),
                 docker: None,
                 github: None,
+                plocate: PlocateConfig::default(),
+                search_concurrency: default_search_concurrency(),
             },
             mcp: McpConfig::default(),
         }
@@ -222,5 +285,54 @@ mod tests {
         assert!(settings_with_token("").validate().is_err());
         assert!(settings_with_token("   ").validate().is_err());
         assert!(settings_with_token("s3cret").validate().is_ok());
+    }
+
+    #[test]
+    fn plocate_defaults_without_a_section() {
+        let torappu: TorappuConfig =
+            toml::from_str("token = 'x'\nasset_base_path = '/assets'").unwrap();
+        assert_eq!(torappu.plocate.database_path, None);
+        assert_eq!(torappu.plocate.update_interval_seconds, 600);
+        assert_eq!(torappu.search_concurrency, 4);
+    }
+
+    #[test]
+    fn validate_rejects_zero_search_concurrency() {
+        let mut settings = settings_with_token("s3cret");
+        settings.torappu.search_concurrency = 0;
+        assert!(settings.validate().is_err());
+    }
+
+    #[test]
+    fn plocate_section_overrides_defaults() {
+        let torappu: TorappuConfig = toml::from_str(
+            "token = 'x'\nasset_base_path = '/assets'\n\
+             [plocate]\nupdate_interval_seconds = 60\n",
+        )
+        .unwrap();
+        assert_eq!(torappu.plocate.update_interval_seconds, 60);
+    }
+
+    #[test]
+    fn validate_rejects_zero_plocate_interval() {
+        let mut settings = settings_with_token("s3cret");
+        settings.torappu.plocate.update_interval_seconds = 0;
+        assert!(settings.validate().is_err());
+    }
+
+    #[test]
+    fn obsolete_search_backend_settings_are_rejected() {
+        assert!(toml::from_str::<PlocateConfig>("enabled = false").is_err());
+        assert!(toml::from_str::<PlocateConfig>("search_limit = 10000").is_err());
+    }
+
+    #[test]
+    fn validate_requires_an_absolute_plocate_database_path() {
+        let mut settings = settings_with_token("s3cret");
+        settings.torappu.plocate.database_path = Some("data/plocate.db".to_string());
+        assert!(settings.validate().is_err());
+
+        settings.torappu.plocate.database_path = Some("/var/lib/plocate.db".to_string());
+        assert!(settings.validate().is_ok());
     }
 }

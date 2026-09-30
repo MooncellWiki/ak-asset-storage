@@ -48,3 +48,10 @@ pub struct AssetDirInfo {
     pub dir: AssetEntry,
     pub children: Vec<AssetEntry>,
 }
+
+/// A bounded search result. Narrow the query when `truncated` is true.
+#[derive(Debug, Serialize, ToSchema)]
+pub struct AssetSearchResults {
+    pub results: Vec<AssetEntry>,
+    pub truncated: bool,
+}
