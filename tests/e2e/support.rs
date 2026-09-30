@@ -1,7 +1,7 @@
 use ak_asset_storage::database::{
     Database,
     bundle::BundleFilter,
-    model::{AssetMappingDetails, ManifestNode},
+    model::{AssetMappingDetails, BundleDetails as BundleDetailsRow, ManifestNode},
     row::{AssetMappingStatus, VersionRow},
 };
 use axum::{
@@ -116,6 +116,13 @@ pub struct BundleDetails {
     pub version_res: String,
     pub version_client: String,
     pub version_is_ready: bool,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct BundleListResponse {
+    pub bundles: Vec<BundleDetails>,
+    pub next_cursor: Option<String>,
 }
 
 impl TestEnv {
@@ -301,6 +308,27 @@ impl TestEnv {
         (status, body)
     }
 
+    /// Walks `/api/v1/bundle?{query}` pages with a tiny limit so real
+    /// pagination is exercised, returning every matching bundle.
+    pub async fn get_all_bundle_pages(&self, query: &str) -> Vec<BundleDetails> {
+        let mut all = Vec::new();
+        let mut cursor = None;
+        loop {
+            let path = match &cursor {
+                Some(cursor) => format!("/api/v1/bundle?{query}&limit=2&cursor={cursor}"),
+                None => format!("/api/v1/bundle?{query}&limit=2"),
+            };
+            let (status, page): (_, BundleListResponse) = self.get_json(&path).await;
+            assert_eq!(status, StatusCode::OK);
+            let done = page.next_cursor.is_none();
+            all.extend(page.bundles);
+            if done {
+                return all;
+            }
+            cursor = page.next_cursor;
+        }
+    }
+
     pub async fn get_text(&self, path: &str) -> (StatusCode, String) {
         let response = self
             .client
@@ -316,10 +344,7 @@ impl TestEnv {
     pub async fn assert_database_state(&self) {
         let database = connect_database().await;
         let versions = database.query_versions().await.unwrap();
-        let bundles = database
-            .query_bundles_with_details(&all_bundles_filter())
-            .await
-            .unwrap();
+        let bundles = all_bundles(&database, &all_bundles_filter()).await;
 
         assert_eq!(versions.len(), self.fixture.versions.len());
         assert_eq!(bundles.len(), self.fixture.all_bundle_names.len());
@@ -349,10 +374,7 @@ impl TestEnv {
         let stdout = String::from_utf8(output.stdout).unwrap();
 
         let database = connect_database().await;
-        let bundles = database
-            .query_bundles_with_details(&all_bundles_filter())
-            .await
-            .unwrap();
+        let bundles = all_bundles(&database, &all_bundles_filter()).await;
 
         let unique_hashes: HashSet<String> =
             bundles.into_iter().map(|bundle| bundle.file_hash).collect();
@@ -618,6 +640,34 @@ const fn all_bundles_filter() -> BundleFilter {
         hash: None,
         file: None,
         version: None,
+    }
+}
+
+/// Fetches every bundle matching `filter` by walking the keyset pages, so
+/// assertions see exactly what the paginated query returns.
+async fn all_bundles(database: &Database, filter: &BundleFilter) -> Vec<BundleDetailsRow> {
+    const PAGE: i64 = 100;
+    let mut all = Vec::new();
+    let mut after: Option<(i32, String, i32)> = None;
+    loop {
+        let page = database
+            .query_bundles_with_details_page(
+                filter,
+                after
+                    .as_ref()
+                    .map(|(version, path, id)| (*version, path.as_str(), *id)),
+                PAGE,
+            )
+            .await
+            .unwrap();
+        let last_page = page.len() < PAGE as usize;
+        if let Some(last) = page.last() {
+            after = Some((last.version_id, last.path.clone(), last.id));
+        }
+        all.extend(page);
+        if last_page {
+            return all;
+        }
     }
 }
 

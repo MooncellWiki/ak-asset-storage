@@ -4,7 +4,10 @@
 //! string or a tool argument regardless of the characters (`#`, `$`, `/`,
 //! spaces) embedded in ids and script paths.
 
-use crate::{api::error::WebError, database::row::StoryResourceType};
+use crate::{
+    api::error::WebError,
+    database::{bundle::BundleFilter, row::StoryResourceType},
+};
 use base64::{Engine as _, engine::general_purpose::URL_SAFE_NO_PAD};
 use serde::{Deserialize, Serialize};
 
@@ -32,6 +35,31 @@ pub struct ResourceCursor {
 impl CursorPayload for ResourceCursor {
     fn is_valid(&self) -> bool {
         !self.resource_id.contains('\0')
+    }
+}
+
+/// Keyset position for `/bundle` pages, ordered `version DESC, path, id`.
+///
+/// `filter` records the conditions that produced the cursor: the keyset
+/// bound is only meaningful for that exact filter, so replaying the cursor
+/// under different conditions is rejected instead of silently skipping or
+/// emptying the result set.
+#[derive(Debug, Serialize, Deserialize, PartialEq, Eq)]
+pub struct BundleCursor {
+    pub filter: BundleFilter,
+    pub version_id: i32,
+    pub path: String,
+    pub id: i32,
+}
+
+impl CursorPayload for BundleCursor {
+    fn is_valid(&self) -> bool {
+        !self.path.contains('\0')
+            && !self
+                .filter
+                .path
+                .as_deref()
+                .is_some_and(|path| path.contains('\0'))
     }
 }
 

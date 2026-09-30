@@ -556,9 +556,10 @@ impl AkAssetMcpServer {
     }
 
     /// Filter bundles by path substring (matched literally), exact hash,
-    /// file id and/or an explicit version, newest version first. At least
-    /// one of `path`, `hash`, `file_id` or `version_id`/`res_version` is
-    /// required — omitting the version searches every version.
+    /// file id and/or an explicit version, newest version first and then by
+    /// path ascending. At least one of `path`, `hash`, `file_id` or
+    /// `version_id`/`res_version` is required — omitting the version
+    /// searches every version.
     #[tool]
     async fn search_bundles(
         &self,
@@ -584,9 +585,22 @@ impl AkAssetMcpServer {
         } else {
             None
         };
+        // Blank path/hash match everything, so they count as absent
+        // (surrounding whitespace is trimmed) — same rule as the REST
+        // /bundle endpoint.
+        let path_filter = params
+            .path
+            .as_deref()
+            .map(str::trim)
+            .filter(|value| !value.is_empty());
+        let hash_filter = params
+            .hash
+            .as_deref()
+            .map(str::trim)
+            .filter(|value| !value.is_empty());
         if version_filter.is_none()
-            && params.path.is_none()
-            && params.hash.is_none()
+            && path_filter.is_none()
+            && hash_filter.is_none()
             && params.file_id.is_none()
         {
             return Err(bad_request(
@@ -595,17 +609,19 @@ impl AkAssetMcpServer {
             ));
         }
         // limit + 1 rows so `truncated` reflects whether more matches exist
-        // beyond the page, without ever loading them.
+        // beyond the page, without ever loading them. Same query and order
+        // (version DESC, path ASC, id ASC) as the REST /bundle endpoint.
         let bundles = self
             .state
             .database
-            .query_bundles_with_details_limited(
+            .query_bundles_with_details_page(
                 &BundleFilter {
-                    path: params.path.as_deref().map(escape_like),
-                    hash: params.hash,
+                    path: path_filter.map(escape_like),
+                    hash: hash_filter.map(str::to_string),
                     file: params.file_id,
                     version: version_filter,
                 },
+                None,
                 i64::from(limit) + 1,
             )
             .await

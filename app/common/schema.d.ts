@@ -309,6 +309,10 @@ export interface components {
             versionIsReady: boolean;
             versionRes: string;
         };
+        BundleListResponse: {
+            bundles: components["schemas"]["BundleDetails"][];
+            nextCursor?: string | null;
+        };
         DockerLaunchRequest: {
             client_version: string;
             exclude?: string | null;
@@ -425,10 +429,16 @@ export interface operations {
     filter_bundle: {
         parameters: {
             query?: {
+                /** @description Bundle path substring (matched literally). Blank counts as absent. */
                 path?: string | null;
+                /** @description Exact file hash. Blank counts as absent. */
                 hash?: string | null;
                 file?: number | null;
                 version?: number | null;
+                /** @description Page size, defaults to 50, at most 200. */
+                limit?: number | null;
+                /** @description Opaque cursor from a previous response (`nextCursor`). */
+                cursor?: string | null;
             };
             header?: never;
             path?: never;
@@ -436,13 +446,21 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
+            /** @description One page of matches, newest version first, then path ascending; pass nextCursor back as cursor to continue */
             200: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["BundleDetails"][];
+                    "application/json": components["schemas"]["BundleListResponse"];
                 };
+            };
+            /** @description No filter provided, or invalid limit/cursor */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
         };
     };
