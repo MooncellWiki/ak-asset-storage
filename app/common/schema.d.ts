@@ -271,6 +271,15 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        AssetEntry: {
+            create_at: string;
+            is_dir: boolean;
+            modified_at: string;
+            name: string;
+            path: string;
+            /** Format: int64 */
+            size: number;
+        };
         AssetMappingDetails: {
             assetName: string;
             assetPath?: string | null;
@@ -279,6 +288,11 @@ export interface components {
             /** Format: int32 */
             bundleSize?: number | null;
             shortName?: string | null;
+        };
+        /** @description A bounded search result. Narrow the query when `truncated` is true. */
+        AssetSearchResults: {
+            results: components["schemas"]["AssetEntry"][];
+            truncated: boolean;
         };
         BundleDetails: {
             fileHash: string;
@@ -501,8 +515,10 @@ export interface operations {
     search_assets_by_path: {
         parameters: {
             query: {
-                /** @description Search path pattern */
+                /** @description Case-sensitive literal substring of the relative asset path. */
                 path: string;
+                /** @description Maximum entries returned (1-200, default 100). No pagination. */
+                limit?: number | null;
             };
             header?: never;
             path?: never;
@@ -510,8 +526,24 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description List of matching entries */
+            /** @description Matching entries; narrow the query when truncated */
             200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AssetSearchResults"];
+                };
+            };
+            /** @description Invalid query or limit */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Search busy or index preparing */
+            503: {
                 headers: {
                     [name: string]: unknown;
                 };

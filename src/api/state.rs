@@ -13,14 +13,15 @@ pub struct AppState {
     pub database: Database,
     pub settings: Arc<AppSettings>,
     pub torappu: TorappuClient,
+    pub plocate: PlocateIndex,
     pub docker: Option<DockerClient>,
     pub search_gate: SearchGate,
 }
 
 /// Caps how many asset searches execute at once (issue #177).
 ///
-/// The gate is shared by the REST and MCP entry points and applies to both
-/// search backends. Requests beyond the limit fail fast instead of queueing,
+/// The gate is shared by the REST and MCP entry points.
+/// Requests beyond the limit fail fast instead of queueing,
 /// so a burst of expensive searches cannot exhaust worker threads or pile up
 /// memory. Callers move the acquired permit into the blocking task so it is
 /// held until the search actually finishes.
@@ -70,32 +71,15 @@ impl AppState {
             database,
             torappu: TorappuClient {
                 asset_base_path: PathBuf::from(&settings.torappu.asset_base_path),
-                plocate: build_plocate_index(&settings),
             },
+            plocate: PlocateIndex::new(
+                std::path::Path::new(&settings.torappu.asset_base_path),
+                &settings.torappu.plocate,
+            )?,
             settings,
             docker,
             search_gate,
         })
-    }
-}
-
-/// If the index cannot be constructed (binaries missing, asset root absent),
-/// keep serving: searches degrade to the legacy tree walk, which is slow but
-/// functional. The error is loud enough for Sentry to pick up.
-fn build_plocate_index(settings: &AppSettings) -> Option<PlocateIndex> {
-    if !settings.torappu.plocate.enabled {
-        info!("torappu.plocate disabled; asset search falls back to walking the tree");
-        return None;
-    }
-    match PlocateIndex::new(
-        std::path::Path::new(&settings.torappu.asset_base_path),
-        &settings.torappu.plocate,
-    ) {
-        Ok(index) => Some(index),
-        Err(err) => {
-            tracing::error!(error = %err, "plocate index construction failed; asset search falls back to walking the tree");
-            None
-        }
     }
 }
 

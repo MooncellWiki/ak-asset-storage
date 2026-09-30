@@ -109,7 +109,7 @@ pub struct TorappuConfig {
     pub github: Option<GithubConfig>,
     #[serde(default)]
     pub plocate: PlocateConfig,
-    /// Maximum search requests (REST and MCP combined, either backend)
+    /// Maximum search requests (REST and MCP combined)
     /// executing at once; excess requests fail fast with 503 instead of
     /// queueing.
     #[serde(default = "default_search_concurrency")]
@@ -123,45 +123,32 @@ const fn default_search_concurrency() -> usize {
 /// plocate-backed asset search configuration.
 ///
 /// Queries hit a plocate database refreshed by a background updatedb task
-/// instead of walking the whole tree per request. Enabled by default;
-/// requires the `plocate` package (preinstalled in the published Docker
-/// image). Set `enabled = false` to keep the legacy tree-walking search.
+/// instead of walking the whole tree per request. Requires the `plocate`
+/// package (preinstalled in the published Docker image).
 #[derive(Debug, Clone, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
 pub struct PlocateConfig {
-    #[serde(default = "default_plocate_enabled")]
-    pub enabled: bool,
-    /// Absolute path of the plocate database. Defaults to
-    /// `<asset_base_path>/.catalog/plocate.db`; the directory must be
-    /// writable by this process (it lives on the asset volume by default).
+    /// Absolute path outside the asset tree. Defaults to
+    /// `/var/lib/ak-asset-storage/plocate.db`.
+    /// The directory must be writable by this process; mount it separately
+    /// to preserve the index when replacing the container.
     #[serde(default)]
     pub database_path: Option<String>,
     #[serde(default = "default_plocate_update_interval_seconds")]
     pub update_interval_seconds: u64,
-    #[serde(default = "default_plocate_search_limit")]
-    pub search_limit: usize,
 }
 
 impl Default for PlocateConfig {
     fn default() -> Self {
         Self {
-            enabled: default_plocate_enabled(),
             database_path: None,
             update_interval_seconds: default_plocate_update_interval_seconds(),
-            search_limit: default_plocate_search_limit(),
         }
     }
 }
 
-const fn default_plocate_enabled() -> bool {
-    true
-}
-
 const fn default_plocate_update_interval_seconds() -> u64 {
     600
-}
-
-const fn default_plocate_search_limit() -> usize {
-    10_000
 }
 
 /// MCP (Model Context Protocol) endpoint configuration. The endpoint only
@@ -231,26 +218,18 @@ impl AppSettings {
             )));
         }
         let plocate = &self.torappu.plocate;
-        if plocate.enabled {
-            if plocate.update_interval_seconds == 0 {
-                return Err(AppError::Application(anyhow::anyhow!(
-                    "torappu.plocate.update_interval_seconds must be at least 1"
-                )));
-            }
-            if plocate.search_limit == 0 {
-                return Err(AppError::Application(anyhow::anyhow!(
-                    "torappu.plocate.search_limit must be at least 1"
-                )));
-            }
-            // updatedb records absolute paths, so a relative database path
-            // would never match its own `--add-single-prunepath` entry.
-            if let Some(database_path) = &plocate.database_path
-                && !Path::new(database_path).is_absolute()
-            {
-                return Err(AppError::Application(anyhow::anyhow!(
-                    "torappu.plocate.database_path must be an absolute path"
-                )));
-            }
+        if plocate.update_interval_seconds == 0 {
+            return Err(AppError::Application(anyhow::anyhow!(
+                "torappu.plocate.update_interval_seconds must be at least 1"
+            )));
+        }
+        // Keep the index location independent of the server working directory.
+        if let Some(database_path) = &plocate.database_path
+            && !Path::new(database_path).is_absolute()
+        {
+            return Err(AppError::Application(anyhow::anyhow!(
+                "torappu.plocate.database_path must be an absolute path"
+            )));
         }
         Ok(())
     }
@@ -309,13 +288,11 @@ mod tests {
     }
 
     #[test]
-    fn plocate_defaults_to_enabled_without_a_section() {
+    fn plocate_defaults_without_a_section() {
         let torappu: TorappuConfig =
             toml::from_str("token = 'x'\nasset_base_path = '/assets'").unwrap();
-        assert!(torappu.plocate.enabled);
         assert_eq!(torappu.plocate.database_path, None);
         assert_eq!(torappu.plocate.update_interval_seconds, 600);
-        assert_eq!(torappu.plocate.search_limit, 10_000);
         assert_eq!(torappu.search_concurrency, 4);
     }
 
@@ -330,29 +307,23 @@ mod tests {
     fn plocate_section_overrides_defaults() {
         let torappu: TorappuConfig = toml::from_str(
             "token = 'x'\nasset_base_path = '/assets'\n\
-             [plocate]\nenabled = false\nupdate_interval_seconds = 60\n",
+             [plocate]\nupdate_interval_seconds = 60\n",
         )
         .unwrap();
-        assert!(!torappu.plocate.enabled);
         assert_eq!(torappu.plocate.update_interval_seconds, 60);
     }
 
     #[test]
-    fn validate_rejects_zero_plocate_interval_and_limit() {
+    fn validate_rejects_zero_plocate_interval() {
         let mut settings = settings_with_token("s3cret");
         settings.torappu.plocate.update_interval_seconds = 0;
         assert!(settings.validate().is_err());
+    }
 
-        let mut settings = settings_with_token("s3cret");
-        settings.torappu.plocate.search_limit = 0;
-        assert!(settings.validate().is_err());
-
-        // Zero values are fine while the backend is disabled.
-        let mut settings = settings_with_token("s3cret");
-        settings.torappu.plocate.enabled = false;
-        settings.torappu.plocate.update_interval_seconds = 0;
-        settings.torappu.plocate.search_limit = 0;
-        assert!(settings.validate().is_ok());
+    #[test]
+    fn obsolete_search_backend_settings_are_rejected() {
+        assert!(toml::from_str::<PlocateConfig>("enabled = false").is_err());
+        assert!(toml::from_str::<PlocateConfig>("search_limit = 10000").is_err());
     }
 
     #[test]

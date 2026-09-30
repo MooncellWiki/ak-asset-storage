@@ -328,21 +328,25 @@ pub async fn list_story_resources(
     get,
     path = "/files",
     tag = "files",
-    params(("path" = String, Query, description = "Search path pattern")),
-    responses((status = 200, description = "List of matching entries"))
+    params(AssetSearchQuery),
+    responses(
+        (status = 200, description = "Matching entries; narrow the query when truncated", body = crate::external::types::AssetSearchResults),
+        (status = 400, description = "Invalid query or limit"),
+        (status = 503, description = "Search busy or index preparing")
+    )
 )]
 pub async fn search_assets_by_path(
     State(state): State<AppState>,
-    Query(AssetSearchQuery { path }): Query<AssetSearchQuery>,
+    Query(AssetSearchQuery { path, limit }): Query<AssetSearchQuery>,
 ) -> WebResult<Response> {
     // Reject before any work when the shared search budget is exhausted;
     // the permit moves into the blocking task so it is held until the
     // search finishes (issue #177).
     let permit = state.search_gate.try_acquire()?;
-    let torappu = state.torappu.clone();
+    let index = state.plocate.clone();
     let entries = tokio::task::spawn_blocking(move || {
         let _permit = permit;
-        torappu.search_assets_by_path(&path)
+        index.search(&path, limit)
     })
     .await
     .map_err(|err| WebError::CustomApiError(AppError::Application(err.into())))?

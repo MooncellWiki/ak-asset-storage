@@ -10,6 +10,8 @@ pub enum WebError {
     NotFound,
     #[error("Service Unavailable:\n{0}")]
     ServiceUnavailable(anyhow::Error),
+    #[error("Service Unavailable: {0}")]
+    Unavailable(String),
     #[error("Unauthorized: {0}")]
     Unauthorized(String),
     #[error("Bad Request: {0}")]
@@ -39,9 +41,8 @@ impl From<AppError> for WebError {
     fn from(err: AppError) -> Self {
         match err {
             err @ AppError::Application(..) => Self::CustomApiError(err),
-            err @ (AppError::ExternalService(..) | AppError::Unavailable(..)) => {
-                Self::ServiceUnavailable(err.into())
-            }
+            err @ AppError::ExternalService(..) => Self::ServiceUnavailable(err.into()),
+            AppError::Unavailable(message) => Self::Unavailable(message),
             AppError::InvalidInput(message) => Self::BadRequest(message),
         }
     }
@@ -59,7 +60,7 @@ impl IntoResponse for WebError {
             err @ Self::NotFound => {
                 (StatusCode::NOT_FOUND, Json(ApiErrorDetail::from(err))).into_response()
             }
-            err @ Self::ServiceUnavailable(..) => (
+            err @ (Self::ServiceUnavailable(..) | Self::Unavailable(..)) => (
                 StatusCode::SERVICE_UNAVAILABLE,
                 Json(ApiErrorDetail::from(err)),
             )

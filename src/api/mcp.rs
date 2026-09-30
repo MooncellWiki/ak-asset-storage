@@ -146,9 +146,9 @@ struct ListFilesParams {
 
 #[derive(Deserialize, JsonSchema)]
 struct SearchFilesParams {
-    /// Substring matched against raw asset paths.
+    /// Case-sensitive literal substring of the relative asset path.
     q: String,
-    /// Maximum number of entries returned (1-200, default 50).
+    /// Maximum entries returned (1-200, default 100). No pagination.
     limit: Option<u32>,
 }
 
@@ -636,14 +636,14 @@ impl AkAssetMcpServer {
         )?)
     }
 
-    /// Search the extracted raw asset tree by path substring. Prefer this
-    /// over walking directories with `list_files` when hunting one file.
+    /// Search extracted assets by relative path substring, at any depth.
+    /// Excludes gamedata/latest. Returns results and truncated, without a
+    /// total or pagination; narrow q when truncated is true.
     #[tool]
     async fn search_files(
         &self,
         Parameters(params): Parameters<SearchFilesParams>,
     ) -> Result<CallToolResult, ErrorData> {
-        let limit = story::page_limit(params.limit).map_err(|error| mcp_error(&error))?;
         ensure_no_nul("q", &params.q)?;
         // Fail fast when the shared search budget (also used by REST) is
         // exhausted; the permit moves into the blocking task so it is held
@@ -653,15 +653,15 @@ impl AkAssetMcpServer {
             .search_gate
             .try_acquire()
             .map_err(|error| mcp_error(&error))?;
-        let torappu = self.state.torappu.clone();
+        let index = self.state.plocate.clone();
         let entries = tokio::task::spawn_blocking(move || {
             let _permit = permit;
-            torappu.search_assets_by_path(&params.q)
+            index.search(&params.q, params.limit)
         })
         .await
         .map_err(|error| mcp_error(&AppError::Application(error.into())))?
         .map_err(|error| mcp_error(&error))?;
-        json_result(TruncatedResults::new(entries, limit))
+        json_result(entries)
     }
 
     /// List story resources (backgrounds, images, items, characters) with the
