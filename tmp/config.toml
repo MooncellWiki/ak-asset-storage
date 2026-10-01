@@ -1,0 +1,49 @@
+# Local dev environment config (see tmp/README.md for the full setup).
+# Server: cargo run -- server -c tmp/config.toml   (port 5150, matches pnpm dev proxy)
+# Worker: cargo run -- worker -c tmp/config.toml
+# Paths are relative to the repository root; run both commands from there.
+
+[logger]
+enable = true
+level = "debug"
+format = "compact"
+
+[server]
+binding = "localhost"
+port = 5150
+host = "http://localhost"
+
+[database]
+uri = "postgres://ak:ak@localhost:25432/ak_asset_storage_next"
+
+[ak]
+asset_url = "https://ak.hycdn.cn/assetbundle/official/Android/assets"
+conf_url = "https://ak-conf.hypergryph.com/config/prod/official/Android"
+
+[s3]
+endpoint = "http://127.0.0.1:9000"
+bucket_name = "arknights-assets"
+access_key_id = "torappu"
+secret_access_key = "torappu123"
+with_virtual_hosted_style_request = false
+
+# Blackhole DSN so local errors never reach a real Sentry project.
+[sentry]
+dsn = "https://test@127.0.0.1:9/1"
+traces_sample_rate = 0.0
+
+# MCP endpoint on http://localhost:5150/mcp (read-only queries).
+[mcp]
+enable = true
+
+[torappu]
+token = "your-torappu-token-here"
+asset_base_path = "tmp/asset"
+search_concurrency = 4
+
+# plocate must be installed; the first index build runs at server startup.
+# Lives in /tmp so no setup step is needed: the server creates the directory,
+# and a wiped index is rebuilt on the next start (searches 503 until then).
+[torappu.plocate]
+update_interval_seconds = 600
+database_path = "/tmp/ak-asset-storage/plocate.db"

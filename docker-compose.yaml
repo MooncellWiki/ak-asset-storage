@@ -21,7 +21,7 @@ services:
       RUSTFS_ACCESS_KEY: torappu
       RUSTFS_SECRET_KEY: torappu123
     volumes:
-      - rustfs_data:/data
+      - ./tmp/rustfs-data:/data:z
     command: [/data]
     ports:
       - 9000:9000
@@ -34,4 +34,3 @@ services:
 
 volumes:
   postgres-data:
-  rustfs_data:
