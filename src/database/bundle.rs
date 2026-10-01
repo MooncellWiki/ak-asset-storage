@@ -4,7 +4,7 @@ use crate::{
 };
 use sqlx::{query, query_as};
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct BundleFilter {
     /// Path substring; callers must pre-escape LIKE metacharacters (`_`,
     /// `%`, `\`) so the value matches literally.
@@ -77,54 +77,23 @@ WHERE
         .map_err(|err| AppError::ExternalService(err.into()))
     }
 
-    pub async fn query_bundles_with_details(
+    /// One page of the bundle filter query, deterministically ordered by
+    /// `version DESC, path ASC, id ASC` (`id` breaks ties because the same
+    /// path can exist in one version under different files). `after` is the
+    /// exclusive keyset bound `(version_id, path, id)` from the last row of
+    /// the previous page (`None` starts from the beginning); callers fetch
+    /// `limit + 1` rows to probe for a next page. `bundles_version_path_id_idx`
+    /// serves the version filter, the order and the keyset comparison.
+    pub async fn query_bundles_with_details_page(
         &self,
         query: &BundleFilter,
-    ) -> AppResult<Vec<BundleDetails>> {
-        query_as!(
-            BundleDetails,
-            r#"
-SELECT
-    b.id as "id!",
-    b.path as "path!",
-    b.file as "file_id!",
-    b.version as "version_id!",
-    f.hash as "file_hash",
-    f.size as "file_size",
-    v.client as "version_client",
-    v.res as "version_res",
-    v.is_ready as "version_is_ready!"
-FROM
-    bundles b
-INNER JOIN
-    files f ON b.file = f.id
-INNER JOIN
-    versions v ON b.version = v.id
-WHERE
-    ($1::varchar IS NULL OR b.path LIKE CONCAT('%', $1, '%'))
-    AND ($2::varchar IS NULL OR f.hash = $2)
-    AND ($3::int IS NULL OR b.file = $3)
-    AND ($4::int IS NULL OR b.version = $4)
-            "#,
-            query.path,
-            query.hash,
-            query.file,
-            query.version
-        )
-        .fetch_all(self.pool())
-        .await
-        .map_err(|err| AppError::ExternalService(err.into()))
-    }
-
-    /// Like `query_bundles_with_details`, but deterministically ordered
-    /// (newest version first) and bounded. For callers that present a
-    /// truncated page — fetching the unfiltered table can be millions of
-    /// rows.
-    pub async fn query_bundles_with_details_limited(
-        &self,
-        query: &BundleFilter,
+        after: Option<(i32, &str, i32)>,
         limit: i64,
     ) -> AppResult<Vec<BundleDetails>> {
+        let (after_version, after_path, after_id) = match after {
+            Some((version, path, id)) => (Some(version), Some(path), Some(id)),
+            None => (None, None, None),
+        };
         query_as!(
             BundleDetails,
             r#"
@@ -149,13 +118,21 @@ WHERE
     AND ($2::varchar IS NULL OR f.hash = $2)
     AND ($3::int IS NULL OR b.file = $3)
     AND ($4::int IS NULL OR b.version = $4)
-ORDER BY b.version DESC, b.id DESC
-LIMIT $5
+    AND (
+        $5::int IS NULL
+        OR b.version < $5
+        OR (b.version = $5 AND (b.path > $6 OR (b.path = $6 AND b.id > $7)))
+    )
+ORDER BY b.version DESC, b.path ASC, b.id ASC
+LIMIT $8
             "#,
             query.path,
             query.hash,
             query.file,
             query.version,
+            after_version,
+            after_path,
+            after_id,
             limit
         )
         .fetch_all(self.pool())

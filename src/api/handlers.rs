@@ -6,10 +6,10 @@ use crate::{
         state::AppState,
         story,
         types::{
-            AssetSearchQuery, BundleListQuery, DockerLaunchRequest, DockerLaunchResponse, Health,
-            ManifestChildrenQuery, ManifestDetailQuery, ManifestSearchQuery,
-            StoryResourceListQuery, StoryResourceListResponse, StoryResourceUsageQuery,
-            StoryResourceUsageResponse,
+            AssetSearchQuery, BundleListQuery, BundleListResponse, DockerLaunchRequest,
+            DockerLaunchResponse, Health, ManifestChildrenQuery, ManifestDetailQuery,
+            ManifestSearchQuery, StoryResourceListQuery, StoryResourceListResponse,
+            StoryResourceUsageQuery, StoryResourceUsageResponse,
         },
         utils::{escape_like, json},
     },
@@ -77,17 +77,64 @@ pub async fn get_bundle(State(state): State<AppState>, Path(id): Path<i32>) -> W
 }
 
 #[debug_handler]
-#[utoipa::path(get, path = "/bundle", tag="bundle", params(BundleListQuery), responses((status = OK, body = [BundleDetails])))]
+#[utoipa::path(
+    get,
+    path = "/bundle",
+    tag = "bundle",
+    params(BundleListQuery),
+    responses(
+        (status = 200, description = "One page of matches, newest version first, then path ascending; pass nextCursor back as cursor to continue", body = BundleListResponse),
+        (status = 400, description = "No filter provided, or invalid limit/cursor")
+    )
+)]
 pub async fn filter_bundle(
     State(state): State<AppState>,
     Query(query): Query<BundleListQuery>,
 ) -> WebResult<Response> {
-    Ok(json(
-        state
-            .database
-            .query_bundles_with_details(&query.into())
-            .await?,
-    ))
+    // An empty filter would dump the whole table; reject it like the MCP
+    // tool does (blank path/hash count as absent).
+    if !query.has_condition() {
+        return Err(WebError::BadRequest(
+            "provide at least one of path, hash, file or version".to_string(),
+        ));
+    }
+    let limit = story::page_limit(query.limit).map_err(WebError::from)?;
+    let filter = query.normalized();
+    let after = cursor::decode::<cursor::BundleCursor>(query.cursor.as_deref())?;
+    if let Some(after) = &after {
+        // The keyset bound is only valid for the filter that produced it;
+        // mixing a stale cursor into changed conditions would silently
+        // skip or empty the result set.
+        if after.filter != filter {
+            return Err(WebError::BadRequest(
+                "cursor does not match the current filter; search again without a cursor"
+                    .to_string(),
+            ));
+        }
+    }
+    // limit + 1 rows: the extra row only probes whether a next page exists
+    // and never reaches the response.
+    let mut rows = state
+        .database
+        .query_bundles_with_details_page(
+            &filter,
+            after
+                .as_ref()
+                .map(|cursor| (cursor.version_id, cursor.path.as_str(), cursor.id)),
+            i64::from(limit) + 1,
+        )
+        .await?;
+    let next_cursor = story::page_cursor(&rows, limit, |row| cursor::BundleCursor {
+        filter: filter.clone(),
+        version_id: row.version_id,
+        path: row.path.clone(),
+        id: row.id,
+    });
+    rows.truncate(limit as usize);
+    Ok(json(BundleListResponse {
+        bundles: rows,
+        next_cursor,
+    }))
 }
 
 #[debug_handler]
@@ -377,6 +424,15 @@ mod tests {
     use super::*;
     use crate::database::row::StoryResourceType;
 
+    fn cursor_filter(path: &str) -> crate::database::bundle::BundleFilter {
+        crate::database::bundle::BundleFilter {
+            path: Some(path.to_string()),
+            hash: None,
+            file: None,
+            version: None,
+        }
+    }
+
     #[test]
     fn cursor_round_trips_ids_with_special_characters() {
         let cursor = cursor::ResourceCursor {
@@ -426,6 +482,41 @@ mod tests {
             resource_id: "bad\0id".to_string(),
         });
         assert!(cursor::decode::<cursor::ResourceCursor>(Some(&encoded)).is_err());
+    }
+
+    #[test]
+    fn bundle_cursor_round_trips_and_rejects_nul_paths() {
+        let filter = cursor_filter("ab_avg");
+        let cursor = cursor::BundleCursor {
+            filter: filter.clone(),
+            version_id: 7,
+            path: "ab_avg/avg_1#1$1.bundle".to_string(),
+            id: 42,
+        };
+        let encoded = cursor::encode(&cursor);
+        assert_eq!(
+            cursor::decode::<cursor::BundleCursor>(Some(&encoded)).expect("decode"),
+            Some(cursor)
+        );
+        // A cursor issued for one filter must not pass as another filter's
+        // continuation (checked in `filter_bundle` via PartialEq).
+        assert_ne!(filter, cursor_filter("char_1000"));
+
+        let encoded = cursor::encode(&cursor::BundleCursor {
+            filter,
+            version_id: 7,
+            path: "bad\0path".to_string(),
+            id: 42,
+        });
+        assert!(cursor::decode::<cursor::BundleCursor>(Some(&encoded)).is_err());
+
+        let encoded = cursor::encode(&cursor::BundleCursor {
+            filter: cursor_filter("bad\0filter"),
+            version_id: 7,
+            path: "path".to_string(),
+            id: 42,
+        });
+        assert!(cursor::decode::<cursor::BundleCursor>(Some(&encoded)).is_err());
     }
 
     #[test]

@@ -1,5 +1,5 @@
 use crate::support::{BundleDetails, TestEnv, VersionDetails, VersionSummary};
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 
 #[tokio::test]
 #[ignore = "manual e2e test requiring docker, rc, and fixture assets"]
@@ -45,10 +45,9 @@ async fn seed_two_versions_then_query_real_server() {
         assert!(bundle_paths.iter().any(|path| path.contains('#')));
         assert!(bundle_paths.iter().any(|path| path.contains('/')));
 
-        let (status, query_bundles): (_, Vec<BundleDetails>) = env
-            .get_json(&format!("/api/v1/bundle?version={}", version.id))
+        let query_bundles = env
+            .get_all_bundle_pages(&format!("version={}", version.id))
             .await;
-        assert_eq!(status, axum::http::StatusCode::OK);
         assert_eq!(query_bundles.len(), bundles.len());
 
         for bundle in &query_bundles {
@@ -67,26 +66,11 @@ async fn seed_two_versions_then_query_real_server() {
         }
     }
 
-    let (status, all_bundles): (_, Vec<BundleDetails>) = env.get_json("/api/v1/bundle").await;
-    assert_eq!(status, axum::http::StatusCode::OK);
-    assert_eq!(all_bundles.len(), env.fixture.all_bundle_names.len());
-
-    let unique_hashes = all_bundles
-        .iter()
-        .map(|bundle| bundle.file_hash.clone())
-        .collect::<HashSet<_>>();
-    // Hashes are deduplicated across versions when bundles share the same content
-    assert!(unique_hashes.len() <= all_bundles.len());
-
-    let file_id_by_hash: HashMap<String, HashSet<i32>> =
-        all_bundles.iter().fold(HashMap::new(), |mut acc, bundle| {
-            acc.entry(bundle.file_hash.clone())
-                .or_default()
-                .insert(bundle.file_id);
-            acc
-        });
-    // Each unique hash maps to exactly one file record
-    assert!(file_id_by_hash.values().all(|ids| ids.len() == 1));
+    // The unfiltered dump is rejected; the whole-table invariants are
+    // asserted against the database by assert_database_state below.
+    let (status, body) = env.get_text("/api/v1/bundle").await;
+    assert_eq!(status, axum::http::StatusCode::BAD_REQUEST);
+    assert!(body.contains("provide at least one"));
 
     env.assert_database_state().await;
     env.assert_s3_state().await;

@@ -98,22 +98,60 @@ pub struct ManifestDetailQuery {
 
 #[derive(Debug, Deserialize, IntoParams)]
 pub struct BundleListQuery {
+    /// Bundle path substring (matched literally). Blank counts as absent.
     pub path: Option<String>,
+    /// Exact file hash. Blank counts as absent.
     pub hash: Option<String>,
     pub file: Option<i32>,
     pub version: Option<i32>,
+    /// Page size, defaults to 50, at most 200.
+    pub limit: Option<u32>,
+    /// Opaque cursor from a previous response (`nextCursor`).
+    pub cursor: Option<String>,
 }
 
-impl From<BundleListQuery> for BundleFilter {
-    fn from(value: BundleListQuery) -> Self {
-        Self {
-            // Escape LIKE metacharacters so the substring matches literally.
-            path: value.path.as_deref().map(escape_like),
-            hash: value.hash,
-            file: value.file,
-            version: value.version,
+impl BundleListQuery {
+    /// Blank filters carry no information and would match everything, so
+    /// they count as absent (surrounding whitespace is trimmed); at least
+    /// one of path/hash/file/version must remain or the request would dump
+    /// the whole table.
+    pub(crate) fn normalized(&self) -> BundleFilter {
+        BundleFilter {
+            path: self
+                .path
+                .as_deref()
+                .map(str::trim)
+                .filter(|value| !value.is_empty())
+                .map(escape_like),
+            hash: self
+                .hash
+                .as_deref()
+                .map(str::trim)
+                .filter(|value| !value.is_empty())
+                .map(str::to_string),
+            file: self.file,
+            version: self.version,
         }
     }
+
+    pub(crate) fn has_condition(&self) -> bool {
+        self.path
+            .as_deref()
+            .is_some_and(|value| !value.trim().is_empty())
+            || self
+                .hash
+                .as_deref()
+                .is_some_and(|value| !value.trim().is_empty())
+            || self.file.is_some()
+            || self.version.is_some()
+    }
+}
+
+#[derive(Debug, serde::Serialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct BundleListResponse {
+    pub bundles: Vec<crate::database::model::BundleDetails>,
+    pub next_cursor: Option<String>,
 }
 
 #[derive(ToSchema, serde::Serialize)]
