@@ -18,11 +18,11 @@ init-env:
         sudo chcon -Rt container_file_t tmp/rustfs-data
     fi
     # the bucket must exist before the first upload; the code never creates it
-    if command -v mc >/dev/null 2>&1 && curl -sf -m 3 http://127.0.0.1:9000/health >/dev/null; then
-        mc alias set rustfs http://127.0.0.1:9000 torappu torappu123 >/dev/null
-        mc mb --ignore-existing rustfs/arknights-assets
+    if command -v rc >/dev/null 2>&1 && curl -sf -m 3 http://127.0.0.1:9000/health >/dev/null; then
+        rc alias set rustfs http://127.0.0.1:9000 torappu torappu123 >/dev/null
+        rc bucket create --ignore-existing rustfs/arknights-assets
     else
-        echo "note: rustfs not reachable; after 'docker compose up -d' run 'mc mb --ignore-existing rustfs/arknights-assets'"
+        echo "note: rustfs not reachable; after 'docker compose up -d' run 'rc bucket create --ignore-existing rustfs/arknights-assets'"
     fi
 
 up:

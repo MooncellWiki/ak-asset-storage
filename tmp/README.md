@@ -14,7 +14,7 @@ pnpm build             # 前端产物(rust-embed 编译需要)
 ```
 
 `just init` 里 rustfs 的桶创建需要容器先在跑;顺序反过来它也只会提示你补一句
-`mc mb --ignore-existing rustfs/arknights-assets`。
+`rc bucket create --ignore-existing rustfs/arknights-assets`。
 
 ## 常用命令
 
