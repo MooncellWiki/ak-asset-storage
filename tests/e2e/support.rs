@@ -866,8 +866,12 @@ traces_sample_rate = 0.0
 [torappu]
 token = "e2e-token"
 asset_base_path = "{}"
+
+[torappu.plocate]
+database_path = "{}"
 "#,
-        asset_dir.display()
+        asset_dir.display(),
+        runtime_dir.join("plocate.db").display()
     );
 
     if include_docker {
