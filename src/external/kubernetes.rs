@@ -10,8 +10,8 @@ use k8s_openapi::api::core::v1::{
 };
 use k8s_openapi::apimachinery::pkg::apis::meta::v1::ObjectMeta;
 use kube::{
-    Api, Client,
-    api::{DeleteParams, PostParams},
+    Api, Client, ResourceExt,
+    api::{DeleteParams, PostParams, Preconditions},
 };
 use std::collections::BTreeMap;
 use std::time::Duration;
@@ -24,6 +24,9 @@ use tracing::{info, warn};
 /// admission webhook or similar interference rather than normal operation.
 const JOB_DELETION_TIMEOUT_SECS: u64 = 30;
 const JOB_DELETION_POLL_INTERVAL_SECS: u64 = 1;
+/// How often the single-flight loop re-reads after losing a race (UID
+/// precondition conflict on delete, or 409 on create) before giving up.
+const LAUNCH_CONTENTION_RETRIES: usize = 3;
 const MANAGED_BY_LABEL: &str = "app.kubernetes.io/managed-by";
 
 #[derive(Clone)]
@@ -57,7 +60,6 @@ impl KubernetesClient {
     /// fire-and-forget like the Docker implementation it replaces: pod
     /// scheduling and retries belong to the cluster, completion is observed
     /// through the shared output volume, not through this API.
-    #[allow(clippy::too_many_lines)]
     pub async fn launch_container(
         &self,
         client_version: &str,
@@ -72,57 +74,106 @@ impl KubernetesClient {
 
         // Job objects are immutable, so a finished Job must be deleted before
         // it can be recreated under the same name. The fixed name doubles as
-        // the single-flight lock: an active Job blocks the launch, matching
-        // the old inspect-container guard.
-        match jobs.get(job_name).await {
-            Ok(job) => {
-                if job_is_active(&job) {
-                    return Err(AppError::ExternalService(anyhow!(
-                        "Job {job_name} is already running"
-                    )));
-                }
+        // the single-flight lock: a Job that has not reached a terminal
+        // condition blocks the launch, matching the old inspect-container
+        // guard.
+        //
+        // Both the delete and the create can lose a race against a concurrent
+        // launch of the same fixed name. The delete carries a UID precondition
+        // so a losing request can never delete the winner's fresh Job (it
+        // would otherwise remove whatever currently carries the name); on any
+        // conflict the loop re-reads and re-decides instead of returning a
+        // stale success.
+        for attempt in 0..=LAUNCH_CONTENTION_RETRIES {
+            match jobs.get(job_name).await {
+                Ok(job) => {
+                    if job_is_active(&job) {
+                        return Err(AppError::ExternalService(anyhow!(
+                            "Job {job_name} is already running"
+                        )));
+                    }
 
-                warn!("Job {job_name} exists but is not running, removing it");
-                jobs.delete(job_name, &DeleteParams::default())
-                    .await
-                    .map_err(|err| AppError::ExternalService(err.into()))?;
-                wait_for_job_deleted(&jobs, job_name).await?;
-                info!("Job deleted: {job_name}");
+                    warn!("Job {job_name} exists but is not running, removing it");
+                    let delete_params = DeleteParams {
+                        preconditions: Some(Preconditions {
+                            uid: job.uid(),
+                            resource_version: None,
+                        }),
+                        ..Default::default()
+                    };
+                    match jobs.delete(job_name, &delete_params).await {
+                        Ok(_) => {}
+                        Err(kube::Error::Api(err)) if err.code == 409 || err.code == 404 => {
+                            warn!(
+                                "Job {job_name} changed under us on attempt {}, re-reading",
+                                attempt + 1
+                            );
+                            continue;
+                        }
+                        Err(err) => return Err(AppError::ExternalService(err.into())),
+                    }
+                    wait_for_job_deleted(&jobs, job_name).await?;
+                    info!("Job deleted: {job_name}");
+                }
+                Err(kube::Error::Api(err)) if err.code == 404 => {
+                    info!("Job {job_name} does not exist, will create new one");
+                }
+                Err(err) => return Err(AppError::ExternalService(err.into())),
             }
-            Err(kube::Error::Api(err)) if err.code == 404 => {
-                info!("Job {job_name} does not exist, will create new one");
+
+            // Image pulls (with backoff and private-registry auth via
+            // imagePullSecrets) are handled by kubelet, so there is no
+            // client-side pull loop here.
+            let job = build_job(
+                &self.config,
+                client_version,
+                res_version,
+                prev_client_version,
+                prev_res_version,
+                include,
+                exclude,
+            )?;
+            match jobs.create(&PostParams::default(), &job).await {
+                Ok(_) => {
+                    info!("Job started successfully: {job_name}");
+                    return Ok(job_name.to_string());
+                }
+                // A concurrent launch created the Job between our check and
+                // create; re-read to report what actually occupies the name.
+                Err(kube::Error::Api(err)) if err.code == 409 => {
+                    warn!(
+                        "Job {job_name} was created concurrently on attempt {}, re-reading",
+                        attempt + 1
+                    );
+                }
+                Err(err) => return Err(AppError::ExternalService(err.into())),
             }
-            Err(err) => return Err(AppError::ExternalService(err.into())),
         }
 
-        // Image pulls (with backoff and private-registry auth via
-        // imagePullSecrets) are handled by kubelet, so there is no
-        // client-side pull loop here.
-        let job = build_job(
-            &self.config,
-            client_version,
-            res_version,
-            prev_client_version,
-            prev_res_version,
-            include,
-            exclude,
-        )?;
-        jobs.create(&PostParams::default(), &job)
-            .await
-            .map_err(|err| AppError::ExternalService(err.into()))?;
-
-        info!("Job started successfully: {job_name}");
-        Ok(job_name.to_string())
+        Err(AppError::ExternalService(anyhow!(
+            "Job {job_name} kept changing under us; concurrent launch in progress?"
+        )))
     }
 }
 
-/// Whether the Job still occupies the single-flight slot. A Job the
-/// controller has not observed yet has no `startTime`; treating it as active
-/// keeps two rapid launches from deleting each other's just-created Job.
+/// Whether the Job still occupies the single-flight slot. Only a terminal
+/// condition (`Complete` or `Failed` = True) releases it: `active` already
+/// drops to 0 while the last pod is still terminating, and a Job the
+/// controller has not observed yet carries no conditions at all. Everything
+/// non-terminal keeps blocking, so a launch can never delete a Job whose
+/// output is still settling.
 fn job_is_active(job: &Job) -> bool {
-    job.status
+    let terminal = job
+        .status
         .as_ref()
-        .is_none_or(|status| status.active.unwrap_or(0) > 0 || status.start_time.is_none())
+        .and_then(|status| status.conditions.as_ref())
+        .is_some_and(|conditions| {
+            conditions.iter().any(|condition| {
+                (condition.type_ == "Complete" || condition.type_ == "Failed")
+                    && condition.status == "True"
+            })
+        });
+    !terminal
 }
 
 async fn wait_for_job_deleted(jobs: &Api<Job>, job_name: &str) -> AppResult<()> {
@@ -418,13 +469,55 @@ mod tests {
         }))
         .unwrap();
         assert!(job_is_active(&running));
+    }
 
-        let finished: Job = serde_json::from_value(serde_json::json!({
+    #[test]
+    fn only_terminal_conditions_release_the_single_flight_slot() {
+        // active already drops to 0 while the last pod is still terminating
+        // and the controller has not stamped a terminal condition yet: the
+        // Job must keep blocking (reproduced as terminating=1 being deleted).
+        let still_settling: Job = serde_json::from_value(serde_json::json!({
             "metadata": {"name": "j"},
             "status": {"active": 0, "startTime": "2026-01-01T00:00:00Z", "succeeded": 1}
         }))
         .unwrap();
-        assert!(!job_is_active(&finished));
+        assert!(job_is_active(&still_settling));
+
+        let complete: Job = serde_json::from_value(serde_json::json!({
+            "metadata": {"name": "j"},
+            "status": {
+                "active": 0,
+                "startTime": "2026-01-01T00:00:00Z",
+                "succeeded": 1,
+                "conditions": [{"type": "Complete", "status": "True"}]
+            }
+        }))
+        .unwrap();
+        assert!(!job_is_active(&complete));
+
+        let failed: Job = serde_json::from_value(serde_json::json!({
+            "metadata": {"name": "j"},
+            "status": {
+                "active": 0,
+                "startTime": "2026-01-01T00:00:00Z",
+                "failed": 1,
+                "conditions": [{"type": "Failed", "status": "True"}]
+            }
+        }))
+        .unwrap();
+        assert!(!job_is_active(&failed));
+
+        // A condition that is present but not True does not count.
+        let failure_in_flight: Job = serde_json::from_value(serde_json::json!({
+            "metadata": {"name": "j"},
+            "status": {
+                "active": 0,
+                "startTime": "2026-01-01T00:00:00Z",
+                "conditions": [{"type": "Failed", "status": "False"}]
+            }
+        }))
+        .unwrap();
+        assert!(job_is_active(&failure_in_flight));
     }
 
     #[test]
