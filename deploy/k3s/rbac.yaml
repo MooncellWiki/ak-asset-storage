@@ -1,0 +1,45 @@
+# Minimal RBAC for the server/worker to launch the asset-extraction Job
+# (the in-cluster deployment mode of the `[torappu.kubernetes]` config).
+#
+# The namespace must match `torappu.kubernetes.namespace`. Adjust it if the
+# app runs elsewhere:
+#
+#   kubectl -n ak-asset-storage apply -f deploy/k3s/rbac.yaml
+#   kubectl -n ak-asset-storage create secret docker-registry ak-registry-cred \
+#     --docker-server=registry.example.com \
+#     --docker-username=... --docker-password=...
+#
+# Then set on the server/worker pod spec:
+#
+#   spec.template.spec.serviceAccountName: ak-asset-storage
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: ak-asset-storage
+  namespace: ak-asset-storage
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: ak-asset-storage-job-launcher
+  namespace: ak-asset-storage
+rules:
+  # launch_container only gets / creates / deletes the fixed-name Job;
+  # no pods access, no other resources.
+  - apiGroups: [batch]
+    resources: [jobs]
+    verbs: [get, create, delete]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: ak-asset-storage-job-launcher
+  namespace: ak-asset-storage
+subjects:
+  - kind: ServiceAccount
+    name: ak-asset-storage
+    namespace: ak-asset-storage
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: ak-asset-storage-job-launcher

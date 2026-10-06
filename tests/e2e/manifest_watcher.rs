@@ -12,7 +12,7 @@ async fn manifest_watcher_imports_new_manifest_file() {
     let version_id = env
         .create_version_for_manifest_test(RES_VERSION, false)
         .await;
-    let mut worker = support::spawn_worker(env.config_path(), 1);
+    let mut worker = support::spawn_worker(env.config_path(), None, 1);
 
     sleep(Duration::from_secs(2)).await;
     env.copy_manifest_fixture(RES_VERSION);

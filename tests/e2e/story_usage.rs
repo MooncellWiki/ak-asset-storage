@@ -329,7 +329,7 @@ async fn failed_import_keeps_previous_snapshot() {
 async fn gamedata_ready_watcher_imports_and_follows_latest() {
     let env = TestEnv::bootstrap_worker().await;
     publish_version(&env, V1_RES);
-    let mut worker = support::spawn_worker(env.config_path(), 1);
+    let mut worker = support::spawn_worker(env.config_path(), None, 1);
 
     let database = support::connect_database().await;
     wait_for_usages(

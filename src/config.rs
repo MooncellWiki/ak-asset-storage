@@ -105,7 +105,7 @@ pub struct SentryConfig {
 pub struct TorappuConfig {
     pub token: String,
     pub asset_base_path: String,
-    pub docker: Option<DockerConfig>,
+    pub kubernetes: Option<KubernetesConfig>,
     pub github: Option<GithubConfig>,
     #[serde(default)]
     pub plocate: PlocateConfig,
@@ -160,16 +160,35 @@ pub struct McpConfig {
     pub enable: bool,
 }
 
+/// Kubernetes Job launcher configuration.
+///
+/// The process talks to the cluster API (credentials resolved like kubectl:
+/// in-cluster service account, then `$KUBECONFIG` / `~/.kube/config`) and
+/// runs the asset-extraction image as a run-to-completion Job instead of
+/// `docker run`.
 #[derive(Debug, Clone, Deserialize, Serialize)]
-pub struct DockerConfig {
+pub struct KubernetesConfig {
     pub image_url: String,
-    pub container_name: String,
+    /// Namespace the Job and its pods are created in.
+    pub namespace: String,
+    /// Fixed Job name; doubles as the single-flight lock, so a launch is
+    /// rejected while a Job with this name is still running.
+    pub job_name: String,
+    /// Name of an imagePullSecret living in `namespace`, for private
+    /// registries. Image pulls and their retries belong to kubelet.
+    pub image_pull_secret: Option<String>,
     pub env_vars: Option<Vec<String>>,
-    pub volume_mapping: Option<Vec<String>>,
-    pub docker_host: String,
-    pub username: String,
-    pub password: String,
-    pub network: String,
+    pub volume_mounts: Option<Vec<KubernetesVolumeMount>>,
+}
+
+/// One volume mounted into the launched Job's pod. Exactly one of `pvc` /
+/// `host_path` must be set: PVCs for normal clusters, hostPath for
+/// single-node setups where the output directory stays on the node.
+#[derive(Debug, Clone, Deserialize, Serialize)]
+pub struct KubernetesVolumeMount {
+    pub mount_path: String,
+    pub pvc: Option<String>,
+    pub host_path: Option<String>,
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
@@ -209,8 +228,18 @@ impl AppSettings {
     fn validate(&self) -> AppResult<()> {
         if self.torappu.token.trim().is_empty() {
             return Err(AppError::Application(anyhow::anyhow!(
-                "torappu.token must not be empty: it guards the Docker launch endpoint"
+                "torappu.token must not be empty: it guards the container launch endpoint"
             )));
+        }
+        if let Some(kubernetes) = &self.torappu.kubernetes {
+            for mount in kubernetes.volume_mounts.iter().flatten() {
+                if mount.pvc.is_some() == mount.host_path.is_some() {
+                    return Err(AppError::Application(anyhow::anyhow!(
+                        "torappu.kubernetes volume mount {:?} must set exactly one of pvc or host_path",
+                        mount.mount_path
+                    )));
+                }
+            }
         }
         if self.torappu.search_concurrency == 0 {
             return Err(AppError::Application(anyhow::anyhow!(
@@ -271,7 +300,7 @@ mod tests {
             torappu: TorappuConfig {
                 token: token.to_string(),
                 asset_base_path: "/assets".to_string(),
-                docker: None,
+                kubernetes: None,
                 github: None,
                 plocate: PlocateConfig::default(),
                 search_concurrency: default_search_concurrency(),
@@ -334,5 +363,46 @@ mod tests {
 
         settings.torappu.plocate.database_path = Some("/var/lib/plocate.db".to_string());
         assert!(settings.validate().is_ok());
+    }
+
+    fn mount(pvc: Option<&str>, host_path: Option<&str>) -> KubernetesVolumeMount {
+        KubernetesVolumeMount {
+            mount_path: "/app/data".to_string(),
+            pvc: pvc.map(str::to_string),
+            host_path: host_path.map(str::to_string),
+        }
+    }
+
+    fn settings_with_mount(mount: KubernetesVolumeMount) -> AppSettings {
+        let mut settings = settings_with_token("s3cret");
+        settings.torappu.kubernetes = Some(KubernetesConfig {
+            image_url: "image:latest".to_string(),
+            namespace: "default".to_string(),
+            job_name: "job".to_string(),
+            image_pull_secret: None,
+            env_vars: None,
+            volume_mounts: Some(vec![mount]),
+        });
+        settings
+    }
+
+    #[test]
+    fn validate_requires_exactly_one_volume_source() {
+        assert!(
+            settings_with_mount(mount(Some("data"), None))
+                .validate()
+                .is_ok()
+        );
+        assert!(
+            settings_with_mount(mount(None, Some("/srv/data")))
+                .validate()
+                .is_ok()
+        );
+        assert!(settings_with_mount(mount(None, None)).validate().is_err());
+        assert!(
+            settings_with_mount(mount(Some("data"), Some("/srv/data")))
+                .validate()
+                .is_err()
+        );
     }
 }

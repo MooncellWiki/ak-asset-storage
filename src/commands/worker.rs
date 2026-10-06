@@ -3,7 +3,7 @@ use crate::{
     config::AppSettings,
     database::Database,
     external::{
-        ak_api::AkApi, docker::DockerClient, github::GithubClient,
+        ak_api::AkApi, github::GithubClient, kubernetes::KubernetesClient,
         notification::NotificationClient, s3::S3Storage,
     },
     runtime,
@@ -31,11 +31,11 @@ pub async fn execute(
     let notification = NotificationClient::new(&settings.mailer)?;
     let s3 = S3Storage::new(&settings.s3)?;
 
-    let docker = if let Some(docker_config) = &settings.torappu.docker {
-        info!("Docker configuration found, creating Docker client");
-        Some(DockerClient::new(docker_config.clone())?)
+    let kubernetes = if let Some(kubernetes_config) = &settings.torappu.kubernetes {
+        info!("Kubernetes configuration found, creating Job launcher");
+        Some(KubernetesClient::new(kubernetes_config.clone()).await?)
     } else {
-        info!("Docker configuration not found, skipping Docker service");
+        info!("Kubernetes configuration not found, skipping Job launcher");
         None
     };
 
@@ -52,7 +52,7 @@ pub async fn execute(
             database: database.clone(),
             ak_api: ak_api.clone(),
             notification: notification.clone(),
-            docker,
+            kubernetes,
         },
         AssetDownloadService {
             database: database.clone(),

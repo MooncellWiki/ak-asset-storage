@@ -5,10 +5,10 @@ use ak_asset_storage::database::{
     row::{AssetMappingStatus, VersionRow},
 };
 use axum::{
-    Router,
+    Json, Router,
     extract::{Path, State},
     http::StatusCode,
-    routing::get,
+    routing::{get, post},
 };
 use serde::{Deserialize, Serialize, de::DeserializeOwned};
 use std::fmt::Write as _;
@@ -17,7 +17,7 @@ use std::{
     fs,
     path::{Path as StdPath, PathBuf},
     process::Stdio,
-    sync::Arc,
+    sync::{Arc, Mutex},
     time::{Duration, Instant},
 };
 use tokio::{
@@ -31,6 +31,7 @@ type TestResult<T> = Result<T, Box<dyn std::error::Error + Send + Sync>>;
 
 const SERVER_PORT: u16 = 25150;
 const FAKE_AK_PORT: u16 = 25151;
+const FAKE_KUBE_PORT: u16 = 25155;
 const BUCKET_NAME: &str = "ak-asset-storage-e2e";
 const RC_ALIAS_NAME: &str = "ak-asset-storage-e2e";
 const DATABASE_NAME: &str = "ak_asset_storage_e2e";
@@ -38,11 +39,10 @@ const DATABASE_URI: &str = "postgres://ak:ak@localhost:25432/ak_asset_storage_e2
 const POSTGRES_ADMIN_URI: &str = "postgres://ak:ak@localhost:25432/postgres";
 const MANIFEST_NAME: &str = "resource_manifest_idx.json";
 
-const DOCKER_NETWORK: &str = "ak-asset-storage-e2e-net";
-const DOCKER_CONTAINER_NAME: &str = "ak-asset-storage-e2e-container";
-const DOCKER_IMAGE: &str = "alpine:3.20";
-const DOCKER_ENV_MARKER: &str = "E2E_MARKER=launch_container_e2e";
-const DOCKER_HOST: &str = "/var/run/docker.sock";
+const K8S_NAMESPACE: &str = "e2e";
+const K8S_JOB_NAME: &str = "ak-asset-storage-e2e-job";
+const K8S_IMAGE: &str = "alpine:3.20";
+const K8S_ENV_MARKER: &str = "E2E_MARKER=launch_container_e2e";
 
 #[derive(Debug, Clone)]
 pub struct FixtureVersion {
@@ -67,16 +67,33 @@ pub struct TestEnv {
     client: reqwest::Client,
     fake_ak_task: JoinHandle<()>,
     server: Option<Child>,
-    docker_enabled: bool,
+    /// Live when the Job-launch feature is enabled: the in-process fake
+    /// Kubernetes API the worker talks to via KUBECONFIG, plus the
+    /// kubeconfig file handed to spawned processes.
+    fake_kube: Option<FakeKube>,
 }
 
-/// Fields observed from a container launched by the worker, used to assert that
-/// `launch_container` forwards the expected command and environment.
+#[derive(Debug)]
+pub struct FakeKube {
+    pub server_task: JoinHandle<()>,
+    pub state: Arc<FakeKubeState>,
+    pub kubeconfig_path: PathBuf,
+}
+
+/// In-memory state of the fake Kubernetes API server.
+#[derive(Debug, Default)]
+pub struct FakeKubeState {
+    /// Job objects received via POST, in arrival order.
+    pub created_jobs: Mutex<Vec<serde_json::Value>>,
+}
+
+/// Fields observed from the Job created by the worker, used to assert that
+/// `launch_container` forwards the expected args and environment.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct LaunchedContainerConfig {
+pub struct LaunchedJobConfig {
     pub image: String,
-    pub cmd: Vec<String>,
-    pub env: Vec<String>,
+    pub args: Vec<String>,
+    pub env: Vec<(String, String)>,
 }
 
 #[derive(Debug, Clone)]
@@ -140,15 +157,17 @@ impl TestEnv {
         env
     }
 
-    /// Bootstraps a worker environment with the Docker container-launch feature
-    /// enabled. A dedicated Docker network is created (and cleaned up on drop)
-    /// so the worker can attach the launched container to it.
-    pub async fn bootstrap_worker_with_docker() -> Self {
+    /// Bootstraps a worker environment with the Kubernetes Job-launch feature
+    /// enabled. An in-process fake Kubernetes API replaces the real cluster:
+    /// the worker resolves its credentials from a generated KUBECONFIG
+    /// pointing at the fake server, and `wait_for_created_job` observes the
+    /// Job the worker creates.
+    pub async fn bootstrap_worker_with_kubernetes() -> Self {
         let (env, _config_path) = Self::bootstrap_common(true).await;
         env
     }
 
-    async fn bootstrap_common(include_docker: bool) -> (Self, PathBuf) {
+    async fn bootstrap_common(include_kubernetes: bool) -> (Self, PathBuf) {
         install_rustls_provider();
         let repo_root = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
         let runtime_dir = repo_root.join("e2e/runtime");
@@ -163,12 +182,14 @@ impl TestEnv {
         ensure_dependencies_ready(&repo_root).await;
         recreate_bucket(&repo_root).await;
 
-        if include_docker {
-            prepare_docker_environment(&repo_root).await;
-        }
+        let fake_kube = if include_kubernetes {
+            Some(spawn_fake_kube_api(&runtime_dir).await)
+        } else {
+            None
+        };
 
         let fake_ak_task = spawn_fake_ak_server(fixture.clone()).await;
-        let config_path = write_config(&runtime_dir, &asset_dir, include_docker).unwrap();
+        let config_path = write_config(&runtime_dir, &asset_dir, include_kubernetes).unwrap();
 
         let env = Self {
             fixture,
@@ -177,13 +198,21 @@ impl TestEnv {
             client: reqwest::Client::new(),
             fake_ak_task,
             server: None,
-            docker_enabled: include_docker,
+            fake_kube,
         };
         (env, config_path)
     }
 
     pub fn config_path(&self) -> &StdPath {
         &self.config_path
+    }
+
+    /// KUBECONFIG pointing at the fake Kubernetes API, for processes spawned
+    /// from this test. `None` when the Job-launch feature is disabled.
+    pub fn kubeconfig(&self) -> Option<&StdPath> {
+        self.fake_kube
+            .as_ref()
+            .map(|kube| kube.kubeconfig_path.as_path())
     }
 
     pub fn runtime_dir(&self) -> &StdPath {
@@ -389,39 +418,61 @@ impl TestEnv {
         );
     }
 
-    /// Waits for the worker to launch the Docker container (named
-    /// `DOCKER_CONTAINER_NAME`) and returns the container's image, command, and
-    /// environment as recorded by Docker.
-    pub async fn wait_for_launched_container(
-        &self,
-        timeout: Duration,
-    ) -> TestResult<LaunchedContainerConfig> {
+    /// Waits for the worker to create the launch Job (`K8S_JOB_NAME`) on the
+    /// fake Kubernetes API and returns the job container's image, args, and
+    /// environment as recorded by the fake server.
+    pub async fn wait_for_created_job(&self, timeout: Duration) -> TestResult<LaunchedJobConfig> {
+        let kube = self
+            .fake_kube
+            .as_ref()
+            .ok_or_else(|| "kubernetes launch feature is not enabled".to_string())?;
+
         wait_for(timeout, Duration::from_secs(1), || async {
-            inspect_container_config(DOCKER_CONTAINER_NAME)
-                .await
-                .is_ok()
+            !kube.state.created_jobs.lock().unwrap().is_empty()
         })
         .await
-        .map_err(|()| "worker did not launch container within timeout".to_string())?;
+        .map_err(|()| "worker did not create the launch Job within timeout".to_string())?;
 
-        let config = inspect_container_config(DOCKER_CONTAINER_NAME).await?;
-        let image = config["Image"]
-            .as_str()
-            .ok_or_else(|| "missing Image in inspect output".to_string())?
-            .to_string();
-        let cmd = config["Cmd"]
-            .as_array()
-            .ok_or_else(|| "missing Cmd in inspect output".to_string())?
-            .iter()
-            .map(|value| value.as_str().unwrap_or_default().to_string())
-            .collect();
-        let env = config["Env"]
-            .as_array()
-            .ok_or_else(|| "missing Env in inspect output".to_string())?
-            .iter()
-            .map(|value| value.as_str().unwrap_or_default().to_string())
-            .collect();
-        Ok(LaunchedContainerConfig { image, cmd, env })
+        // Clone the recorded Job out of the fake server so the mutex guard
+        // is released immediately.
+        let job = {
+            let jobs = kube.state.created_jobs.lock().unwrap();
+            jobs.last()
+                .cloned()
+                .ok_or_else(|| "created job disappeared".to_string())?
+        };
+        let container = &job["spec"]["template"]["spec"]["containers"][0];
+
+        let string_array = |value: &serde_json::Value| -> Vec<String> {
+            value
+                .as_array()
+                .map(|entries| {
+                    entries
+                        .iter()
+                        .map(|entry| entry.as_str().unwrap_or_default().to_string())
+                        .collect()
+                })
+                .unwrap_or_default()
+        };
+
+        Ok(LaunchedJobConfig {
+            image: container["image"].as_str().unwrap_or_default().to_string(),
+            args: string_array(&container["args"]),
+            env: container["env"]
+                .as_array()
+                .map(|entries| {
+                    entries
+                        .iter()
+                        .map(|entry| {
+                            (
+                                entry["name"].as_str().unwrap_or_default().to_string(),
+                                entry["value"].as_str().unwrap_or_default().to_string(),
+                            )
+                        })
+                        .collect()
+                })
+                .unwrap_or_default(),
+        })
     }
 }
 
@@ -431,19 +482,8 @@ impl Drop for TestEnv {
             let _ = server.start_kill();
         }
         self.fake_ak_task.abort();
-        if self.docker_enabled {
-            // Best-effort cleanup: the launched container and dedicated network
-            // are owned by this test run, so remove them synchronously.
-            let _ = std::process::Command::new("docker")
-                .args(["rm", "-f", DOCKER_CONTAINER_NAME])
-                .stdout(Stdio::null())
-                .stderr(Stdio::null())
-                .status();
-            let _ = std::process::Command::new("docker")
-                .args(["network", "rm", DOCKER_NETWORK])
-                .stdout(Stdio::null())
-                .stderr(Stdio::null())
-                .status();
+        if let Some(fake_kube) = self.fake_kube.take() {
+            fake_kube.server_task.abort();
         }
         let _ = fs::remove_dir_all(&self.runtime_dir);
     }
@@ -555,75 +595,103 @@ async fn recreate_bucket(repo_root: &StdPath) {
     assert!(create_status.success(), "rc bucket create failed");
 }
 
-/// Prepares the Docker environment for a launch-container test: removes any
-/// leftover container from a previous run, then creates the dedicated network
-/// the worker will attach the launched container to.
-async fn prepare_docker_environment(repo_root: &StdPath) {
-    let _ = Command::new("docker")
-        .args(["rm", "-f", DOCKER_CONTAINER_NAME])
-        .stdout(Stdio::null())
-        .stderr(Stdio::null())
-        .status()
-        .await;
+/// Starts the fake Kubernetes API server and writes a KUBECONFIG pointing
+/// at it. Only the batch/jobs endpoints the launcher touches are served:
+/// GET/DELETE answer NotFound/Success so each launch sees a clean slate,
+/// POST records the submitted Job for `wait_for_created_job`.
+async fn spawn_fake_kube_api(runtime_dir: &StdPath) -> FakeKube {
+    let state = Arc::new(FakeKubeState::default());
 
-    let list_output = Command::new("docker")
-        .args([
-            "network",
-            "ls",
-            "--filter",
-            &format!("name=^{DOCKER_NETWORK}$"),
-            "--format",
-            "{{.Name}}",
-        ])
-        .current_dir(repo_root)
-        .output()
+    let router = Router::new()
+        .route(
+            "/apis/batch/v1/namespaces/{namespace}/jobs",
+            post(fake_create_job),
+        )
+        .route(
+            "/apis/batch/v1/namespaces/{namespace}/jobs/{name}",
+            get(fake_get_job).delete(fake_delete_job),
+        )
+        .with_state(state.clone());
+
+    let listener = TcpListener::bind(("127.0.0.1", FAKE_KUBE_PORT))
         .await
         .unwrap();
-    assert!(
-        list_output.status.success(),
-        "docker network ls failed: {}",
-        String::from_utf8_lossy(&list_output.stderr)
-    );
+    let server_task = tokio::spawn(async move {
+        axum::serve(listener, router).await.unwrap();
+    });
 
-    let network_exists = String::from_utf8_lossy(&list_output.stdout)
-        .lines()
-        .any(|name| name == DOCKER_NETWORK);
-    if !network_exists {
-        let create_output = Command::new("docker")
-            .args(["network", "create", DOCKER_NETWORK])
-            .current_dir(repo_root)
-            .output()
-            .await
-            .unwrap();
-        assert!(
-            create_output.status.success(),
-            "docker network create failed: {}",
-            String::from_utf8_lossy(&create_output.stderr)
-        );
+    let kubeconfig_path = runtime_dir.join("kubeconfig");
+    fs::write(
+        &kubeconfig_path,
+        format!(
+            "apiVersion: v1\n\
+             kind: Config\n\
+             clusters:\n\
+             - name: fake\n\
+             \x20 cluster:\n\
+             \x20   server: http://127.0.0.1:{FAKE_KUBE_PORT}\n\
+             contexts:\n\
+             - name: fake\n\
+             \x20 context:\n\
+             \x20   cluster: fake\n\
+             \x20   user: fake\n\
+             current-context: fake\n\
+             users:\n\
+             - name: fake\n\
+             \x20 user: {{}}\n"
+        ),
+    )
+    .unwrap();
+
+    FakeKube {
+        server_task,
+        state,
+        kubeconfig_path,
     }
 }
 
-/// Runs `docker inspect <name>` and returns the container's `Config` object.
-async fn inspect_container_config(name: &str) -> TestResult<serde_json::Value> {
-    let output = Command::new("docker")
-        .args([
-            "inspect",
-            "--type",
-            "container",
-            "--format",
-            "{{json .Config}}",
-            name,
-        ])
-        .stdout(Stdio::piped())
-        .stderr(Stdio::null())
-        .output()
-        .await?;
-    if !output.status.success() {
-        return Err(format!("docker inspect {name} failed: {output:?}").into());
-    }
-    let config: serde_json::Value =
-        serde_json::from_slice(&output.stdout).map_err(|err| err.to_string())?;
-    Ok(config)
+fn k8s_status_failure(message: &str, reason: &str, code: u16) -> serde_json::Value {
+    serde_json::json!({
+        "kind": "Status",
+        "apiVersion": "v1",
+        "metadata": {},
+        "status": "Failure",
+        "message": message,
+        "reason": reason,
+        "code": code,
+    })
+}
+
+async fn fake_get_job(
+    Path((_namespace, name)): Path<(String, String)>,
+) -> (StatusCode, Json<serde_json::Value>) {
+    (
+        StatusCode::NOT_FOUND,
+        Json(k8s_status_failure(
+            &format!("jobs.batch \"{name}\" not found"),
+            "NotFound",
+            404,
+        )),
+    )
+}
+
+async fn fake_create_job(
+    State(state): State<Arc<FakeKubeState>>,
+    Json(job): Json<serde_json::Value>,
+) -> (StatusCode, Json<serde_json::Value>) {
+    state.created_jobs.lock().unwrap().push(job.clone());
+    (StatusCode::CREATED, Json(job))
+}
+
+async fn fake_delete_job(
+    Path((_namespace, _name)): Path<(String, String)>,
+) -> Json<serde_json::Value> {
+    Json(serde_json::json!({
+        "kind": "Status",
+        "apiVersion": "v1",
+        "metadata": {},
+        "status": "Success",
+    }))
 }
 
 pub async fn connect_database() -> Database {
@@ -832,7 +900,7 @@ fn docker_compose_exec_psql(repo_root: &StdPath, statement: &str) -> Command {
 fn write_config(
     runtime_dir: &StdPath,
     asset_dir: &StdPath,
-    include_docker: bool,
+    include_kubernetes: bool,
 ) -> std::io::Result<PathBuf> {
     let mut config = format!(
         r#"[logger]
@@ -874,18 +942,15 @@ database_path = "{}"
         runtime_dir.join("plocate.db").display()
     );
 
-    if include_docker {
+    if include_kubernetes {
         write!(
             config,
             r#"
-[torappu.docker]
-image_url = "{DOCKER_IMAGE}"
-container_name = "{DOCKER_CONTAINER_NAME}"
-env_vars = ["{DOCKER_ENV_MARKER}"]
-docker_host = "{DOCKER_HOST}"
-username = ""
-password = ""
-network = "{DOCKER_NETWORK}"
+[torappu.kubernetes]
+image_url = "{K8S_IMAGE}"
+namespace = "{K8S_NAMESPACE}"
+job_name = "{K8S_JOB_NAME}"
+env_vars = ["{K8S_ENV_MARKER}"]
 "#
         )
         .unwrap();
@@ -980,16 +1045,26 @@ fn spawn_server(config_path: &StdPath) -> Child {
         .unwrap()
 }
 
-pub fn spawn_worker(config_path: &StdPath, poll_interval_seconds: u64) -> Child {
-    build_binary_command()
-        .arg("worker")
+/// Spawns the worker binary. `kubeconfig` (when the launch feature is
+/// enabled) points the worker's Kubernetes client at the fake API server
+/// via the standard `KUBECONFIG` variable.
+pub fn spawn_worker(
+    config_path: &StdPath,
+    kubeconfig: Option<&StdPath>,
+    poll_interval_seconds: u64,
+) -> Child {
+    let mut cmd = build_binary_command();
+    cmd.arg("worker")
         .arg("-c")
         .arg(config_path)
         .arg("--concurrent")
         .arg("1")
         .arg("--poll-interval-seconds")
-        .arg(poll_interval_seconds.to_string())
-        .stdout(Stdio::inherit())
+        .arg(poll_interval_seconds.to_string());
+    if let Some(kubeconfig) = kubeconfig {
+        cmd.env("KUBECONFIG", kubeconfig);
+    }
+    cmd.stdout(Stdio::inherit())
         .stderr(Stdio::inherit())
         .spawn()
         .unwrap()

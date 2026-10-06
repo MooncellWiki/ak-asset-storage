@@ -4,7 +4,7 @@ use crate::{
         Database,
         row::{AssetMappingStatus, VersionRow},
     },
-    external::{ak_api::AkApi, docker::DockerClient, notification::NotificationClient},
+    external::{ak_api::AkApi, kubernetes::KubernetesClient, notification::NotificationClient},
     service::types::{HotUpdateList, RemoteVersion},
 };
 use tracing::{error, info, instrument};
@@ -14,7 +14,7 @@ pub struct VersionCheckService {
     pub database: Database,
     pub ak_api: AkApi,
     pub notification: NotificationClient,
-    pub docker: Option<DockerClient>,
+    pub kubernetes: Option<KubernetesClient>,
 }
 
 impl VersionCheckService {
@@ -84,11 +84,11 @@ impl VersionCheckService {
         self.database.create_version(version).await?;
         info!("new version created and ready for download");
 
-        if let Some(docker) = &self.docker
+        if let Some(kubernetes) = &self.kubernetes
             && let Some(prev) = &prev
         {
-            info!("Attempting to launch Docker container for new version");
-            match docker
+            info!("Attempting to launch Kubernetes Job for new version");
+            match kubernetes
                 .launch_container(
                     client_version,
                     res_version,
@@ -99,10 +99,10 @@ impl VersionCheckService {
                 )
                 .await
             {
-                Ok(container_name) => {
-                    info!("Docker container launched successfully: {container_name}");
+                Ok(job_name) => {
+                    info!("Kubernetes Job launched successfully: {job_name}");
                 }
-                Err(err) => error!("Failed to launch Docker container: {err}"),
+                Err(err) => error!("Failed to launch Kubernetes Job: {err}"),
             }
         }
 

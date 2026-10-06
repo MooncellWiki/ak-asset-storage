@@ -253,14 +253,14 @@ pub async fn launch_container(
         ));
     }
 
-    let docker = state
-        .docker
+    let kubernetes = state
+        .kubernetes
         .as_ref()
         .ok_or(WebError::ServiceUnavailable(anyhow::anyhow!(
-            "Docker service is not configured or available"
+            "Kubernetes Job launcher is not configured or available"
         )))?;
 
-    let container_name = docker
+    let container_name = kubernetes
         .launch_container(
             &payload.client_version,
             &payload.res_version,

@@ -99,7 +99,11 @@ zip = { version = "8.6.0" }
 itertools = { version = "0.15.0" }
 walkdir = "2.5.0"
 regex = "1.12.2"
-bollard = "0.21.0"
+kube = { version = "4.2.0", default-features = false, features = [
+  "client",
+  "rustls-tls",
+] }
+k8s-openapi = { version = "0.28.0", features = [ "latest" ] }
 octocrab = "0.54.1"
 base64 = "0.23.1"
 mimalloc = "0.1.52"
@@ -143,7 +147,8 @@ zip = { workspace = true }
 itertools = { workspace = true }
 walkdir = { workspace = true }
 regex = { workspace = true }
-bollard = { workspace = true }
+kube = { workspace = true }
+k8s-openapi = { workspace = true }
 subtle = { workspace = true }
 octocrab = { workspace = true }
 base64 = { workspace = true }

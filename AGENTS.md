@@ -26,7 +26,7 @@ Rust is now a single crate (`ak-asset-storage`, edition 2024, toolchain 1.92.0) 
 
 - `src/api/` — Axum handlers, router, HTTP DTOs, embedded frontend serving
 - `src/database/` — PostgreSQL-only SQLx access behind `pub struct Database { pool: PgPool }`
-- `src/external/` — concrete integrations for AK API, S3, SMTP, Docker, GitHub, torappu assets
+- `src/external/` — concrete integrations for AK API, S3, SMTP, Kubernetes Jobs, GitHub, torappu assets
 - `src/service/` — shared business flows used by worker/server
 - `src/worker/` — polling and manifest watcher background jobs
 - `src/commands/` — CLI entrypoints for `server`, `worker`, `seed`, `import-manifest`

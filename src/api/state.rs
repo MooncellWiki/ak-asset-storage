@@ -2,7 +2,7 @@ use crate::{
     AppError, AppResult,
     config::AppSettings,
     database::Database,
-    external::{docker::DockerClient, plocate::PlocateIndex, torappu::TorappuClient},
+    external::{kubernetes::KubernetesClient, plocate::PlocateIndex, torappu::TorappuClient},
 };
 use std::{path::PathBuf, sync::Arc};
 use tokio::sync::{OwnedSemaphorePermit, Semaphore};
@@ -14,7 +14,7 @@ pub struct AppState {
     pub settings: Arc<AppSettings>,
     pub torappu: TorappuClient,
     pub plocate: PlocateIndex,
-    pub docker: Option<DockerClient>,
+    pub kubernetes: Option<KubernetesClient>,
     pub search_gate: SearchGate,
 }
 
@@ -50,21 +50,20 @@ impl SearchGate {
 impl AppState {
     pub async fn from_settings(settings: Arc<AppSettings>) -> AppResult<Self> {
         let database = Database::connect(&settings.database).await?;
-        let docker = settings.torappu.docker.as_ref().map_or_else(
-            || {
-                info!("Docker configuration not found, skipping Docker service");
-                Ok(None)
-            },
-            |docker_config| {
-                info!("Docker configuration found, creating Docker client");
-                DockerClient::new(docker_config.clone())
-                    .map(Some)
+        let kubernetes = if let Some(kubernetes_config) = &settings.torappu.kubernetes {
+            info!("Kubernetes configuration found, creating Job launcher");
+            Some(
+                KubernetesClient::new(kubernetes_config.clone())
+                    .await
                     .map_err(|err| {
-                        warn!("Failed to create Docker client: {err}");
+                        warn!("Failed to create Kubernetes client: {err}");
                         err
-                    })
-            },
-        )?;
+                    })?,
+            )
+        } else {
+            info!("Kubernetes configuration not found, skipping Job launcher");
+            None
+        };
 
         let search_gate = SearchGate::new(settings.torappu.search_concurrency);
         Ok(Self {
@@ -77,7 +76,7 @@ impl AppState {
                 &settings.torappu.plocate,
             )?,
             settings,
-            docker,
+            kubernetes,
             search_gate,
         })
     }

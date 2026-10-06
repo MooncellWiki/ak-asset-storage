@@ -8,7 +8,7 @@ Rust backend is a single crate organized by module:
 
 - `src/api/` - Axum HTTP handlers, router, and API request/response types
 - `src/database/` - PostgreSQL-only SQLx access behind `Database { pool: PgPool }`
-- `src/external/` - concrete integrations for AK API, S3, SMTP, Docker, GitHub, and torappu assets
+- `src/external/` - concrete integrations for AK API, S3, SMTP, Kubernetes Jobs, GitHub, and torappu assets
 - `src/service/` - shared workflows reused by server and worker
 - `src/worker/` - polling loop and manifest watcher
 - `src/commands/` - CLI entrypoints for `server`, `worker`, `seed`, and `import-manifest`
@@ -121,16 +121,25 @@ with_virtual_hosted_style_request = false
 token = "your-torappu-token-here"
 asset_base_path = "/assets"
 
-[torappu.docker]
-image_url = "your-docker-image:latest"
-container_name = "ak-asset-container"
+# Optional: launch the asset-extraction image as a Kubernetes Job on new
+# version detection. Cluster credentials resolve like kubectl (in-cluster
+# service account first, then $KUBECONFIG / ~/.kube/config); apply
+# deploy/k3s/rbac.yaml and set `serviceAccountName: ak-asset-storage` on the
+# server/worker pod when running inside k3s.
+[torappu.kubernetes]
+image_url = "your-registry/your-image:latest"
+namespace = "ak-asset-storage"
+# Fixed Job name; doubles as the single-flight lock, a launch is rejected
+# while a Job with this name is still running.
+job_name = "ak-asset-job"
+# imagePullSecret for private registries (pulls and retries are kubelet's job)
+image_pull_secret = "ak-registry-cred"
 env_vars = [ "TZ=Asia/Shanghai" ]
-volume_mapping = [ "./data:/app/data" ]
-network = "boot_default"
-username = "registry-username"
-password = "registry-password"
-# Raw socket path / unix://, or tcp:// / http:// for a filtering proxy
-docker_host = "/var/run/docker.sock"
+
+# One block per mounted volume; set exactly one of pvc / host_path.
+[[torappu.kubernetes.volume_mounts]]
+pvc = "ak-asset-data"
+mount_path = "/app/data"
 
 [torappu.github]
 owner = "your-username"
