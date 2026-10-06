@@ -23,7 +23,7 @@ auth.password = "password"  # Uncomment and add SMTP password
 
 # Database Configuration
 [database]
-uri = "postgres://ak:ak@localhost:25432/ak_asset_storage_next"
+uri = "postgres://ak:ak@localhost:32432/ak_asset_storage_next"
 
 [ak]
 asset_url = "https://ak.hycdn.cn/assetbundle/official/Android/assets"
