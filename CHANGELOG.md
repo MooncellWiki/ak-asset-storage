@@ -2,13 +2,31 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.25.0] - 2026-10-06
+
+[b2a2a65](b2a2a65610efdb280eb8d438f1193eaa28796b8e)...[b09c21c](b09c21ce0c422ce7cb2df250214117b4f928334f)
+
+### 🚀 Features
+
+- Expose read-only queries as an MCP server at /mcp (#176) ([dba31f8](https://github.com/MooncellWiki/ak-asset-storage/commit/dba31f8b826013dca6921c22601b02da06c78a6d))
+- Back asset search with a plocate index and a shared concurrency cap (#178) ([95534ab](https://github.com/MooncellWiki/ak-asset-storage/commit/95534ab8d656e60803b5a486b9e53998cff5b295)), Co-authored-by:StarHeartHunt <starheart233@gmail.com>
+- Paginate the bundle filter query with a version+path keyset (#177) (#179) ([5549c2c](https://github.com/MooncellWiki/ak-asset-storage/commit/5549c2cdee4f5ea044b8e0f5b77fbacd68cf44db))
+
+### ⚙️ Miscellaneous Tasks
+
+- Commit a local dev environment and give e2e servers a writable plocate db path (#180) ([b09c21c](https://github.com/MooncellWiki/ak-asset-storage/commit/b09c21ce0c422ce7cb2df250214117b4f928334f))
+
 ## [0.24.1] - 2026-09-27
 
-[58acfc5](58acfc579ab13187125b32f417a4e18f76b1c624)...[e2fd0ca](e2fd0ca5279280a79dfab8473fb7a4b31a0e1bc1)
+[58acfc5](58acfc579ab13187125b32f417a4e18f76b1c624)...[b2a2a65](b2a2a65610efdb280eb8d438f1193eaa28796b8e)
 
 ### 🐛 Bug Fixes
 
 - Harden asset listing, docker launch auth and error responses (#175) ([e2fd0ca](https://github.com/MooncellWiki/ak-asset-storage/commit/e2fd0ca5279280a79dfab8473fb7a4b31a0e1bc1))
+
+### ⚙️ Miscellaneous Tasks
+
+- Release 0.24.1 ([b2a2a65](https://github.com/MooncellWiki/ak-asset-storage/commit/b2a2a65610efdb280eb8d438f1193eaa28796b8e))
 
 ## [0.24.0] - 2026-09-13
 
