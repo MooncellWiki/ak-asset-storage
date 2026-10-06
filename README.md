@@ -22,13 +22,13 @@ The frontend lives in `app/`.
 - Rust stable
 - Node.js 20+
 - pnpm
-- Docker / Docker Compose
+- A local single-node k3s (`kubectl` on PATH; dev manifests bind NodePorts to 127.0.0.1)
 
 ### Setup
 
 ```bash
 pnpm install
-docker compose up -d
+kubectl apply -k deploy/k3s/dev
 sqlx migrate run
 ```
 

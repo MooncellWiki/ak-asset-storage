@@ -30,7 +30,7 @@ asset_url = "https://ak.hycdn.cn/assetbundle/official/Android/assets"
 conf_url = "https://ak-conf.hypergryph.com/config/prod/official/Android"
 
 [s3]
-endpoint = "http://127.0.0.1:9000"
+endpoint = "http://127.0.0.1:31000"
 bucket_name = "arknights-assets"
 access_key_id = "access_key_id"
 secret_access_key = "secret_access_key"

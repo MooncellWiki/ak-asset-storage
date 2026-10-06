@@ -35,8 +35,12 @@ const FAKE_KUBE_PORT: u16 = 25155;
 const BUCKET_NAME: &str = "ak-asset-storage-e2e";
 const RC_ALIAS_NAME: &str = "ak-asset-storage-e2e";
 const DATABASE_NAME: &str = "ak_asset_storage_e2e";
-const DATABASE_URI: &str = "postgres://ak:ak@localhost:25432/ak_asset_storage_e2e";
-const POSTGRES_ADMIN_URI: &str = "postgres://ak:ak@localhost:25432/postgres";
+// Dev dependencies live in the local k3s (deploy/k3s/dev): PostgreSQL on
+// NodePort 32432, RustFS on 31000, both bound to 127.0.0.1 only.
+const DEV_NAMESPACE: &str = "ak-dev";
+const DATABASE_URI: &str = "postgres://ak:ak@localhost:32432/ak_asset_storage_e2e";
+const POSTGRES_ADMIN_URI: &str = "postgres://ak:ak@localhost:32432/postgres";
+const S3_ENDPOINT: &str = "http://127.0.0.1:31000";
 const MANIFEST_NAME: &str = "resource_manifest_idx.json";
 
 const K8S_NAMESPACE: &str = "e2e";
@@ -529,25 +533,25 @@ pub fn load_fixture(repo_root: &StdPath) -> Fixture {
     }
 }
 
+/// Dev dependencies (`PostgreSQL`, `RustFS`) run in the local k3s via
+/// `deploy/k3s/dev`. Re-applying the manifests is idempotent and replaces the
+/// old `docker compose up`; no Docker daemon is involved anywhere in the e2e
+/// flow.
 async fn ensure_dependencies_ready(repo_root: &StdPath) {
-    let status = Command::new("docker")
-        .arg("compose")
-        .arg("-f")
-        .arg(repo_root.join("docker-compose.yaml"))
-        .arg("up")
-        .arg("-d")
-        .arg("db")
-        .arg("rustfs")
+    let status = Command::new("kubectl")
+        .arg("apply")
+        .arg("-k")
+        .arg(repo_root.join("deploy/k3s/dev"))
         .stdout(Stdio::inherit())
         .stderr(Stdio::inherit())
         .status()
         .await
         .unwrap();
-    assert!(status.success(), "docker compose up failed");
+    assert!(status.success(), "kubectl apply -k deploy/k3s/dev failed");
 
     wait_for_postgres().await;
     wait_for_rustfs().await;
-    recreate_database(repo_root).await;
+    recreate_database().await;
     let database = connect_database().await;
     database.migrate().await.unwrap();
 }
@@ -557,7 +561,7 @@ async fn recreate_bucket(repo_root: &StdPath) {
         .arg("alias")
         .arg("set")
         .arg(RC_ALIAS_NAME)
-        .arg("http://127.0.0.1:9000")
+        .arg(S3_ENDPOINT)
         .arg("torappu")
         .arg("torappu123")
         .arg("--bucket-lookup")
@@ -864,37 +868,34 @@ pub async fn assert_manifest_fixture_imported(database: &Database, version_id: i
     );
 }
 
-async fn recreate_database(repo_root: &StdPath) {
+/// Drops and recreates the e2e database inside the k3s dev postgres.
+async fn recreate_database() {
     let drop_statement = format!("DROP DATABASE IF EXISTS {DATABASE_NAME} WITH (FORCE);");
     let create_statement = format!("CREATE DATABASE {DATABASE_NAME};");
 
     for statement in [drop_statement, create_statement] {
-        let status = docker_compose_exec_psql(repo_root, &statement)
+        let status = Command::new("kubectl")
+            .args([
+                "-n",
+                DEV_NAMESPACE,
+                "exec",
+                "deploy/postgres",
+                "--",
+                "psql",
+                "-U",
+                "ak",
+                "-d",
+                "postgres",
+                "-c",
+                &statement,
+            ])
+            .stdout(Stdio::inherit())
+            .stderr(Stdio::inherit())
             .status()
             .await
             .unwrap();
         assert!(status.success(), "database operation failed");
     }
-}
-
-fn docker_compose_exec_psql(repo_root: &StdPath, statement: &str) -> Command {
-    let mut cmd = Command::new("docker");
-    cmd.arg("compose")
-        .arg("-f")
-        .arg(repo_root.join("docker-compose.yaml"))
-        .arg("exec")
-        .arg("-T")
-        .arg("db")
-        .arg("psql")
-        .arg("-U")
-        .arg("ak")
-        .arg("-d")
-        .arg("postgres")
-        .arg("-c")
-        .arg(statement)
-        .stdout(Stdio::inherit())
-        .stderr(Stdio::inherit());
-    cmd
 }
 
 fn write_config(
@@ -921,7 +922,7 @@ asset_url = "http://127.0.0.1:{FAKE_AK_PORT}/assetbundle/official/Android/assets
 conf_url = "http://127.0.0.1:{FAKE_AK_PORT}/config/prod/official/Android"
 
 [s3]
-endpoint = "http://127.0.0.1:9000"
+endpoint = "http://127.0.0.1:31000"
 bucket_name = "{BUCKET_NAME}"
 access_key_id = "torappu"
 secret_access_key = "torappu123"
@@ -1102,7 +1103,7 @@ async fn wait_for_postgres() {
 }
 
 async fn wait_for_rustfs() {
-    wait_for_http_success("http://127.0.0.1:9000/health")
+    wait_for_http_success(&format!("{S3_ENDPOINT}/health"))
         .await
         .expect("rustfs did not become ready");
 }

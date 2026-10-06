@@ -141,7 +141,7 @@ async fn wait_for_usages(
 }
 
 #[tokio::test]
-#[ignore = "manual e2e test requiring docker, rc, and fixture assets"]
+#[ignore = "manual e2e test requiring a local k3s (deploy/k3s/dev), rc, and fixture assets"]
 async fn manual_import_replaces_snapshot_and_serves_api() {
     let env = TestEnv::bootstrap().await;
     publish_version(&env, V1_RES);
@@ -281,7 +281,7 @@ async fn manual_import_replaces_snapshot_and_serves_api() {
 }
 
 #[tokio::test]
-#[ignore = "manual e2e test requiring docker, rc, and fixture assets"]
+#[ignore = "manual e2e test requiring a local k3s (deploy/k3s/dev), rc, and fixture assets"]
 async fn failed_import_keeps_previous_snapshot() {
     let env = TestEnv::bootstrap().await;
     publish_version(&env, V1_RES);
@@ -325,7 +325,7 @@ async fn failed_import_keeps_previous_snapshot() {
 }
 
 #[tokio::test]
-#[ignore = "manual e2e test requiring docker, rc, and fixture assets"]
+#[ignore = "manual e2e test requiring a local k3s (deploy/k3s/dev), rc, and fixture assets"]
 async fn gamedata_ready_watcher_imports_and_follows_latest() {
     let env = TestEnv::bootstrap_worker().await;
     publish_version(&env, V1_RES);

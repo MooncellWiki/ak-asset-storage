@@ -51,27 +51,27 @@ Docker builds frontend first (`pnpm build` → `dist/`), then Rust binary with `
 
 ## Database
 
-PostgreSQL via `sqlx`. Migrations in `migrations/`.
+PostgreSQL via `sqlx`. Migrations in `migrations/`. Dev dependencies (PostgreSQL + RustFS) run in the local k3s via `deploy/k3s/dev` — NodePorts listen on 127.0.0.1 only.
 
 ```bash
-docker-compose up -d      # PostgreSQL on :25432, RustFS (S3) on :9000/:9001
+kubectl apply -k deploy/k3s/dev   # PostgreSQL on :32432, RustFS (S3) on :31000/:31001
 sqlx migrate run           # Run migrations
 sqlx migrate add <name>    # Create new migration
 ```
 
 **Connection:**
 
-- URL: `postgres://ak:ak@localhost:25432/ak_asset_storage_next`
-- Docker container: `ak-asset-storage-db-1`
+- URL: `postgres://ak:ak@localhost:32432/ak_asset_storage_next`
+- k3s namespace: `ak-dev` (`kubectl -n ak-dev get pods`)
 
-**Direct SQL via docker exec:**
+**Direct SQL via kubectl exec:**
 
 ```bash
 # Connect interactively
-docker exec -it ak-asset-storage-db-1 psql -U ak -d ak_asset_storage_next
+kubectl -n ak-dev exec -it deploy/postgres -- psql -U ak -d ak_asset_storage_next
 
 # Run a query
-docker exec -i ak-asset-storage-db-1 psql -U ak -d ak_asset_storage_next -c "SELECT * FROM versions LIMIT 5;"
+kubectl -n ak-dev exec deploy/postgres -- psql -U ak -d ak_asset_storage_next -c "SELECT * FROM versions LIMIT 5;"
 ```
 
 **Common tables:**
@@ -93,3 +93,9 @@ Workspace uses pedantic + nursery lints with select allows (`missing_errors_doc`
 ## Testing
 
 The previous multi-crate test suite was removed during the single-crate refactor. Add new tests under the root crate when rebuilding coverage.
+
+Manual e2e tests (`tests/e2e/`, all `#[ignore]`d) need the local k3s dev dependencies and `rc` (rclone). They share one database and bucket, so they must run serially:
+
+```bash
+cargo test --all-features --test e2e -- --ignored --test-threads=1
+```

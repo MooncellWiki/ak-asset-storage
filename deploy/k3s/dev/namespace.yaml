@@ -1,0 +1,6 @@
+# dev 依赖单独一个 namespace,方便整体清理:
+#   kubectl delete namespace ak-dev
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: ak-dev

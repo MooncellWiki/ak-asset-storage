@@ -14,14 +14,14 @@ port = 5150
 host = "http://localhost"
 
 [database]
-uri = "postgres://ak:ak@localhost:25432/ak_asset_storage_next"
+uri = "postgres://ak:ak@localhost:32432/ak_asset_storage_next"
 
 [ak]
 asset_url = "https://ak.hycdn.cn/assetbundle/official/Android/assets"
 conf_url = "https://ak-conf.hypergryph.com/config/prod/official/Android"
 
 [s3]
-endpoint = "http://127.0.0.1:9000"
+endpoint = "http://127.0.0.1:31000"
 bucket_name = "arknights-assets"
 access_key_id = "torappu"
 secret_access_key = "torappu123"

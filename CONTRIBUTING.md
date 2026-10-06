@@ -36,10 +36,10 @@ pnpm install
 
 ### 4. Start Infrastructure Services
 
-Start the required services (PostgreSQL and MinIO):
+Start the required services (PostgreSQL and RustFS) in the local k3s:
 
 ```bash
-docker compose up -d
+kubectl apply -k deploy/k3s/dev
 ```
 
 ### 5. Run Database Migrations
@@ -99,10 +99,10 @@ sqlx migrate add <migration_name>
 
 ## Development Services
 
-After running `docker compose up -d`, the following services will be available:
+After `kubectl apply -k deploy/k3s/dev`, the following services will be available:
 
-- **PostgreSQL**: `localhost:25432`
-- **RustFS (S3)**: `localhost:9000` (API), `localhost:9001` (Console)
+- **PostgreSQL**: `localhost:32432`
+- **RustFS (S3)**: `localhost:31000` (API), `localhost:31001` (Console)
 - **Frontend**: `localhost:25173` (after `pnpm dev`)
 - **Backend API**: `localhost:5150` (after `cargo run --bin ak-asset-storage server`)
 

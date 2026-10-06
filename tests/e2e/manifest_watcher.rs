@@ -6,7 +6,7 @@ use tokio::time::sleep;
 const RES_VERSION: &str = "26-05-27-13-32-37_d44f28";
 
 #[tokio::test]
-#[ignore = "manual e2e test requiring docker, rc, and fixture assets"]
+#[ignore = "manual e2e test requiring a local k3s (deploy/k3s/dev), rc, and fixture assets"]
 async fn manifest_watcher_imports_new_manifest_file() {
     let env = TestEnv::bootstrap_worker().await;
     let version_id = env

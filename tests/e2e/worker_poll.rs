@@ -2,7 +2,7 @@ use crate::support::{self, TestEnv};
 use std::time::Duration;
 
 #[tokio::test]
-#[ignore = "manual e2e test requiring docker, rc, and fixture assets"]
+#[ignore = "manual e2e test requiring a local k3s (deploy/k3s/dev), rc, and fixture assets"]
 async fn worker_polls_new_version_and_downloads_assets() {
     let env = TestEnv::bootstrap_worker().await;
     let mut worker = support::spawn_worker(env.config_path(), None, 1);
