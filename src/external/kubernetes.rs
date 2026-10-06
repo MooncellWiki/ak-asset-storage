@@ -192,6 +192,16 @@ fn build_job(
             // stays the retry knob for operators.
             backoff_limit: Some(0),
             template: PodTemplateSpec {
+                // The label must land on the Job's *pods*, not only the Job
+                // object, so cluster-side policy (e.g. a NetworkPolicy that
+                // scopes extractor egress) can select them.
+                metadata: Some(ObjectMeta {
+                    labels: Some(BTreeMap::from([(
+                        MANAGED_BY_LABEL.to_string(),
+                        "ak-asset-storage".to_string(),
+                    )])),
+                    ..Default::default()
+                }),
                 spec: Some(PodSpec {
                     restart_policy: Some("Never".to_string()),
                     image_pull_secrets,
@@ -206,7 +216,6 @@ fn build_job(
                     volumes: (!volumes.is_empty()).then_some(volumes),
                     ..Default::default()
                 }),
-                ..Default::default()
             },
             ..Default::default()
         }),
@@ -361,6 +370,21 @@ mod tests {
         assert_eq!(metadata.namespace.as_deref(), Some("ak-asset-storage"));
         assert_eq!(
             metadata.labels.as_ref().unwrap()[MANAGED_BY_LABEL],
+            "ak-asset-storage"
+        );
+        // The label must also reach the Job's pods so cluster-side policy
+        // (e.g. NetworkPolicy) can select them.
+        assert_eq!(
+            job.spec
+                .as_ref()
+                .unwrap()
+                .template
+                .metadata
+                .as_ref()
+                .unwrap()
+                .labels
+                .as_ref()
+                .unwrap()[MANAGED_BY_LABEL],
             "ak-asset-storage"
         );
     }
