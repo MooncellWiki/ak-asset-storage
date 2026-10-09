@@ -43,8 +43,8 @@ spec:
             allowPrivilegeEscalation: false
             capabilities:
               drop: [ALL]
-              # 官方镜像入口以 root 起:CHOWN 修数据目录属主,SETGID/SETUID 降权成 postgres。
-              add: [CHOWN, SETGID, SETUID]
+              # 官方入口以 root 重进已有的 0700 数据目录并 chmod/chown,再降权成 postgres。
+              add: [CHOWN, DAC_OVERRIDE, FOWNER, SETGID, SETUID]
           volumeMounts:
             - name: data
               mountPath: /var/lib/postgresql/data
