@@ -73,7 +73,8 @@ update_interval_seconds = 600
 
 # Optional Kubernetes configuration for launching the asset-extraction Job
 # on new version detection (k3s deployment mode). Credentials resolve like
-# kubectl: in-cluster service account first, then $KUBECONFIG/~/.kube/config.
+# kube-rs Config::infer: $KUBECONFIG/~/.kube/config first, then the in-cluster
+# service account, so keep kubeconfigs out of the server/worker pod.
 # The server/worker pod needs the ServiceAccount from deploy/k3s/rbac.yaml.
 [torappu.kubernetes]
 image_url = "your-registry/your-image:latest"
@@ -88,6 +89,9 @@ job_name = "ak-asset-job"
 #   --docker-username=... --docker-password=...
 image_pull_secret = "ak-registry-cred"
 env_vars = [ "TZ=Asia/Shanghai" ]
+# Fails a Job that has not finished in time (default 6h), including one stuck
+# in ImagePullBackOff or Pending, so it cannot block later launches forever.
+# active_deadline_seconds = 21600
 
 # One block per mounted volume; set exactly one of pvc / host_path.
 # The mounted path must be the same volume the worker watches, so the Job's

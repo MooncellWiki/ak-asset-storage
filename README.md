@@ -122,8 +122,9 @@ token = "your-torappu-token-here"
 asset_base_path = "/assets"
 
 # Optional: launch the asset-extraction image as a Kubernetes Job on new
-# version detection. Cluster credentials resolve like kubectl (in-cluster
-# service account first, then $KUBECONFIG / ~/.kube/config); apply
+# version detection. Cluster credentials resolve like kube-rs Config::infer
+# ($KUBECONFIG / ~/.kube/config first, then the in-cluster service account,
+# so keep kubeconfigs out of the server/worker pod); apply
 # deploy/k3s/rbac.yaml and set `serviceAccountName: ak-asset-storage` on the
 # server/worker pod when running inside k3s.
 [torappu.kubernetes]
@@ -135,6 +136,9 @@ job_name = "ak-asset-job"
 # imagePullSecret for private registries (pulls and retries are kubelet's job)
 image_pull_secret = "ak-registry-cred"
 env_vars = [ "TZ=Asia/Shanghai" ]
+# Fails a Job that has not finished in time (default 6h), including one stuck
+# pulling its image, so it cannot block later launches forever.
+# active_deadline_seconds = 21600
 
 # One block per mounted volume; set exactly one of pvc / host_path.
 [[torappu.kubernetes.volume_mounts]]

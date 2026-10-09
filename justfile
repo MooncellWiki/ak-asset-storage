@@ -12,11 +12,15 @@ init-env:
     # k3s's kubectl can use /etc/rancher/k3s/k3s.yaml implicitly; kube-rs cannot.
     # Keep an explicit KUBECONFIG or an existing standard kubeconfig untouched.
     if [[ -z "${KUBECONFIG:-}" && ! -e "$HOME/.kube/config" && ! -L "$HOME/.kube/config" ]]; then
-        mkdir -p "$HOME/.kube"
-        kubeconfig_tmp="$(mktemp "$HOME/.kube/config.XXXXXX")"
-        trap 'rm -f "$kubeconfig_tmp"' EXIT
-        kubectl config view --raw --minify --flatten > "$kubeconfig_tmp"
-        mv "$kubeconfig_tmp" "$HOME/.kube/config"
+        if command -v kubectl >/dev/null 2>&1 && kubectl config current-context >/dev/null 2>&1; then
+            mkdir -p "$HOME/.kube"
+            kubeconfig_tmp="$(mktemp "$HOME/.kube/config.XXXXXX")"
+            trap 'rm -f "$kubeconfig_tmp"' EXIT
+            kubectl config view --raw --minify --flatten > "$kubeconfig_tmp"
+            mv "$kubeconfig_tmp" "$HOME/.kube/config"
+        else
+            echo "note: no kubectl context yet; rerun 'just init-env' after k3s is set up to export ~/.kube/config"
+        fi
     fi
     mkdir -p tmp/asset/asset/gamedata tmp/asset/asset/raw
     # the bucket must exist before the first upload; the code never creates it

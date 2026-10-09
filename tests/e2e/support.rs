@@ -538,9 +538,9 @@ pub fn load_fixture(repo_root: &StdPath) -> Fixture {
 /// old `docker compose up`; no Docker daemon is involved anywhere in the e2e
 /// flow.
 async fn ensure_dependencies_ready(repo_root: &StdPath) {
+    let context = local_kube_context().await;
     let status = Command::new("kubectl")
-        .arg("apply")
-        .arg("-k")
+        .args(["--context", &context, "apply", "-k"])
         .arg(repo_root.join("deploy/k3s/dev"))
         .stdout(Stdio::inherit())
         .stderr(Stdio::inherit())
@@ -549,9 +549,31 @@ async fn ensure_dependencies_ready(repo_root: &StdPath) {
         .unwrap();
     assert!(status.success(), "kubectl apply -k deploy/k3s/dev failed");
 
+    // apply returns as soon as the manifests are stored; a first run still
+    // pulls images and provisions PVCs, which outlasts the readiness probes.
+    for deployment in ["deployment/postgres", "deployment/rustfs"] {
+        let status = Command::new("kubectl")
+            .args([
+                "--context",
+                &context,
+                "-n",
+                DEV_NAMESPACE,
+                "rollout",
+                "status",
+                deployment,
+                "--timeout=300s",
+            ])
+            .stdout(Stdio::inherit())
+            .stderr(Stdio::inherit())
+            .status()
+            .await
+            .unwrap();
+        assert!(status.success(), "{deployment} did not roll out");
+    }
+
     wait_for_postgres().await;
     wait_for_rustfs().await;
-    recreate_database().await;
+    recreate_database(&context).await;
     let database = connect_database().await;
     database.migrate().await.unwrap();
 }
@@ -868,14 +890,55 @@ pub async fn assert_manifest_fixture_imported(database: &Database, version_id: i
     );
 }
 
+/// Returns the current kube context after checking that its API server runs
+/// on this machine. The e2e reaches its dependencies through `NodePort`
+/// services on 127.0.0.1 and drops a database inside the cluster, so it must
+/// never touch whatever remote context happens to be selected.
+async fn local_kube_context() -> String {
+    let output = Command::new("kubectl")
+        .args([
+            "config",
+            "view",
+            "--minify",
+            "-o",
+            r#"jsonpath={.current-context}{"\n"}{.clusters[0].cluster.server}"#,
+        ])
+        .stderr(Stdio::inherit())
+        .output()
+        .await
+        .unwrap();
+    assert!(
+        output.status.success(),
+        "kubectl has no usable current context"
+    );
+    let stdout = String::from_utf8(output.stdout).unwrap();
+    let (context, server) = stdout
+        .split_once('\n')
+        .expect("kubectl printed the context and its server");
+    let host = reqwest::Url::parse(server.trim())
+        .ok()
+        .and_then(|url| url.host_str().map(str::to_string));
+    assert!(
+        matches!(
+            host.as_deref(),
+            Some("127.0.0.1" | "localhost" | "[::1]" | "0.0.0.0")
+        ),
+        "refusing to run e2e against kube context {context:?} (server {server:?}): \
+         switch to the local k3s context first"
+    );
+    context.to_string()
+}
+
 /// Drops and recreates the e2e database inside the k3s dev postgres.
-async fn recreate_database() {
+async fn recreate_database(context: &str) {
     let drop_statement = format!("DROP DATABASE IF EXISTS {DATABASE_NAME} WITH (FORCE);");
     let create_statement = format!("CREATE DATABASE {DATABASE_NAME};");
 
     for statement in [drop_statement, create_statement] {
         let status = Command::new("kubectl")
             .args([
+                "--context",
+                context,
                 "-n",
                 DEV_NAMESPACE,
                 "exec",

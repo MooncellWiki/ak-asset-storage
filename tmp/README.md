@@ -64,7 +64,10 @@ kubectl -n ak-dev get jobs,pods
 kubectl -n ak-dev logs -f job/ak-asset-job-dev
 ```
 
-正在运行的同名 Job 会阻止重复启动;终态 Job 在下一次启动时自动替换。
+正在运行的同名 Job 会阻止重复启动;终态 Job 在下一次启动时自动替换(连同它的 Pod)。
+超过 `active_deadline_seconds`(默认 6 小时)仍未结束的 Job,包括一直卡在拉镜像或
+Pending 的,会被集群判为失败,不会永久占住启动槽位。hostPath 以 `Directory` 类型挂载,
+路径不存在时 Pod 会停在挂载失败,而不是悄悄建一个空目录。
 
 ## 常用命令
 

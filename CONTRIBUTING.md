@@ -6,7 +6,7 @@ Thank you for your interest in contributing to the Arknights Asset Storage proje
 
 - Rust (latest stable)
 - Node.js (v20 or higher)
-- Docker and Docker Compose
+- A local single-node k3s with `kubectl` (dev PostgreSQL and RustFS run there; see `tmp/README.md`)
 - Git
 
 ## Development Setup
