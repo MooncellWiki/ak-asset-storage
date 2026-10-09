@@ -1,8 +1,11 @@
-# 本地开发依赖：PostgreSQL 和 RustFS(S3),跑在本机 k3s 里,替代原先的 docker-compose.yaml。
+# 本地开发依赖：PostgreSQL 跑在本机 k3s 里,替代原先的 docker-compose.yaml。
 # 没有单独的 CI 用途——e2e 是手动跑的(#[ignore]),CI 只编译不执行。
 #
-#     kubectl apply -k deploy/k3s/dev
+#     just k3s-apply
 #
+# RustFS 不在这里:它的数据卷是 hostPath,指向本 checkout 的 tmp/rustfs-data,
+# 清单由 justfile 的 gen-rustfs 生成到 tmp/k3s/rustfs.yaml,随本组清单一起
+# apply(dev 与 e2e 共用同一个 RustFS 实例,见 DEVELOPMENT.md)。
 # NodePort 只监听 127.0.0.1(k3s 配置里 kube-proxy-arg nodeport-addresses=127.0.0.1/32,
 # 见 docker-config 仓库 host/k3s/config.yaml 的本地裁剪版),不暴露局域网。
 # 端口特意选在默认 NodePort 范围内,不去扩大 service-node-port-range:
@@ -15,4 +18,3 @@ namespace: ak-dev
 resources:
   - namespace.yaml
   - postgres.yaml
-  - rustfs.yaml

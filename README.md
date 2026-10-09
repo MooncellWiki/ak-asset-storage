@@ -22,13 +22,15 @@ The frontend lives in `app/`.
 - Rust stable
 - Node.js 20+
 - pnpm
+- just
 - A local single-node k3s (`kubectl` on PATH; dev manifests bind NodePorts to 127.0.0.1)
 
 ### Setup
 
 ```bash
 pnpm install
-kubectl apply -k deploy/k3s/dev
+just init-env        # generates tmp/config.toml, prepares tmp/rustfs-data
+just k3s-apply       # PostgreSQL (deploy/k3s/dev) + generated RustFS manifest
 sqlx migrate run
 ```
 

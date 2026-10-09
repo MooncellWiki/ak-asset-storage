@@ -6,7 +6,7 @@ Thank you for your interest in contributing to the Arknights Asset Storage proje
 
 - Rust (latest stable)
 - Node.js (v20 or higher)
-- A local single-node k3s with `kubectl` (dev PostgreSQL and RustFS run there; see `tmp/README.md`)
+- A local single-node k3s with `kubectl` (dev PostgreSQL and RustFS run there; see `DEVELOPMENT.md`)
 - Git
 
 ## Development Setup
@@ -39,8 +39,11 @@ pnpm install
 Start the required services (PostgreSQL and RustFS) in the local k3s:
 
 ```bash
-kubectl apply -k deploy/k3s/dev
+just k3s-apply
 ```
+
+`just init` above already ran `init-env`, which generated `tmp/config.toml` and
+prepared the RustFS data directory (`tmp/rustfs-data`, hostPath-mounted into k3s).
 
 ### 5. Run Database Migrations
 
@@ -99,7 +102,7 @@ sqlx migrate add <migration_name>
 
 ## Development Services
 
-After `kubectl apply -k deploy/k3s/dev`, the following services will be available:
+After `just k3s-apply`, the following services will be available:
 
 - **PostgreSQL**: `localhost:32432`
 - **RustFS (S3)**: `localhost:31000` (API), `localhost:31001` (Console)

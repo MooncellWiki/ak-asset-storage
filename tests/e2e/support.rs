@@ -35,8 +35,9 @@ const FAKE_KUBE_PORT: u16 = 25155;
 const BUCKET_NAME: &str = "ak-asset-storage-e2e";
 const RC_ALIAS_NAME: &str = "ak-asset-storage-e2e";
 const DATABASE_NAME: &str = "ak_asset_storage_e2e";
-// Dev dependencies live in the local k3s (deploy/k3s/dev): PostgreSQL on
-// NodePort 32432, RustFS on 31000, both bound to 127.0.0.1 only.
+// Dev dependencies live in the local k3s (deploy/k3s/dev plus the generated
+// tmp/k3s/rustfs.yaml): PostgreSQL on NodePort 32432, RustFS on 31000, both
+// bound to 127.0.0.1 only.
 const DEV_NAMESPACE: &str = "ak-dev";
 const DATABASE_URI: &str = "postgres://ak:ak@localhost:32432/ak_asset_storage_e2e";
 const POSTGRES_ADMIN_URI: &str = "postgres://ak:ak@localhost:32432/postgres";
@@ -533,12 +534,26 @@ pub fn load_fixture(repo_root: &StdPath) -> Fixture {
     }
 }
 
-/// Dev dependencies (`PostgreSQL`, `RustFS`) run in the local k3s via
-/// `deploy/k3s/dev`. Re-applying the manifests is idempotent and replaces the
-/// old `docker compose up`; no Docker daemon is involved anywhere in the e2e
-/// flow.
+/// Dev dependencies (`PostgreSQL`, `RustFS`) run in the local k3s: PostgreSQL
+/// via `deploy/k3s/dev`, and RustFS via the hostPath manifest generated into
+/// `tmp/k3s/rustfs.yaml` by `just gen-rustfs` (its data directory is this
+/// checkout's tmp/rustfs-data). Re-applying is idempotent; no Docker daemon is
+/// involved anywhere in the e2e flow.
 async fn ensure_dependencies_ready(repo_root: &StdPath) {
     let context = local_kube_context().await;
+    let status = Command::new("just")
+        .arg("gen-rustfs")
+        .current_dir(repo_root)
+        .stdout(Stdio::inherit())
+        .stderr(Stdio::inherit())
+        .status()
+        .await
+        .unwrap();
+    assert!(
+        status.success(),
+        "just gen-rustfs failed (is just installed? run 'just init-env' once)"
+    );
+
     let status = Command::new("kubectl")
         .args(["--context", &context, "apply", "-k"])
         .arg(repo_root.join("deploy/k3s/dev"))
@@ -548,6 +563,19 @@ async fn ensure_dependencies_ready(repo_root: &StdPath) {
         .await
         .unwrap();
     assert!(status.success(), "kubectl apply -k deploy/k3s/dev failed");
+
+    let status = Command::new("kubectl")
+        .args(["--context", &context, "apply", "-f"])
+        .arg(repo_root.join("tmp/k3s/rustfs.yaml"))
+        .stdout(Stdio::inherit())
+        .stderr(Stdio::inherit())
+        .status()
+        .await
+        .unwrap();
+    assert!(
+        status.success(),
+        "kubectl apply -f tmp/k3s/rustfs.yaml failed"
+    );
 
     // apply returns as soon as the manifests are stored; a first run still
     // pulls images and provisions PVCs, which outlasts the readiness probes.
