@@ -2,6 +2,12 @@
 
 AK asset monitoring, storage, and torappu orchestration service.
 
+## Documentation
+
+- [CONTRIBUTING.md](CONTRIBUTING.md) — development setup, daily workflow, verification, and code style
+- [DEVELOPMENT.md](DEVELOPMENT.md) — the local dev environment: k3s dependencies, generated config and manifests, the extraction Job, dev/e2e isolation
+- `example.toml` — complete annotated configuration file
+
 ## Rust Layout
 
 Rust backend is a single crate organized by module:
@@ -13,56 +19,7 @@ Rust backend is a single crate organized by module:
 - `src/worker/` - polling loop and manifest watcher
 - `src/commands/` - CLI entrypoints for `server`, `worker`, `seed`, and `import-manifest`
 
-The frontend lives in `app/`.
-
-## Development
-
-### Prerequisites
-
-- Rust stable
-- Node.js 20+
-- pnpm
-- just
-- A local single-node k3s (`kubectl` on PATH; dev manifests bind NodePorts to 127.0.0.1)
-
-### Setup
-
-```bash
-pnpm install
-just init-env        # generates tmp/config.toml, prepares tmp/rustfs-data
-just k3s-apply       # PostgreSQL (deploy/k3s/dev) + generated RustFS manifest
-sqlx migrate run
-```
-
-### Run
-
-Backend server:
-
-```bash
-cargo run --bin ak-asset-storage -- server -c config.toml
-```
-
-Worker:
-
-```bash
-cargo run --bin ak-asset-storage -- worker -c config.toml
-```
-
-Frontend dev server:
-
-```bash
-pnpm dev
-```
-
-## Verification
-
-```bash
-cargo fmt --all -- --check
-cargo clippy --all-features -- -D warnings
-cargo test --all-features -- --nocapture
-pnpm typecheck
-pnpm lint
-```
+The frontend lives in `app/` (Vue 3 + TypeScript + Naive UI, file-based routing).
 
 ## Configuration
 
@@ -72,12 +29,13 @@ Main sections:
 
 - `logger`
 - `server`
-- `database`
 - `mailer`
+- `database`
 - `ak`
 - `s3`
 - `sentry`
-- `torappu`
+- `mcp`
+- `torappu` (with `plocate`, `kubernetes`, `github` subsections)
 
 ### Server
 
@@ -92,7 +50,7 @@ host = "http://localhost"
 
 ```toml
 [database]
-uri = "postgres://user:password@localhost:5432/dbname"
+uri = "postgres://ak:ak@localhost:32432/ak_asset_storage_next"
 max_connections = 10
 connection_timeout_seconds = 30
 ```
@@ -109,7 +67,7 @@ conf_url = "https://ak-conf.hypergryph.com/config/prod/official/Android"
 
 ```toml
 [s3]
-endpoint = "http://127.0.0.1:9000"
+endpoint = "http://127.0.0.1:31000"
 bucket_name = "bucket-name"
 access_key_id = "access-key"
 secret_access_key = "secret-key"
@@ -154,10 +112,3 @@ workflow_id = "workflow-file.yml"
 ref = "main"
 token = "github-token"
 ```
-
-## Database Notes
-
-- Migrations live in `migrations/`
-- Do not edit `.sqlx/`
-- Do not use `SQLX_OFFLINE=true` for local `cargo check` / `cargo build`
-- If sqlx cannot connect to the database, fix the database first instead of falling back to offline mode
