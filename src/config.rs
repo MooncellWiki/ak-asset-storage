@@ -1,7 +1,7 @@
 use crate::{AppError, AppResult};
 use serde::{Deserialize, Serialize};
 use serde_variant::to_variant_name;
-use std::{fs, path::Path};
+use std::{collections::HashSet, fs, path::Path};
 use tracing::info;
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
@@ -106,6 +106,10 @@ pub struct TorappuConfig {
     pub token: String,
     pub asset_base_path: String,
     pub kubernetes: Option<KubernetesConfig>,
+    /// The removed `[torappu.docker]` section. Only parsed so `validate` can
+    /// reject a leftover one instead of silently disabling extraction.
+    #[serde(default, rename = "docker", skip_serializing)]
+    pub legacy_docker: Option<toml::Value>,
     pub github: Option<GithubConfig>,
     #[serde(default)]
     pub plocate: PlocateConfig,
@@ -162,11 +166,12 @@ pub struct McpConfig {
 
 /// Kubernetes Job launcher configuration.
 ///
-/// The process talks to the cluster API (credentials resolved like kubectl:
-/// in-cluster service account, then `$KUBECONFIG` / `~/.kube/config`) and
-/// runs the asset-extraction image as a run-to-completion Job instead of
-/// `docker run`.
+/// The process talks to the cluster API (credentials resolved like kube-rs
+/// `Config::infer`: `$KUBECONFIG` / `~/.kube/config` first, then the
+/// in-cluster service account) and runs the asset-extraction image as a
+/// run-to-completion Job instead of `docker run`.
 #[derive(Debug, Clone, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
 pub struct KubernetesConfig {
     pub image_url: String,
     /// Namespace the Job and its pods are created in.
@@ -179,16 +184,83 @@ pub struct KubernetesConfig {
     pub image_pull_secret: Option<String>,
     pub env_vars: Option<Vec<String>>,
     pub volume_mounts: Option<Vec<KubernetesVolumeMount>>,
+    /// Upper bound on the Job's lifetime, pending time included. Past it the
+    /// cluster fails the Job, which releases the single-flight slot even when
+    /// its pod never started (`ImagePullBackOff`, unschedulable, missing
+    /// volume).
+    #[serde(default = "default_job_active_deadline_seconds")]
+    pub active_deadline_seconds: u32,
+}
+
+const fn default_job_active_deadline_seconds() -> u32 {
+    6 * 60 * 60
 }
 
 /// One volume mounted into the launched Job's pod. Exactly one of `pvc` /
 /// `host_path` must be set: PVCs for normal clusters, hostPath for
 /// single-node setups where the output directory stays on the node.
 #[derive(Debug, Clone, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
 pub struct KubernetesVolumeMount {
     pub mount_path: String,
     pub pvc: Option<String>,
     pub host_path: Option<String>,
+}
+
+impl KubernetesConfig {
+    /// Catches mistakes the cluster would only reject at launch time, after
+    /// the previous finished Job has already been deleted.
+    fn validate(&self) -> AppResult<()> {
+        if self.namespace.trim().is_empty() || self.job_name.trim().is_empty() {
+            return Err(AppError::Application(anyhow::anyhow!(
+                "torappu.kubernetes.namespace and job_name must not be empty"
+            )));
+        }
+        if self.active_deadline_seconds == 0 {
+            return Err(AppError::Application(anyhow::anyhow!(
+                "torappu.kubernetes.active_deadline_seconds must be at least 1"
+            )));
+        }
+        for entry in self.env_vars.iter().flatten() {
+            if entry
+                .split_once('=')
+                .is_none_or(|(name, _)| name.is_empty())
+            {
+                return Err(AppError::Application(anyhow::anyhow!(
+                    "invalid env var {entry:?} in torappu.kubernetes.env_vars: expected KEY=VALUE"
+                )));
+            }
+        }
+        let mut mount_paths = HashSet::new();
+        for mount in self.volume_mounts.iter().flatten() {
+            if mount.pvc.is_some() == mount.host_path.is_some() {
+                return Err(AppError::Application(anyhow::anyhow!(
+                    "torappu.kubernetes volume mount {:?} must set exactly one of pvc or host_path",
+                    mount.mount_path
+                )));
+            }
+            // Both are Linux paths (in the container / on the node), so check
+            // the leading slash rather than the host platform's notion.
+            if !mount.mount_path.starts_with('/')
+                || mount
+                    .host_path
+                    .as_ref()
+                    .is_some_and(|host_path| !host_path.starts_with('/'))
+            {
+                return Err(AppError::Application(anyhow::anyhow!(
+                    "torappu.kubernetes volume mount {:?}: mount_path and host_path must be absolute",
+                    mount.mount_path
+                )));
+            }
+            if !mount_paths.insert(mount.mount_path.as_str()) {
+                return Err(AppError::Application(anyhow::anyhow!(
+                    "torappu.kubernetes mount_path {:?} is mounted more than once",
+                    mount.mount_path
+                )));
+            }
+        }
+        Ok(())
+    }
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
@@ -231,15 +303,14 @@ impl AppSettings {
                 "torappu.token must not be empty: it guards the container launch endpoint"
             )));
         }
+        if self.torappu.legacy_docker.is_some() {
+            return Err(AppError::Application(anyhow::anyhow!(
+                "torappu.docker is no longer supported: the extraction container now runs as a \
+                 Kubernetes Job, migrate the section to torappu.kubernetes (see example.toml)"
+            )));
+        }
         if let Some(kubernetes) = &self.torappu.kubernetes {
-            for mount in kubernetes.volume_mounts.iter().flatten() {
-                if mount.pvc.is_some() == mount.host_path.is_some() {
-                    return Err(AppError::Application(anyhow::anyhow!(
-                        "torappu.kubernetes volume mount {:?} must set exactly one of pvc or host_path",
-                        mount.mount_path
-                    )));
-                }
-            }
+            kubernetes.validate()?;
         }
         if self.torappu.search_concurrency == 0 {
             return Err(AppError::Application(anyhow::anyhow!(
@@ -301,6 +372,7 @@ mod tests {
                 token: token.to_string(),
                 asset_base_path: "/assets".to_string(),
                 kubernetes: None,
+                legacy_docker: None,
                 github: None,
                 plocate: PlocateConfig::default(),
                 search_concurrency: default_search_concurrency(),
@@ -382,6 +454,7 @@ mod tests {
             image_pull_secret: None,
             env_vars: None,
             volume_mounts: Some(vec![mount]),
+            active_deadline_seconds: default_job_active_deadline_seconds(),
         });
         settings
     }
@@ -404,5 +477,81 @@ mod tests {
                 .validate()
                 .is_err()
         );
+    }
+
+    #[test]
+    fn validate_rejects_volume_mounts_kubernetes_would_refuse() {
+        let mut relative_mount = mount(Some("data"), None);
+        relative_mount.mount_path = "app/data".to_string();
+        assert!(settings_with_mount(relative_mount).validate().is_err());
+        assert!(
+            settings_with_mount(mount(None, Some("tmp/asset")))
+                .validate()
+                .is_err()
+        );
+
+        let mut settings = settings_with_mount(mount(Some("data"), None));
+        let kubernetes = settings.torappu.kubernetes.as_mut().unwrap();
+        kubernetes
+            .volume_mounts
+            .as_mut()
+            .unwrap()
+            .push(mount(None, Some("/srv/data")));
+        assert!(settings.validate().is_err());
+    }
+
+    #[test]
+    fn validate_rejects_bad_kubernetes_job_settings() {
+        let mut settings = settings_with_mount(mount(Some("data"), None));
+        settings.torappu.kubernetes.as_mut().unwrap().env_vars =
+            Some(vec!["TZ=Asia/Shanghai".to_string(), "EMPTY=".to_string()]);
+        assert!(settings.validate().is_ok());
+
+        for bad_entry in ["MISSING_SEPARATOR", "=value"] {
+            settings.torappu.kubernetes.as_mut().unwrap().env_vars =
+                Some(vec![bad_entry.to_string()]);
+            assert!(settings.validate().is_err(), "{bad_entry} was accepted");
+        }
+
+        let mut settings = settings_with_mount(mount(Some("data"), None));
+        settings.torappu.kubernetes.as_mut().unwrap().job_name = " ".to_string();
+        assert!(settings.validate().is_err());
+
+        let mut settings = settings_with_mount(mount(Some("data"), None));
+        settings
+            .torappu
+            .kubernetes
+            .as_mut()
+            .unwrap()
+            .active_deadline_seconds = 0;
+        assert!(settings.validate().is_err());
+    }
+
+    #[test]
+    fn leftover_docker_section_is_rejected() {
+        let torappu: TorappuConfig = toml::from_str(
+            "token = 'x'\nasset_base_path = '/assets'\n\
+             [docker]\nimage_url = 'image:latest'\ncontainer_name = 'job'\n",
+        )
+        .unwrap();
+        let mut settings = settings_with_token("s3cret");
+        settings.torappu = torappu;
+        let error = settings.validate().unwrap_err();
+        assert!(error.to_string().contains("torappu.docker"), "{error:?}");
+    }
+
+    #[test]
+    fn kubernetes_section_rejects_docker_era_keys() {
+        assert!(
+            toml::from_str::<KubernetesConfig>(
+                "image_url = 'image:latest'\nnamespace = 'ns'\njob_name = 'job'\n\
+                 container_name = 'job'\n",
+            )
+            .is_err()
+        );
+        let parsed: KubernetesConfig =
+            toml::from_str("image_url = 'image:latest'\nnamespace = 'ns'\njob_name = 'job'\n")
+                .unwrap();
+        assert_eq!(parsed.active_deadline_seconds, 6 * 60 * 60);
     }
 }

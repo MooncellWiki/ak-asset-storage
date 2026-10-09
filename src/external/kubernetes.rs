@@ -11,7 +11,7 @@ use k8s_openapi::api::core::v1::{
 use k8s_openapi::apimachinery::pkg::apis::meta::v1::ObjectMeta;
 use kube::{
     Api, Client, ResourceExt,
-    api::{DeleteParams, PostParams, Preconditions},
+    api::{DeleteParams, PostParams, Preconditions, PropagationPolicy},
 };
 use std::collections::BTreeMap;
 use std::time::Duration;
@@ -28,6 +28,9 @@ const JOB_DELETION_POLL_INTERVAL_SECS: u64 = 1;
 /// precondition conflict on delete, or 409 on create) before giving up.
 const LAUNCH_CONTENTION_RETRIES: usize = 3;
 const MANAGED_BY_LABEL: &str = "app.kubernetes.io/managed-by";
+/// Fixed so the container name stays a valid DNS-1123 label whatever the
+/// (DNS subdomain) Job name is.
+const CONTAINER_NAME: &str = "extractor";
 
 #[derive(Clone)]
 pub struct KubernetesClient {
@@ -45,10 +48,10 @@ impl std::fmt::Debug for KubernetesClient {
 }
 
 impl KubernetesClient {
-    /// Resolves cluster credentials the same way kubectl does: the in-cluster
-    /// service account first (the intended deployment mode), then
-    /// `$KUBECONFIG` / `~/.kube/config` for processes running outside the
-    /// cluster.
+    /// Resolves cluster credentials through kube-rs `Config::infer`:
+    /// `$KUBECONFIG` / `~/.kube/config` first, falling back to the in-cluster
+    /// service account only when no kubeconfig is found. A pod that should
+    /// use its `ServiceAccount` must therefore not carry a kubeconfig.
     pub async fn new(config: KubernetesConfig) -> AppResult<Self> {
         let client = Client::try_default()
             .await
@@ -71,6 +74,20 @@ impl KubernetesClient {
     ) -> AppResult<String> {
         let job_name = self.config.job_name.as_str();
         let jobs: Api<Job> = Api::namespaced(self.client.clone(), &self.config.namespace);
+        // Built before touching the cluster so a config error fails the
+        // launch without deleting the previous finished Job and its status.
+        // Image pulls (with backoff and private-registry auth via
+        // imagePullSecrets) are handled by kubelet, so there is no
+        // client-side pull loop here.
+        let job = build_job(
+            &self.config,
+            client_version,
+            res_version,
+            prev_client_version,
+            prev_res_version,
+            include,
+            exclude,
+        )?;
 
         // Job objects are immutable, so a finished Job must be deleted before
         // it can be recreated under the same name. The fixed name doubles as
@@ -86,17 +103,21 @@ impl KubernetesClient {
         // stale success.
         for attempt in 0..=LAUNCH_CONTENTION_RETRIES {
             match jobs.get(job_name).await {
-                Ok(job) => {
-                    if job_is_active(&job) {
+                Ok(existing) => {
+                    if job_is_active(&existing) {
                         return Err(AppError::ExternalService(anyhow!(
                             "Job {job_name} is already running"
                         )));
                     }
 
                     warn!("Job {job_name} exists but is not running, removing it");
+                    let existing_uid = existing.uid();
                     let delete_params = DeleteParams {
+                        // batch/v1 Jobs orphan their pods unless told
+                        // otherwise; cascade so finished pods do not pile up.
+                        propagation_policy: Some(PropagationPolicy::Background),
                         preconditions: Some(Preconditions {
-                            uid: job.uid(),
+                            uid: existing_uid.clone(),
                             resource_version: None,
                         }),
                         ..Default::default()
@@ -112,7 +133,7 @@ impl KubernetesClient {
                         }
                         Err(err) => return Err(AppError::ExternalService(err.into())),
                     }
-                    wait_for_job_deleted(&jobs, job_name).await?;
+                    wait_for_job_deleted(&jobs, job_name, existing_uid.as_deref()).await?;
                     info!("Job deleted: {job_name}");
                 }
                 Err(kube::Error::Api(err)) if err.code == 404 => {
@@ -121,18 +142,6 @@ impl KubernetesClient {
                 Err(err) => return Err(AppError::ExternalService(err.into())),
             }
 
-            // Image pulls (with backoff and private-registry auth via
-            // imagePullSecrets) are handled by kubelet, so there is no
-            // client-side pull loop here.
-            let job = build_job(
-                &self.config,
-                client_version,
-                res_version,
-                prev_client_version,
-                prev_res_version,
-                include,
-                exclude,
-            )?;
             match jobs.create(&PostParams::default(), &job).await {
                 Ok(_) => {
                     info!("Job started successfully: {job_name}");
@@ -176,11 +185,16 @@ fn job_is_active(job: &Job) -> bool {
     !terminal
 }
 
-async fn wait_for_job_deleted(jobs: &Api<Job>, job_name: &str) -> AppResult<()> {
+/// Waits until the Job with `uid` is gone. A Job under the same name with a
+/// different UID was created by a concurrent launch after our delete, so the
+/// old one is gone as well; the following create then gets a 409 and the
+/// launch loop re-reads instead of stalling here until the timeout.
+async fn wait_for_job_deleted(jobs: &Api<Job>, job_name: &str, uid: Option<&str>) -> AppResult<()> {
     let deadline = tokio::time::Instant::now() + Duration::from_secs(JOB_DELETION_TIMEOUT_SECS);
     while tokio::time::Instant::now() < deadline {
         match jobs.get(job_name).await {
             Err(kube::Error::Api(err)) if err.code == 404 => return Ok(()),
+            Ok(job) if job.uid().as_deref() != uid => return Ok(()),
             Ok(_) => {}
             Err(err) => return Err(AppError::ExternalService(err.into())),
         }
@@ -232,33 +246,36 @@ fn build_job(
         metadata: ObjectMeta {
             name: Some(config.job_name.clone()),
             namespace: Some(config.namespace.clone()),
-            labels: Some(BTreeMap::from([(
-                MANAGED_BY_LABEL.to_string(),
-                "ak-asset-storage".to_string(),
-            )])),
+            labels: Some(managed_by_labels()),
             ..Default::default()
         },
         spec: Some(k8s_openapi::api::batch::v1::JobSpec {
             // Launch exactly once, like `docker run` did; the launch endpoint
             // stays the retry knob for operators.
             backoff_limit: Some(0),
+            // backoffLimit does not count pods that never start, and only a
+            // terminal condition frees the single-flight slot; the deadline
+            // fails a Job stuck in ImagePullBackOff or Pending instead of
+            // blocking every later launch.
+            active_deadline_seconds: Some(i64::from(config.active_deadline_seconds)),
             template: PodTemplateSpec {
                 // The label must land on the Job's *pods*, not only the Job
                 // object, so cluster-side policy (e.g. a NetworkPolicy that
                 // scopes extractor egress) can select them.
                 metadata: Some(ObjectMeta {
-                    labels: Some(BTreeMap::from([(
-                        MANAGED_BY_LABEL.to_string(),
-                        "ak-asset-storage".to_string(),
-                    )])),
+                    labels: Some(managed_by_labels()),
                     ..Default::default()
                 }),
                 spec: Some(PodSpec {
                     restart_policy: Some("Never".to_string()),
                     image_pull_secrets,
                     containers: vec![Container {
-                        name: config.job_name.clone(),
+                        name: CONTAINER_NAME.to_string(),
                         image: Some(config.image_url.clone()),
+                        // Mutable tags such as `:main` would otherwise keep
+                        // running the node's cached image (IfNotPresent);
+                        // the Docker launcher pulled on every launch too.
+                        image_pull_policy: Some("Always".to_string()),
                         args: Some(args),
                         env: (!env.is_empty()).then_some(env),
                         volume_mounts: (!volume_mounts.is_empty()).then_some(volume_mounts),
@@ -272,6 +289,10 @@ fn build_job(
         }),
         ..Default::default()
     })
+}
+
+fn managed_by_labels() -> BTreeMap<String, String> {
+    BTreeMap::from([(MANAGED_BY_LABEL.to_string(), "ak-asset-storage".to_string())])
 }
 
 fn parse_env_vars(entries: &[String]) -> AppResult<Vec<EnvVar>> {
@@ -311,9 +332,12 @@ fn build_volumes(mounts: &[KubernetesVolumeMount]) -> (Vec<Volume>, Vec<VolumeMo
                     read_only: None,
                 });
             } else {
+                // `Directory` makes kubelet refuse a missing path instead of
+                // the runtime creating an empty root-owned directory that the
+                // worker never watches.
                 volume.host_path = Some(HostPathVolumeSource {
                     path: mount.host_path.clone().unwrap_or_default(),
-                    type_: None,
+                    type_: Some("Directory".to_string()),
                 });
             }
             (
@@ -332,7 +356,18 @@ fn build_volumes(mounts: &[KubernetesVolumeMount]) -> (Vec<Volume>, Vec<VolumeMo
 mod tests {
     use super::*;
     use crate::config::KubernetesVolumeMount;
-    use k8s_openapi::api::batch::v1::JobStatus;
+    use axum::{
+        Json, Router,
+        extract::State,
+        http::StatusCode,
+        response::{IntoResponse, Response},
+        routing::{get, post},
+    };
+    use serde_json::json;
+    use std::sync::{
+        Arc, Mutex,
+        atomic::{AtomicBool, AtomicUsize, Ordering},
+    };
 
     fn config() -> KubernetesConfig {
         KubernetesConfig {
@@ -346,6 +381,7 @@ mod tests {
                 pvc: Some("asset-data".to_string()),
                 host_path: None,
             }]),
+            active_deadline_seconds: 3600,
         }
     }
 
@@ -382,6 +418,8 @@ mod tests {
             container.image.as_deref(),
             Some("example.com/extractor:latest")
         );
+        assert_eq!(container.name, CONTAINER_NAME);
+        assert_eq!(container.image_pull_policy.as_deref(), Some("Always"));
         let env = container.env.as_ref().unwrap();
         assert_eq!(env[0].name, "TZ");
         assert_eq!(env[0].value.as_deref(), Some("Asia/Shanghai"));
@@ -394,6 +432,7 @@ mod tests {
         let pod_spec = spec.template.spec.as_ref().unwrap();
 
         assert_eq!(spec.backoff_limit, Some(0));
+        assert_eq!(spec.active_deadline_seconds, Some(3600));
         assert_eq!(pod_spec.restart_policy.as_deref(), Some("Never"));
         assert_eq!(
             pod_spec.image_pull_secrets.as_ref().unwrap()[0].name,
@@ -411,6 +450,21 @@ mod tests {
             pod_spec.containers[0].volume_mounts.as_ref().unwrap()[0].mount_path,
             "/app/data"
         );
+    }
+
+    #[test]
+    fn host_path_volumes_must_already_exist() {
+        let mut config = config();
+        config.volume_mounts = Some(vec![KubernetesVolumeMount {
+            mount_path: "/app/storage".to_string(),
+            pvc: None,
+            host_path: Some("/srv/storage".to_string()),
+        }]);
+        let job = build_job(&config, "c", "r", "pc", "pr", None, None).expect("job builds");
+        let volumes = job.spec.unwrap().template.spec.unwrap().volumes.unwrap();
+        let host_path = volumes[0].host_path.as_ref().unwrap();
+        assert_eq!(host_path.path, "/srv/storage");
+        assert_eq!(host_path.type_.as_deref(), Some("Directory"));
     }
 
     #[test]
@@ -522,13 +576,203 @@ mod tests {
 
     #[test]
     fn status_without_start_time_deserializes_like_the_api_sends_it() {
-        // Guards the job_is_active predicate against JobStatus shape changes.
-        let status: JobStatus = serde_json::from_value(serde_json::json!({
-            "active": 1,
-            "startTime": "2026-01-01T00:00:00Z"
+        // A Job whose pod has not started yet carries no startTime; it must
+        // still parse and keep occupying the single-flight slot.
+        let job: Job = serde_json::from_value(serde_json::json!({
+            "metadata": {"name": "j"},
+            "status": {"active": 1}
         }))
         .unwrap();
+        let status = job.status.as_ref().unwrap();
         assert_eq!(status.active, Some(1));
-        assert!(status.start_time.is_some());
+        assert!(status.start_time.is_none());
+        assert!(job_is_active(&job));
+    }
+
+    /// Stateful stand-in for the batch/v1 Jobs endpoints the launcher uses:
+    /// it honours the delete UID precondition and records delete bodies.
+    #[derive(Default)]
+    struct FakeJobs {
+        job: Mutex<Option<serde_json::Value>>,
+        deletes: Mutex<Vec<serde_json::Value>>,
+        next_uid: AtomicUsize,
+        /// Simulates a concurrent launch that recreates the Job right after
+        /// our delete went through.
+        recreate_on_delete: AtomicBool,
+    }
+
+    impl FakeJobs {
+        fn with_job(job: serde_json::Value) -> Arc<Self> {
+            let fake = Arc::new(Self::default());
+            *fake.job.lock().unwrap() = Some(job);
+            fake
+        }
+
+        fn new_uid(&self) -> String {
+            format!("uid-{}", self.next_uid.fetch_add(1, Ordering::SeqCst))
+        }
+
+        fn current_uid(&self) -> Option<serde_json::Value> {
+            self.job
+                .lock()
+                .unwrap()
+                .as_ref()
+                .map(|job| job["metadata"]["uid"].clone())
+        }
+    }
+
+    fn job_json(uid: &str, conditions: &serde_json::Value) -> serde_json::Value {
+        json!({
+            "apiVersion": "batch/v1",
+            "kind": "Job",
+            "metadata": {"name": "ak-asset-job", "namespace": "ak-asset-storage", "uid": uid},
+            "status": {"conditions": conditions}
+        })
+    }
+
+    fn finished_job(uid: &str) -> serde_json::Value {
+        job_json(uid, &json!([{"type": "Complete", "status": "True"}]))
+    }
+
+    fn api_status(code: StatusCode, reason: &str) -> Response {
+        let body = json!({
+            "kind": "Status",
+            "apiVersion": "v1",
+            "metadata": {},
+            "status": if code.is_success() { "Success" } else { "Failure" },
+            "message": reason,
+            "reason": reason,
+            "code": code.as_u16(),
+        });
+        (code, Json(body)).into_response()
+    }
+
+    async fn fake_get(State(fake): State<Arc<FakeJobs>>) -> Response {
+        let job = fake.job.lock().unwrap().clone();
+        job.map_or_else(
+            || api_status(StatusCode::NOT_FOUND, "NotFound"),
+            |job| Json(job).into_response(),
+        )
+    }
+
+    async fn fake_create(
+        State(fake): State<Arc<FakeJobs>>,
+        Json(mut job): Json<serde_json::Value>,
+    ) -> Response {
+        let mut current = fake.job.lock().unwrap();
+        if current.is_some() {
+            drop(current);
+            return api_status(StatusCode::CONFLICT, "AlreadyExists");
+        }
+        job["metadata"]["uid"] = json!(fake.new_uid());
+        *current = Some(job.clone());
+        drop(current);
+        (StatusCode::CREATED, Json(job)).into_response()
+    }
+
+    async fn fake_delete(
+        State(fake): State<Arc<FakeJobs>>,
+        Json(params): Json<serde_json::Value>,
+    ) -> Response {
+        fake.deletes.lock().unwrap().push(params.clone());
+        let mut current = fake.job.lock().unwrap();
+        let Some(job) = current.as_ref() else {
+            drop(current);
+            return api_status(StatusCode::NOT_FOUND, "NotFound");
+        };
+        if params["preconditions"]["uid"] != job["metadata"]["uid"] {
+            drop(current);
+            return api_status(StatusCode::CONFLICT, "Conflict");
+        }
+        *current = fake
+            .recreate_on_delete
+            .load(Ordering::SeqCst)
+            .then(|| job_json(&fake.new_uid(), &json!([])));
+        drop(current);
+        api_status(StatusCode::OK, "Success")
+    }
+
+    async fn launcher(fake: Arc<FakeJobs>, config: KubernetesConfig) -> KubernetesClient {
+        let _ = rustls::crypto::ring::default_provider().install_default();
+        let router = Router::new()
+            .route(
+                "/apis/batch/v1/namespaces/{namespace}/jobs",
+                post(fake_create),
+            )
+            .route(
+                "/apis/batch/v1/namespaces/{namespace}/jobs/{name}",
+                get(fake_get).delete(fake_delete),
+            )
+            .with_state(fake);
+        let listener = tokio::net::TcpListener::bind(("127.0.0.1", 0))
+            .await
+            .unwrap();
+        let address = listener.local_addr().unwrap();
+        tokio::spawn(async move { axum::serve(listener, router).await.unwrap() });
+
+        let client_config = kube::Config::new(format!("http://{address}").parse().unwrap());
+        KubernetesClient {
+            client: Client::try_from(client_config).unwrap(),
+            config,
+        }
+    }
+
+    async fn launch(launcher: &KubernetesClient) -> AppResult<String> {
+        launcher
+            .launch_container("c", "r", "pc", "pr", None, None)
+            .await
+    }
+
+    #[tokio::test]
+    async fn launch_replaces_a_finished_job_and_cascades_to_its_pods() {
+        let fake = FakeJobs::with_job(finished_job("old"));
+        let launcher = launcher(fake.clone(), config()).await;
+
+        assert_eq!(launch(&launcher).await.unwrap(), "ak-asset-job");
+
+        let deletes = fake.deletes.lock().unwrap().clone();
+        assert_eq!(deletes.len(), 1, "{deletes:?}");
+        assert_eq!(deletes[0]["propagationPolicy"], "Background");
+        assert_eq!(deletes[0]["preconditions"]["uid"], "old");
+        assert_eq!(fake.current_uid(), Some(json!("uid-0")));
+    }
+
+    #[tokio::test]
+    async fn launch_refuses_while_the_job_has_no_terminal_condition() {
+        let fake = FakeJobs::with_job(job_json("running", &json!([])));
+        let launcher = launcher(fake.clone(), config()).await;
+
+        let error = launch(&launcher).await.unwrap_err();
+        assert!(error.to_string().contains("already running"), "{error:?}");
+        assert!(fake.deletes.lock().unwrap().is_empty());
+        assert_eq!(fake.current_uid(), Some(json!("running")));
+    }
+
+    #[tokio::test]
+    async fn config_error_keeps_the_finished_job() {
+        let fake = FakeJobs::with_job(finished_job("old"));
+        let mut config = config();
+        config.env_vars = Some(vec!["MISSING_SEPARATOR".to_string()]);
+        let launcher = launcher(fake.clone(), config).await;
+
+        let error = launch(&launcher).await.unwrap_err();
+        assert!(error.to_string().contains("MISSING_SEPARATOR"), "{error:?}");
+        assert!(fake.deletes.lock().unwrap().is_empty());
+        assert_eq!(fake.current_uid(), Some(json!("old")));
+    }
+
+    #[tokio::test]
+    async fn deletion_wait_yields_to_a_concurrently_recreated_job() {
+        let fake = FakeJobs::with_job(finished_job("old"));
+        fake.recreate_on_delete.store(true, Ordering::SeqCst);
+        let launcher = launcher(fake.clone(), config()).await;
+
+        let started = tokio::time::Instant::now();
+        let error = launch(&launcher).await.unwrap_err();
+        // The recreated Job carries a new UID, so the wait ends at once and
+        // the re-read reports it instead of timing out on the shared name.
+        assert!(error.to_string().contains("already running"), "{error:?}");
+        assert!(started.elapsed() < Duration::from_secs(5));
+        assert_eq!(fake.deletes.lock().unwrap().len(), 1);
     }
 }
