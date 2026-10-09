@@ -2,9 +2,17 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.26.0] - 2026-10-09
+
+[574152e](574152e935141e5b4bf3a660894d3dca37bfb63b)...[6f0e9d6](6f0e9d65814785210140dd9c39b1407a01c299d4)
+
+### 🚀 Features
+
+- 资源提取任务与开发依赖统一迁移到 k3s (#182) ([6f0e9d6](https://github.com/MooncellWiki/ak-asset-storage/commit/6f0e9d65814785210140dd9c39b1407a01c299d4)), Co-authored-by:StarHeartHunt <starheart233@gmail.com>
+
 ## [0.25.0] - 2026-10-06
 
-[b2a2a65](b2a2a65610efdb280eb8d438f1193eaa28796b8e)...[b09c21c](b09c21ce0c422ce7cb2df250214117b4f928334f)
+[b2a2a65](b2a2a65610efdb280eb8d438f1193eaa28796b8e)...[574152e](574152e935141e5b4bf3a660894d3dca37bfb63b)
 
 ### 🚀 Features
 
@@ -15,6 +23,7 @@ All notable changes to this project will be documented in this file.
 ### ⚙️ Miscellaneous Tasks
 
 - Commit a local dev environment and give e2e servers a writable plocate db path (#180) ([b09c21c](https://github.com/MooncellWiki/ak-asset-storage/commit/b09c21ce0c422ce7cb2df250214117b4f928334f))
+- Release 0.25.0 ([574152e](https://github.com/MooncellWiki/ak-asset-storage/commit/574152e935141e5b4bf3a660894d3dca37bfb63b))
 
 ## [0.24.1] - 2026-09-27
 
