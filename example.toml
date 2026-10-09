@@ -23,14 +23,14 @@ auth.password = "password"  # Uncomment and add SMTP password
 
 # Database Configuration
 [database]
-uri = "postgres://ak:ak@localhost:25432/ak_asset_storage_next"
+uri = "postgres://ak:ak@localhost:32432/ak_asset_storage_next"
 
 [ak]
 asset_url = "https://ak.hycdn.cn/assetbundle/official/Android/assets"
 conf_url = "https://ak-conf.hypergryph.com/config/prod/official/Android"
 
 [s3]
-endpoint = "http://127.0.0.1:9000"
+endpoint = "http://127.0.0.1:31000"
 bucket_name = "arknights-assets"
 access_key_id = "access_key_id"
 secret_access_key = "secret_access_key"
@@ -71,19 +71,35 @@ update_interval_seconds = 600
 # Search excludes gamedata/latest and its descendants;
 # use versioned gamedata paths when searching.
 
-# Optional Docker configuration for launching containers on new version detection
-[torappu.docker]
-image_url = "your-docker-image:latest"
-container_name = "ak-asset-container"
+# Optional Kubernetes configuration for launching the asset-extraction Job
+# on new version detection (k3s deployment mode). Credentials resolve like
+# kube-rs Config::infer: $KUBECONFIG/~/.kube/config first, then the in-cluster
+# service account, so keep kubeconfigs out of the server/worker pod.
+# The server/worker pod needs the ServiceAccount from deploy/k3s/rbac.yaml.
+[torappu.kubernetes]
+image_url = "your-registry/your-image:latest"
+namespace = "ak-asset-storage"
+# Fixed Job name; doubles as the single-flight lock, a launch is rejected
+# while a Job with this name is still running.
+job_name = "ak-asset-job"
+# imagePullSecret for private registries; pulls and their retries are
+# handled by kubelet, no client-side retry loop:
+# kubectl -n ak-asset-storage create secret docker-registry ak-registry-cred \
+#   --docker-server=registry.example.com \
+#   --docker-username=... --docker-password=...
+image_pull_secret = "ak-registry-cred"
 env_vars = [ "TZ=Asia/Shanghai" ]
-volume_mapping = [ "./data:/app/data" ]
-network = "boot_default"
-username = "registry-username"
-password = "registry-password"
-# Prefer a filtering proxy (e.g. tecnativa/docker-socket-proxy with
-# CONTAINERS=1 IMAGES=1 POST=1) over handing the raw socket to this process:
-# docker_host = "tcp://docker-socket-proxy:2375"
-docker_host = "/var/run/docker.sock"
+# Fails a Job that has not finished in time (default 6h), including one stuck
+# in ImagePullBackOff or Pending, so it cannot block later launches forever.
+# active_deadline_seconds = 21600
+
+# One block per mounted volume; set exactly one of pvc / host_path.
+# The mounted path must be the same volume the worker watches, so the Job's
+# output lands inside torappu.asset_base_path.
+[[torappu.kubernetes.volume_mounts]]
+pvc = "ak-asset-data"
+mount_path = "/app/data"
+# host_path = "/srv/ak-asset-storage/data"  # single-node alternative
 
 # Optional GitHub Actions configuration for triggering workflows
 [torappu.github]

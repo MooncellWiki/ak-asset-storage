@@ -39,7 +39,7 @@ pub async fn execute(
         database: database.clone(),
         ak_api: ak_api.clone(),
         notification: notification.clone(),
-        docker: None,
+        kubernetes: None,
     };
     let download = AssetDownloadService {
         database,

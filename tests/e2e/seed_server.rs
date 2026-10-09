@@ -2,7 +2,7 @@ use crate::support::{BundleDetails, TestEnv, VersionDetails, VersionSummary};
 use std::collections::HashMap;
 
 #[tokio::test]
-#[ignore = "manual e2e test requiring docker, rc, and fixture assets"]
+#[ignore = "manual e2e test requiring a local k3s (deploy/k3s/dev), rc, and fixture assets"]
 async fn seed_two_versions_then_query_real_server() {
     let env = TestEnv::bootstrap().await;
 

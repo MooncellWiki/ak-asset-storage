@@ -19,7 +19,7 @@ export default defineConfig({
   server: {
     proxy: {
       "/api": "http://localhost:5150",
-      "/storage": "http://localhost:9000/arknights-assets/",
+      "/storage": "http://localhost:31000/arknights-assets/",
       "/gamedata": "http://localhost:5150",
       "/assets": "http://localhost:5150",
     },

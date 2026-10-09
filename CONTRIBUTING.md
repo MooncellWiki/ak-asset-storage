@@ -1,120 +1,76 @@
 # Contributing to Arknights Asset Storage
 
-Thank you for your interest in contributing to the Arknights Asset Storage project! This guide will help you set up your development environment.
+Thank you for your interest in contributing to the Arknights Asset Storage project!
 
 ## Prerequisites
 
 - Rust (latest stable)
-- Node.js (v20 or higher)
-- Docker and Docker Compose
-- Git
+- Node.js (v20 or higher) and pnpm
+- `just`
+- A local single-node k3s with `kubectl` (dev PostgreSQL and RustFS run there)
 
-## Development Setup
+What runs where, the generated config and manifests, the extraction Job, and the
+dev/e2e isolation model are documented in [DEVELOPMENT.md](DEVELOPMENT.md).
 
-### 1. Install Required Tools
-
-First, install `cargo-binstall` and `just`:
-
-```bash
-cargo install cargo-binstall
-cargo binstall just -y
-```
-
-### 2. Initialize the Project
-
-Run the initialization script to set up dependencies:
+## Setup
 
 ```bash
-just init
-```
-
-### 3. Install Frontend Dependencies
-
-```bash
+cargo install cargo-binstall && cargo binstall just -y   # or install just your way
+just init          # dev Cargo tools + init-env: generates tmp/config.toml,
+                   # prepares tmp/rustfs-data and the upload bucket
 pnpm install
+just k3s-apply     # PostgreSQL (deploy/k3s/dev) + RustFS (generated manifest)
+just up            # sqlx migrate run
 ```
 
-### 4. Start Infrastructure Services
-
-Start the required services (PostgreSQL and MinIO):
+## Daily Workflow
 
 ```bash
-docker compose up -d
+cargo run --bin ak-asset-storage -- server -c tmp/config.toml   # API on :5150
+cargo run --bin ak-asset-storage -- worker -c tmp/config.toml
+pnpm dev                                                         # frontend on :25173, proxies /api → :5150
 ```
 
-### 5. Run Database Migrations
+More day-to-day commands (debug binaries, worker concurrency, e2e runs) are in
+DEVELOPMENT.md under 常用命令.
+
+## Verification
+
+Pre-commit runs fmt/clippy/eslint on staged files via lint-staged. The full set
+CI enforces:
 
 ```bash
-sqlx migrate run
-```
-
-## Development Workflow
-
-### Backend Development
-
-Start the backend API server:
-
-```bash
-cargo run --bin ak-asset-storage -- server -c config.toml
-```
-
-Start the background worker:
-
-```bash
-cargo run --bin ak-asset-storage -- worker -c config.toml
-```
-
-### Frontend Development
-
-Start the frontend development server:
-
-```bash
-pnpm dev
-```
-
-The frontend will be available at `http://localhost:25173` and the API at `http://localhost:5150`.
-
-### Testing
-
-Run backend tests:
-
-```bash
+cargo fmt --all -- --check
+cargo clippy --all-features -- -D warnings
 cargo test --all-features -- --nocapture
-```
-
-Run frontend type checking and linting:
-
-```bash
 pnpm typecheck
 pnpm lint
 ```
 
-### Database Management
+`pnpm build` is required before cargo build/clippy/test — rust-embed embeds the
+frontend build output into the binary.
 
-Create a new migration:
+## Database
+
+Migrations live in `migrations/`:
 
 ```bash
-sqlx migrate add <migration_name>
+sqlx migrate add <name>   # create a new migration
+sqlx migrate run          # apply (same as `just up`)
 ```
 
-## Development Services
-
-After running `docker compose up -d`, the following services will be available:
-
-- **PostgreSQL**: `localhost:25432`
-- **RustFS (S3)**: `localhost:9000` (API), `localhost:9001` (Console)
-- **Frontend**: `localhost:25173` (after `pnpm dev`)
-- **Backend API**: `localhost:5150` (after `cargo run --bin ak-asset-storage server`)
+- Always use the `sqlx::query!` / `query_as!` / `query_scalar!` macros, never
+  the non-macro `sqlx::query` / `query_as` functions — the macros verify queries
+  at compile time.
+- Never edit the `.sqlx/` directory.
+- Do not use `SQLX_OFFLINE=true` for local `cargo check` / `cargo build`; run
+  `sqlx migrate run` first and let sqlx verify against the live database. If it
+  cannot connect, fix the database instead of falling back to offline mode.
 
 ## Project Structure
 
-- `src/commands/` - CLI entry points
-- `src/api/` - HTTP API and static file serving
-- `src/database/` - PostgreSQL queries and models
-- `src/service/` - Shared business workflows
-- `src/external/` - External service integrations
-- `src/worker/` - Background worker loops and watchers
-- `app/` - Vue.js frontend application
+See [README.md](README.md) for the module layout of the Rust backend and the
+frontend location.
 
 ## Code Style
 

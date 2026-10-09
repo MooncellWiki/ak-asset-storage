@@ -28,7 +28,7 @@ fn load_second_fixture() -> serde_json::Value {
 }
 
 #[tokio::test]
-#[ignore = "manual e2e test requiring docker, rc, and fixture assets"]
+#[ignore = "manual e2e test requiring a local k3s (deploy/k3s/dev), rc, and fixture assets"]
 async fn import_and_get_success() {
     let env = TestEnv::bootstrap().await;
     env.copy_item_demand_fixture(fixture_path("item_demand.json"));
@@ -44,7 +44,7 @@ async fn import_and_get_success() {
 }
 
 #[tokio::test]
-#[ignore = "manual e2e test requiring docker, rc, and fixture assets"]
+#[ignore = "manual e2e test requiring a local k3s (deploy/k3s/dev), rc, and fixture assets"]
 async fn import_replaces_existing_data() {
     let env = TestEnv::bootstrap().await;
 
@@ -75,7 +75,7 @@ async fn import_replaces_existing_data() {
 }
 
 #[tokio::test]
-#[ignore = "manual e2e test requiring docker, rc, and fixture assets"]
+#[ignore = "manual e2e test requiring a local k3s (deploy/k3s/dev), rc, and fixture assets"]
 async fn get_nonexistent_item_returns_404() {
     let env = TestEnv::bootstrap().await;
     let (status, _) = env.get_text("/api/v1/item/不存在的材料/demand").await;
