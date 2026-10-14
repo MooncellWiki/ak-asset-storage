@@ -114,6 +114,10 @@ gen-config:
     image_url = "ghcr.io/mooncellwiki/torappu:main"
     namespace = "ak-dev"
     job_name = "ak-asset-job-dev"
+    service_account_name = "ak-asset-extractor"
+    # Match host-run server/worker output ownership without container root.
+    run_as_user = $(id -u)
+    run_as_group = $(id -g)
     env_vars = [
         "TZ=Asia/Shanghai",
         "ENVIRONMENT=debug",

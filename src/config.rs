@@ -179,6 +179,13 @@ pub struct KubernetesConfig {
     /// Fixed Job name; doubles as the single-flight lock, so a launch is
     /// rejected while a Job with this name is still running.
     pub job_name: String,
+    /// Unprivileged account in `namespace`; it must exist before launching.
+    #[serde(default = "default_extractor_service_account_name")]
+    pub service_account_name: String,
+    /// Override the image's non-root UID/GID to match writable output volumes.
+    /// Omit both to use the image defaults (Torappu uses 10001:10001).
+    pub run_as_user: Option<u32>,
+    pub run_as_group: Option<u32>,
     /// Name of an imagePullSecret living in `namespace`, for private
     /// registries. Image pulls and their retries belong to kubelet.
     pub image_pull_secret: Option<String>,
@@ -190,6 +197,10 @@ pub struct KubernetesConfig {
     /// volume).
     #[serde(default = "default_job_active_deadline_seconds")]
     pub active_deadline_seconds: u32,
+}
+
+fn default_extractor_service_account_name() -> String {
+    "ak-asset-extractor".to_string()
 }
 
 const fn default_job_active_deadline_seconds() -> u32 {
@@ -215,6 +226,22 @@ impl KubernetesConfig {
             return Err(AppError::Application(anyhow::anyhow!(
                 "torappu.kubernetes.namespace and job_name must not be empty"
             )));
+        }
+        if self.service_account_name.trim().is_empty() {
+            return Err(AppError::Application(anyhow::anyhow!(
+                "torappu.kubernetes.service_account_name must not be empty"
+            )));
+        }
+        for (name, id) in [
+            ("run_as_user", self.run_as_user),
+            ("run_as_group", self.run_as_group),
+        ] {
+            if id.is_some_and(|id| id == 0 || id == u32::MAX) {
+                return Err(AppError::Application(anyhow::anyhow!(
+                    "torappu.kubernetes.{name} must be between 1 and {}",
+                    u32::MAX - 1
+                )));
+            }
         }
         if self.active_deadline_seconds == 0 {
             return Err(AppError::Application(anyhow::anyhow!(
@@ -451,6 +478,9 @@ mod tests {
             image_url: "image:latest".to_string(),
             namespace: "default".to_string(),
             job_name: "job".to_string(),
+            service_account_name: default_extractor_service_account_name(),
+            run_as_user: None,
+            run_as_group: None,
             image_pull_secret: None,
             env_vars: None,
             volume_mounts: Some(vec![mount]),
@@ -528,6 +558,54 @@ mod tests {
     }
 
     #[test]
+    fn validate_rejects_invalid_extractor_identity() {
+        let mut settings = settings_with_mount(mount(Some("data"), None));
+        settings
+            .torappu
+            .kubernetes
+            .as_mut()
+            .unwrap()
+            .service_account_name = " ".to_string();
+        assert!(settings.validate().is_err());
+
+        for id in [0, u32::MAX] {
+            let mut settings = settings_with_mount(mount(Some("data"), None));
+            settings.torappu.kubernetes.as_mut().unwrap().run_as_user = Some(id);
+            assert!(settings.validate().is_err(), "UID {id} was accepted");
+
+            let mut settings = settings_with_mount(mount(Some("data"), None));
+            settings.torappu.kubernetes.as_mut().unwrap().run_as_group = Some(id);
+            assert!(settings.validate().is_err(), "GID {id} was accepted");
+        }
+
+        let mut settings = settings_with_mount(mount(Some("data"), None));
+        let kubernetes = settings.torappu.kubernetes.as_mut().unwrap();
+        kubernetes.run_as_user = Some(1000);
+        kubernetes.run_as_group = Some(2000);
+        assert!(settings.validate().is_ok());
+    }
+
+    #[test]
+    fn kubernetes_extractor_identity_can_be_configured() {
+        let parsed: KubernetesConfig = toml::from_str(
+            "image_url = 'image:latest'\nnamespace = 'ns'\njob_name = 'job'\n\
+             service_account_name = 'custom-extractor'\nrun_as_user = 1000\nrun_as_group = 2000\n",
+        )
+        .unwrap();
+        assert_eq!(parsed.service_account_name, "custom-extractor");
+        assert_eq!(parsed.run_as_user, Some(1000));
+        assert_eq!(parsed.run_as_group, Some(2000));
+        assert!(parsed.validate().is_ok());
+
+        assert!(
+            toml::from_str::<KubernetesConfig>(
+                "image_url = 'image:latest'\nnamespace = 'ns'\njob_name = 'job'\nrun_as_user = -1\n",
+            )
+            .is_err()
+        );
+    }
+
+    #[test]
     fn leftover_docker_section_is_rejected() {
         let torappu: TorappuConfig = toml::from_str(
             "token = 'x'\nasset_base_path = '/assets'\n\
@@ -553,5 +631,8 @@ mod tests {
             toml::from_str("image_url = 'image:latest'\nnamespace = 'ns'\njob_name = 'job'\n")
                 .unwrap();
         assert_eq!(parsed.active_deadline_seconds, 6 * 60 * 60);
+        assert_eq!(parsed.service_account_name, "ak-asset-extractor");
+        assert_eq!(parsed.run_as_user, None);
+        assert_eq!(parsed.run_as_group, None);
     }
 }

@@ -32,8 +32,6 @@ const MANAGED_BY_LABEL: &str = "app.kubernetes.io/managed-by";
 /// Fixed so the container name stays a valid DNS-1123 label whatever the
 /// (DNS subdomain) Job name is.
 const CONTAINER_NAME: &str = "extractor";
-/// No `RoleBinding`: extraction only needs its output volumes, not API access.
-const EXTRACTOR_SERVICE_ACCOUNT: &str = "ak-asset-extractor";
 
 #[derive(Clone)]
 pub struct KubernetesClient {
@@ -270,7 +268,7 @@ fn build_job(
                     ..Default::default()
                 }),
                 spec: Some(PodSpec {
-                    service_account_name: Some(EXTRACTOR_SERVICE_ACCOUNT.to_string()),
+                    service_account_name: Some(config.service_account_name.clone()),
                     automount_service_account_token: Some(false),
                     enable_service_links: Some(false),
                     security_context: Some(PodSecurityContext {
@@ -292,6 +290,9 @@ fn build_job(
                         args: Some(args),
                         env: (!env.is_empty()).then_some(env),
                         security_context: Some(SecurityContext {
+                            run_as_non_root: Some(true),
+                            run_as_user: config.run_as_user.map(i64::from),
+                            run_as_group: config.run_as_group.map(i64::from),
                             privileged: Some(false),
                             allow_privilege_escalation: Some(false),
                             capabilities: Some(Capabilities {
@@ -396,6 +397,9 @@ mod tests {
             image_url: "example.com/extractor:latest".to_string(),
             namespace: "ak-asset-storage".to_string(),
             job_name: "ak-asset-job".to_string(),
+            service_account_name: "custom-extractor".to_string(),
+            run_as_user: None,
+            run_as_group: None,
             image_pull_secret: Some("registry-cred".to_string()),
             env_vars: Some(vec!["TZ=Asia/Shanghai".to_string()]),
             volume_mounts: Some(vec![KubernetesVolumeMount {
@@ -481,7 +485,7 @@ mod tests {
 
         assert_eq!(
             pod.service_account_name.as_deref(),
-            Some(EXTRACTOR_SERVICE_ACCOUNT)
+            Some("custom-extractor")
         );
         assert_eq!(pod.automount_service_account_token, Some(false));
         assert_eq!(pod.enable_service_links, Some(false));
@@ -490,11 +494,39 @@ mod tests {
             "RuntimeDefault"
         );
         let security = pod.containers[0].security_context.as_ref().unwrap();
+        assert_eq!(security.run_as_non_root, Some(true));
+        assert_eq!(security.run_as_user, None);
+        assert_eq!(security.run_as_group, None);
         assert_eq!(security.privileged, Some(false));
         assert_eq!(security.allow_privilege_escalation, Some(false));
         let capabilities = security.capabilities.as_ref().unwrap();
         assert_eq!(capabilities.drop.as_deref().unwrap(), ["ALL"]);
         assert!(capabilities.add.is_none());
+    }
+
+    #[test]
+    fn extractor_can_match_output_volume_ownership_without_root() {
+        let mut config = config();
+        config.run_as_user = Some(1000);
+        config.run_as_group = Some(2000);
+        let job = build_job(&config, "c", "r", "pc", "pr", None, None).expect("job builds");
+        let pod = job.spec.unwrap().template.spec.unwrap();
+        let security = pod.containers[0].security_context.as_ref().unwrap();
+
+        assert_eq!(security.run_as_non_root, Some(true));
+        assert_eq!(security.run_as_user, Some(1000));
+        assert_eq!(security.run_as_group, Some(2000));
+        assert_eq!(security.allow_privilege_escalation, Some(false));
+        assert_eq!(
+            security
+                .capabilities
+                .as_ref()
+                .unwrap()
+                .drop
+                .as_deref()
+                .unwrap(),
+            ["ALL"]
+        );
     }
 
     #[test]

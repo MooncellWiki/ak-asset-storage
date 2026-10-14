@@ -18,6 +18,8 @@
 # admission rules for the permitted image, volumes and security context.
 # The extractor account below must have no RoleBinding and never mount an
 # API token. Match resourceNames to torappu.kubernetes.job_name if changed.
+# Match the extractor name to torappu.kubernetes.service_account_name too;
+# update any admission account allowlist when renaming it.
 apiVersion: v1
 kind: ServiceAccount
 metadata:
