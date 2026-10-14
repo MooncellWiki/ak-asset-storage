@@ -87,6 +87,10 @@ asset_base_path = "/assets"
 # so keep kubeconfigs out of the server/worker pod); apply
 # deploy/k3s/rbac.yaml and set `serviceAccountName: ak-asset-storage` on the
 # server/worker pod when running inside k3s.
+# The Job itself uses the separate ak-asset-extractor account without an API
+# token, disables privilege escalation, drops all capabilities and uses
+# RuntimeDefault seccomp. RBAC alone cannot constrain Job contents: install
+# deployment-specific admission rules as explained in deploy/k3s/rbac.yaml.
 [torappu.kubernetes]
 image_url = "your-registry/your-image:latest"
 namespace = "ak-asset-storage"
@@ -112,3 +116,8 @@ workflow_id = "workflow-file.yml"
 ref = "main"
 token = "github-token"
 ```
+
+`deploy/k3s/rbac.yaml` is a standalone deployment example; it is not included
+by `deploy/k3s/dev/kustomization.yaml`. Adapt the Job name and namespace to
+your configuration, and install admission rules for the permitted images,
+volume paths and security context in your cluster.

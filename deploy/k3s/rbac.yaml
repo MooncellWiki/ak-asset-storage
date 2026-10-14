@@ -1,4 +1,4 @@
-# Minimal RBAC for the server/worker to launch the asset-extraction Job
+# RBAC example for the server/worker to launch the asset-extraction Job
 # (the in-cluster deployment mode of the `[torappu.kubernetes]` config).
 #
 # The namespace must match `torappu.kubernetes.namespace`. Adjust it if the
@@ -12,11 +12,24 @@
 # Then set on the server/worker pod spec:
 #
 #   spec.template.spec.serviceAccountName: ak-asset-storage
+#
+# IMPORTANT: jobs.create cannot be limited by resourceNames or Pod fields.
+# RBAC alone is not a sandbox. The cluster administrator must also install
+# admission rules for the permitted image, volumes and security context.
+# The extractor account below must have no RoleBinding and never mount an
+# API token. Match resourceNames to torappu.kubernetes.job_name if changed.
 apiVersion: v1
 kind: ServiceAccount
 metadata:
   name: ak-asset-storage
   namespace: ak-asset-storage
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: ak-asset-extractor
+  namespace: ak-asset-storage
+automountServiceAccountToken: false
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: Role
@@ -24,11 +37,14 @@ metadata:
   name: ak-asset-storage-job-launcher
   namespace: ak-asset-storage
 rules:
-  # launch_container only gets / creates / deletes the fixed-name Job;
-  # no pods access, no other resources.
+  # CREATE has no name restriction in RBAC; enforce it with admission.
   - apiGroups: [batch]
     resources: [jobs]
-    verbs: [get, create, delete]
+    verbs: [create]
+  - apiGroups: [batch]
+    resources: [jobs]
+    resourceNames: [ak-asset-job]
+    verbs: [get, delete]
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding

@@ -1,0 +1,7 @@
+# The host-run dev server uses kubeconfig to create Jobs; their Pods still
+# need the same unprivileged, tokenless account as an in-cluster deployment.
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: ak-asset-extractor
+automountServiceAccountToken: false

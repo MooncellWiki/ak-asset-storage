@@ -76,6 +76,9 @@ update_interval_seconds = 600
 # kube-rs Config::infer: $KUBECONFIG/~/.kube/config first, then the in-cluster
 # service account, so keep kubeconfigs out of the server/worker pod.
 # The server/worker pod needs the ServiceAccount from deploy/k3s/rbac.yaml.
+# Apply its separate ak-asset-extractor ServiceAccount too; extraction Jobs
+# have no API token. Install cluster-side admission constraints as well:
+# jobs.create RBAC does not restrict images, volumes or security settings.
 [torappu.kubernetes]
 image_url = "your-registry/your-image:latest"
 namespace = "ak-asset-storage"

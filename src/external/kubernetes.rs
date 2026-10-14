@@ -5,8 +5,9 @@ use crate::{
 use anyhow::anyhow;
 use k8s_openapi::api::batch::v1::Job;
 use k8s_openapi::api::core::v1::{
-    Container, EnvVar, HostPathVolumeSource, LocalObjectReference,
-    PersistentVolumeClaimVolumeSource, PodSpec, PodTemplateSpec, Volume, VolumeMount,
+    Capabilities, Container, EnvVar, HostPathVolumeSource, LocalObjectReference,
+    PersistentVolumeClaimVolumeSource, PodSecurityContext, PodSpec, PodTemplateSpec,
+    SeccompProfile, SecurityContext, Volume, VolumeMount,
 };
 use k8s_openapi::apimachinery::pkg::apis::meta::v1::ObjectMeta;
 use kube::{
@@ -31,6 +32,8 @@ const MANAGED_BY_LABEL: &str = "app.kubernetes.io/managed-by";
 /// Fixed so the container name stays a valid DNS-1123 label whatever the
 /// (DNS subdomain) Job name is.
 const CONTAINER_NAME: &str = "extractor";
+/// No `RoleBinding`: extraction only needs its output volumes, not API access.
+const EXTRACTOR_SERVICE_ACCOUNT: &str = "ak-asset-extractor";
 
 #[derive(Clone)]
 pub struct KubernetesClient {
@@ -267,6 +270,16 @@ fn build_job(
                     ..Default::default()
                 }),
                 spec: Some(PodSpec {
+                    service_account_name: Some(EXTRACTOR_SERVICE_ACCOUNT.to_string()),
+                    automount_service_account_token: Some(false),
+                    enable_service_links: Some(false),
+                    security_context: Some(PodSecurityContext {
+                        seccomp_profile: Some(SeccompProfile {
+                            type_: "RuntimeDefault".to_string(),
+                            ..Default::default()
+                        }),
+                        ..Default::default()
+                    }),
                     restart_policy: Some("Never".to_string()),
                     image_pull_secrets,
                     containers: vec![Container {
@@ -278,6 +291,15 @@ fn build_job(
                         image_pull_policy: Some("Always".to_string()),
                         args: Some(args),
                         env: (!env.is_empty()).then_some(env),
+                        security_context: Some(SecurityContext {
+                            privileged: Some(false),
+                            allow_privilege_escalation: Some(false),
+                            capabilities: Some(Capabilities {
+                                drop: Some(vec!["ALL".to_string()]),
+                                ..Default::default()
+                            }),
+                            ..Default::default()
+                        }),
                         volume_mounts: (!volume_mounts.is_empty()).then_some(volume_mounts),
                         ..Default::default()
                     }],
@@ -450,6 +472,29 @@ mod tests {
             pod_spec.containers[0].volume_mounts.as_ref().unwrap()[0].mount_path,
             "/app/data"
         );
+    }
+
+    #[test]
+    fn extractor_cannot_inherit_launcher_credentials_or_container_privileges() {
+        let job = build_job(&config(), "c", "r", "pc", "pr", None, None).expect("job builds");
+        let pod = job.spec.unwrap().template.spec.unwrap();
+
+        assert_eq!(
+            pod.service_account_name.as_deref(),
+            Some(EXTRACTOR_SERVICE_ACCOUNT)
+        );
+        assert_eq!(pod.automount_service_account_token, Some(false));
+        assert_eq!(pod.enable_service_links, Some(false));
+        assert_eq!(
+            pod.security_context.unwrap().seccomp_profile.unwrap().type_,
+            "RuntimeDefault"
+        );
+        let security = pod.containers[0].security_context.as_ref().unwrap();
+        assert_eq!(security.privileged, Some(false));
+        assert_eq!(security.allow_privilege_escalation, Some(false));
+        let capabilities = security.capabilities.as_ref().unwrap();
+        assert_eq!(capabilities.drop.as_deref().unwrap(), ["ALL"]);
+        assert!(capabilities.add.is_none());
     }
 
     #[test]

@@ -41,6 +41,13 @@ cargo build
 `image_pull_secret`;若将 server / worker 放进集群,再按 `deploy/k3s/rbac.yaml`
 配置同 namespace 的 ServiceAccount。
 
+解包 Job 使用独立的 `ak-asset-extractor` ServiceAccount,不挂载 API token,
+并关闭提权、丢弃全部 capabilities、使用 RuntimeDefault seccomp。`just k3s-apply`
+会通过 `deploy/k3s/dev/extractor.yaml` 在 `ak-dev` 准备这个无权限账号。
+
+`deploy/k3s/rbac.yaml` 是独立部署示例,不在 `just k3s-apply` 的依赖清单里。
+RBAC 的 `create` 不能限制 Job 模板;集群部署还须配置针对镜像、卷及安全上下文的准入策略。
+
 k3s 自带的 `kubectl` 能隐式读取 `/etc/rancher/k3s/k3s.yaml`,kube-rs 不会。
 `just init-env` 在未设置 `KUBECONFIG` 且 `~/.kube/config` 不存在时,会将当前
 kubectl 上下文导出到权限为 `0600` 的 `~/.kube/config`;已有配置保持不变。
