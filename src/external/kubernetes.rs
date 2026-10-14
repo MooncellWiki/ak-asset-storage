@@ -5,9 +5,9 @@ use crate::{
 use anyhow::anyhow;
 use k8s_openapi::api::batch::v1::Job;
 use k8s_openapi::api::core::v1::{
-    Capabilities, Container, EnvVar, HostPathVolumeSource, LocalObjectReference,
-    PersistentVolumeClaimVolumeSource, PodSecurityContext, PodSpec, PodTemplateSpec,
-    SeccompProfile, SecurityContext, Volume, VolumeMount,
+    Capabilities, Container, EnvVar, HostPathVolumeSource, PersistentVolumeClaimVolumeSource,
+    PodSecurityContext, PodSpec, PodTemplateSpec, SeccompProfile, SecurityContext, Volume,
+    VolumeMount,
 };
 use k8s_openapi::apimachinery::pkg::apis::meta::v1::ObjectMeta;
 use kube::{
@@ -77,9 +77,8 @@ impl KubernetesClient {
         let jobs: Api<Job> = Api::namespaced(self.client.clone(), &self.config.namespace);
         // Built before touching the cluster so a config error fails the
         // launch without deleting the previous finished Job and its status.
-        // Image pulls (with backoff and private-registry auth via
-        // imagePullSecrets) are handled by kubelet, so there is no
-        // client-side pull loop here.
+        // Image pulls, node-level registry credentials and retries are
+        // handled by kubelet, so there is no client-side pull loop here.
         let job = build_job(
             &self.config,
             client_version,
@@ -237,12 +236,6 @@ fn build_job(
     let env = parse_env_vars(config.env_vars.as_deref().unwrap_or(&[]))?;
     let (volumes, volume_mounts) = build_volumes(config.volume_mounts.as_deref().unwrap_or(&[]));
 
-    let image_pull_secrets = config.image_pull_secret.as_ref().map(|secret_name| {
-        vec![LocalObjectReference {
-            name: secret_name.clone(),
-        }]
-    });
-
     Ok(Job {
         metadata: ObjectMeta {
             name: Some(config.job_name.clone()),
@@ -279,7 +272,6 @@ fn build_job(
                         ..Default::default()
                     }),
                     restart_policy: Some("Never".to_string()),
-                    image_pull_secrets,
                     containers: vec![Container {
                         name: CONTAINER_NAME.to_string(),
                         image: Some(config.image_url.clone()),
@@ -400,7 +392,6 @@ mod tests {
             service_account_name: "custom-extractor".to_string(),
             run_as_user: None,
             run_as_group: None,
-            image_pull_secret: Some("registry-cred".to_string()),
             env_vars: Some(vec!["TZ=Asia/Shanghai".to_string()]),
             volume_mounts: Some(vec![KubernetesVolumeMount {
                 mount_path: "/app/data".to_string(),
@@ -452,7 +443,7 @@ mod tests {
     }
 
     #[test]
-    fn job_wires_pull_secret_and_volumes() {
+    fn job_wires_volumes() {
         let job = build_job(&config(), "c", "r", "pc", "pr", None, None).expect("job builds");
         let spec = job.spec.as_ref().unwrap();
         let pod_spec = spec.template.spec.as_ref().unwrap();
@@ -460,10 +451,7 @@ mod tests {
         assert_eq!(spec.backoff_limit, Some(0));
         assert_eq!(spec.active_deadline_seconds, Some(3600));
         assert_eq!(pod_spec.restart_policy.as_deref(), Some("Never"));
-        assert_eq!(
-            pod_spec.image_pull_secrets.as_ref().unwrap()[0].name,
-            "registry-cred"
-        );
+        assert!(pod_spec.image_pull_secrets.is_none());
         assert_eq!(
             pod_spec.volumes.as_ref().unwrap()[0]
                 .persistent_volume_claim

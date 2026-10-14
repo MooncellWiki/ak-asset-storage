@@ -186,9 +186,6 @@ pub struct KubernetesConfig {
     /// Omit both to use the image defaults (Torappu uses 10001:10001).
     pub run_as_user: Option<u32>,
     pub run_as_group: Option<u32>,
-    /// Name of an imagePullSecret living in `namespace`, for private
-    /// registries. Image pulls and their retries belong to kubelet.
-    pub image_pull_secret: Option<String>,
     pub env_vars: Option<Vec<String>>,
     pub volume_mounts: Option<Vec<KubernetesVolumeMount>>,
     /// Upper bound on the Job's lifetime, pending time included. Past it the
@@ -481,7 +478,6 @@ mod tests {
             service_account_name: default_extractor_service_account_name(),
             run_as_user: None,
             run_as_group: None,
-            image_pull_secret: None,
             env_vars: None,
             volume_mounts: Some(vec![mount]),
             active_deadline_seconds: default_job_active_deadline_seconds(),

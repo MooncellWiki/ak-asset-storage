@@ -94,6 +94,8 @@ asset_base_path = "/assets"
 # Jobs require a non-root image USER; upgrade Torappu and prepare volume
 # ownership before deploying this launcher (see DEVELOPMENT.md).
 [torappu.kubernetes]
+# Image pulls and retries are handled by kubelet. Configure any registry
+# credentials on the Kubernetes nodes.
 image_url = "your-registry/your-image:latest"
 namespace = "ak-asset-storage"
 # Fixed Job name; doubles as the single-flight lock, a launch is rejected
@@ -104,8 +106,6 @@ service_account_name = "ak-asset-extractor"
 # image's USER applies (Torappu: 10001:10001). Both must be nonzero if set.
 # run_as_user = 10001
 # run_as_group = 10001
-# imagePullSecret for private registries (pulls and retries are kubelet's job)
-image_pull_secret = "ak-registry-cred"
 env_vars = [ "TZ=Asia/Shanghai" ]
 # Fails a Job that has not finished in time (default 6h), including one stuck
 # pulling its image, so it cannot block later launches forever.

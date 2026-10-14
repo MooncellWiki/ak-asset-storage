@@ -5,9 +5,8 @@
 # app runs elsewhere:
 #
 #   kubectl -n ak-asset-storage apply -f deploy/k3s/rbac.yaml
-#   kubectl -n ak-asset-storage create secret docker-registry ak-registry-cred \
-#     --docker-server=registry.example.com \
-#     --docker-username=... --docker-password=...
+#
+# Configure registry credentials on the nodes (k3s: registries.yaml).
 #
 # Then set on the server/worker pod spec:
 #

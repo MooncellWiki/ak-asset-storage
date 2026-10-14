@@ -37,9 +37,10 @@ cargo build
 `tmp/config.toml` 已启用 `[torappu.kubernetes]`,在 `ak-dev` 创建
 `ak-asset-job-dev`,使用公开镜像 `ghcr.io/mooncellwiki/torappu:main`。
 本机运行的 server / worker 使用 `$KUBECONFIG` / `~/.kube/config`,当前凭据
-需要有该 namespace 的 Job get/create/delete 权限。无需为公开镜像创建
-`image_pull_secret`;若将 server / worker 放进集群,再按 `deploy/k3s/rbac.yaml`
-配置同 namespace 的 ServiceAccount。
+需要有该 namespace 的 Job get/create/delete 权限。镜像拉取由节点的 kubelet
+负责;需要认证的镜像仓库在节点配置凭据(k3s 使用
+`/etc/rancher/k3s/registries.yaml`)。若将 server / worker 放进集群,再按
+`deploy/k3s/rbac.yaml` 配置同 namespace 的 ServiceAccount。
 
 解包 Job 使用独立的 `ak-asset-extractor` ServiceAccount,不挂载 API token,
 并关闭提权、丢弃全部 capabilities、使用 RuntimeDefault seccomp。`just k3s-apply`

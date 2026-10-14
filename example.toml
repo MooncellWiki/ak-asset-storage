@@ -82,6 +82,8 @@ update_interval_seconds = 600
 # Upgrade the Torappu image to its non-root version and make existing output
 # directories writable by its UID/GID before enabling the new launcher.
 [torappu.kubernetes]
+# Image pulls and retries are handled by kubelet. Configure any registry
+# credentials on the Kubernetes nodes.
 image_url = "your-registry/your-image:latest"
 namespace = "ak-asset-storage"
 # Fixed Job name; doubles as the single-flight lock, a launch is rejected
@@ -94,12 +96,6 @@ service_account_name = "ak-asset-extractor"
 # (Torappu: 10001:10001), or match the owner of your output volumes.
 # run_as_user = 10001
 # run_as_group = 10001
-# imagePullSecret for private registries; pulls and their retries are
-# handled by kubelet, no client-side retry loop:
-# kubectl -n ak-asset-storage create secret docker-registry ak-registry-cred \
-#   --docker-server=registry.example.com \
-#   --docker-username=... --docker-password=...
-image_pull_secret = "ak-registry-cred"
 env_vars = [ "TZ=Asia/Shanghai" ]
 # Fails a Job that has not finished in time (default 6h), including one stuck
 # in ImagePullBackOff or Pending, so it cannot block later launches forever.
