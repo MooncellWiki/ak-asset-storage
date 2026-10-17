@@ -25,6 +25,7 @@ use rmcp::{
     tool, tool_handler, tool_router,
 };
 use serde::{Deserialize, Serialize};
+use std::sync::Arc;
 use tracing::warn;
 
 const INSTRUCTIONS: &str = "\
@@ -52,15 +53,15 @@ All tools are read-only.";
 
 #[derive(Clone)]
 pub struct AkAssetMcpServer {
-    state: AppState,
-    tool_router: ToolRouter<Self>,
+    state: Arc<AppState>,
+    tool_router: Arc<ToolRouter<Self>>,
 }
 
 impl AkAssetMcpServer {
     pub fn new(state: AppState) -> Self {
         Self {
-            state,
-            tool_router: Self::tool_router(),
+            state: Arc::new(state),
+            tool_router: Arc::new(Self::tool_router()),
         }
     }
 }

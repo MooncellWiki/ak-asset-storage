@@ -70,7 +70,7 @@ pub fn build_router(state: AppState) -> Router {
         );
 
     let router = if state.settings.mcp.enable {
-        let mcp_state = state.clone();
+        let mcp_server = mcp::AkAssetMcpServer::new(state.clone());
         // Host restrictions are enforced by the gateway, not the SDK's
         // default loopback-only allowlist.
         // Read-only tools need no session affinity when requests cross backend replicas.
@@ -79,7 +79,7 @@ pub fn build_router(state: AppState) -> Router {
             .with_json_response(true)
             .disable_allowed_hosts();
         let mcp_service = StreamableHttpService::new(
-            move || Ok(mcp::AkAssetMcpServer::new(mcp_state.clone())),
+            move || Ok(mcp_server.clone()),
             Arc::new(NeverSessionManager::default()),
             mcp_config,
         );

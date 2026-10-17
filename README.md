@@ -76,10 +76,7 @@ with_virtual_hosted_style_request = false
 
 ### MCP
 
-Set `[mcp] enable = true` to expose the read-only query tools at `/mcp`
-(Streamable HTTP). Requests are stateless and return JSON, including for
-clients using the legacy initialization handshake. Requests can move between
-backend replicas without sticky routing or a shared MCP session store.
+Set `[mcp] enable = true` to expose the read-only query tools at `/mcp` (Streamable HTTP).
 
 ### Torappu
 
