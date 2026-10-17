@@ -2,13 +2,25 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.26.2] - 2026-10-17
+
+[2ff235c](2ff235c31a135c710386e2e62902b1d90443849c)...[756976f](756976f1f71dadd059d246b5f55c745395ebc1fd)
+
+### 🐛 Bug Fixes
+
+- Serve stateless MCP across backend replicas (#184) ([756976f](https://github.com/MooncellWiki/ak-asset-storage/commit/756976f1f71dadd059d246b5f55c745395ebc1fd))
+
 ## [0.26.1] - 2026-10-17
 
-[78b5f1c](78b5f1cb8a0b2c053cd74506cb7f967ad7b1f496)...[f28bb7d](f28bb7df3983ab6c44837502fb225e1b7d13aaff)
+[78b5f1c](78b5f1cb8a0b2c053cd74506cb7f967ad7b1f496)...[2ff235c](2ff235c31a135c710386e2e62902b1d90443849c)
 
 ### 🐛 Bug Fixes
 
 - Harden non-root Kubernetes extraction jobs (#183) ([f28bb7d](https://github.com/MooncellWiki/ak-asset-storage/commit/f28bb7df3983ab6c44837502fb225e1b7d13aaff))
+
+### ⚙️ Miscellaneous Tasks
+
+- Release 0.26.1 ([2ff235c](https://github.com/MooncellWiki/ak-asset-storage/commit/2ff235c31a135c710386e2e62902b1d90443849c))
 
 ## [0.26.0] - 2026-10-09
 
