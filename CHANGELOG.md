@@ -2,13 +2,25 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.26.1] - 2026-10-17
+
+[78b5f1c](78b5f1cb8a0b2c053cd74506cb7f967ad7b1f496)...[f28bb7d](f28bb7df3983ab6c44837502fb225e1b7d13aaff)
+
+### 🐛 Bug Fixes
+
+- Harden non-root Kubernetes extraction jobs (#183) ([f28bb7d](https://github.com/MooncellWiki/ak-asset-storage/commit/f28bb7df3983ab6c44837502fb225e1b7d13aaff))
+
 ## [0.26.0] - 2026-10-09
 
-[574152e](574152e935141e5b4bf3a660894d3dca37bfb63b)...[6f0e9d6](6f0e9d65814785210140dd9c39b1407a01c299d4)
+[574152e](574152e935141e5b4bf3a660894d3dca37bfb63b)...[78b5f1c](78b5f1cb8a0b2c053cd74506cb7f967ad7b1f496)
 
 ### 🚀 Features
 
 - 资源提取任务与开发依赖统一迁移到 k3s (#182) ([6f0e9d6](https://github.com/MooncellWiki/ak-asset-storage/commit/6f0e9d65814785210140dd9c39b1407a01c299d4)), Co-authored-by:StarHeartHunt <starheart233@gmail.com>
+
+### ⚙️ Miscellaneous Tasks
+
+- Release 0.26.0 ([78b5f1c](https://github.com/MooncellWiki/ak-asset-storage/commit/78b5f1cb8a0b2c053cd74506cb7f967ad7b1f496))
 
 ## [0.25.0] - 2026-10-06
 
