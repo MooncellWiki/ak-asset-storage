@@ -6,17 +6,15 @@ on:
   pull_request:
 
 env:
-  RUST_TOOLCHAIN: stable
-  TOOLCHAIN_PROFILE: minimal
   SQLX_OFFLINE: true
+
+permissions:
+  contents: read
 
 jobs:
   rustfmt:
     name: Check Rust Style
     runs-on: ubuntu-latest
-
-    permissions:
-      contents: read
 
     steps:
       - name: Checkout the code
@@ -24,6 +22,7 @@ jobs:
       - uses: actions-rust-lang/setup-rust-toolchain@v1
         with:
           components: rustfmt
+          cache: false
       - name: Rustfmt Check
         uses: actions-rust-lang/rustfmt@v1
 
@@ -31,17 +30,12 @@ jobs:
     name: Run Clippy
     runs-on: ubuntu-latest
 
-    permissions:
-      contents: read
-
     steps:
       - name: Checkout the code
         uses: actions/checkout@v7
       - uses: actions-rust-lang/setup-rust-toolchain@v1
         with:
           components: clippy
-      - name: Setup Rust cache
-        uses: Swatinem/rust-cache@v2
       - name: Setup Node
         uses: ./.github/actions/node
       - name: Build frontend
@@ -49,7 +43,7 @@ jobs:
         run: pnpm run build
       - name: Run cargo clippy
         shell: bash
-        run: cargo clippy --all-features -- -D warnings
+        run: cargo clippy --locked --all-features -- -D warnings
 
   eslint:
     name: Check frontend style
@@ -62,6 +56,12 @@ jobs:
       - name: Run eslint
         shell: bash
         run: pnpm run lint
+      - name: Build frontend
+        shell: bash
+        run: pnpm run build
+      - name: Check frontend types
+        shell: bash
+        run: pnpm run typecheck
 
   test:
     name: Run Tests
@@ -70,10 +70,6 @@ jobs:
       - name: Checkout the code
         uses: actions/checkout@v7
       - uses: actions-rust-lang/setup-rust-toolchain@v1
-        with:
-          components: clippy
-      - name: Setup Rust cache
-        uses: Swatinem/rust-cache@v2
       - name: Setup Node
         uses: ./.github/actions/node
       - name: Build frontend
@@ -83,7 +79,12 @@ jobs:
       # (instead of skipping) when CI is set and they are missing.
       - name: Install plocate
         shell: bash
-        run: sudo apt-get update && sudo apt-get install -y plocate
+        run: |
+          # Skip the package's full-runner scan; tests build their own indexes.
+          sudo mkdir -p /var/lib/plocate
+          sudo touch /var/lib/plocate/plocate.db
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends plocate
       - name: Run cargo test
         shell: bash
-        run: cargo test --all-features -- --nocapture
+        run: cargo test --locked --all-features -- --nocapture
