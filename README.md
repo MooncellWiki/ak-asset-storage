@@ -74,6 +74,10 @@ secret_access_key = "secret-key"
 with_virtual_hosted_style_request = false
 ```
 
+### MCP
+
+Set `[mcp] enable = true` to expose the read-only query tools at `/mcp` (Streamable HTTP).
+
 ### Torappu
 
 ```toml

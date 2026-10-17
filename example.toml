@@ -45,6 +45,8 @@ traces_sample_rate = 1.0
 # When enabled, MCP clients connect to <host>:<port>/mcp (Streamable HTTP) and
 # can query versions, the manifest tree, bundles, story resources and the raw
 # asset directory — all read-only tools.
+# Requests are stateless and use JSON responses; replicas need no sticky
+# routing or shared MCP session store.
 [mcp]
 enable = false
 

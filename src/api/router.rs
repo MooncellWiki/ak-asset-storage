@@ -6,7 +6,7 @@ use crate::api::{
 };
 use axum::{Json, Router, handler::HandlerWithoutStateExt, routing::get};
 use rmcp::transport::streamable_http_server::{
-    StreamableHttpServerConfig, StreamableHttpService, session::local::LocalSessionManager,
+    StreamableHttpServerConfig, StreamableHttpService, session::never::NeverSessionManager,
 };
 use std::{path::PathBuf, sync::Arc};
 use tower_http::services::ServeDir;
@@ -70,13 +70,17 @@ pub fn build_router(state: AppState) -> Router {
         );
 
     let router = if state.settings.mcp.enable {
-        let mcp_state = state.clone();
+        let mcp_server = mcp::AkAssetMcpServer::new(state.clone());
         // Host restrictions are enforced by the gateway, not the SDK's
         // default loopback-only allowlist.
-        let mcp_config = StreamableHttpServerConfig::default().disable_allowed_hosts();
+        // Read-only tools need no session affinity when requests cross backend replicas.
+        let mcp_config = StreamableHttpServerConfig::default()
+            .with_legacy_session_mode(false)
+            .with_json_response(true)
+            .disable_allowed_hosts();
         let mcp_service = StreamableHttpService::new(
-            move || Ok(mcp::AkAssetMcpServer::new(mcp_state.clone())),
-            Arc::new(LocalSessionManager::default()),
+            move || Ok(mcp_server.clone()),
+            Arc::new(NeverSessionManager::default()),
             mcp_config,
         );
         info!("MCP endpoint enabled at /mcp");
