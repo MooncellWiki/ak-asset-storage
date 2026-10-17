@@ -1,3 +1,14 @@
+# Secret fields can also be provided via environment variables; a non-empty
+# variable overrides the value in this file:
+#   DATABASE_URI          -> database.uri
+#   S3_ACCESS_KEY_ID      -> s3.access_key_id
+#   S3_SECRET_ACCESS_KEY  -> s3.secret_access_key
+#   MAILER_AUTH_PASSWORD  -> mailer.auth.password
+#   TORAPPU_TOKEN         -> torappu.token
+#   TORAPPU_GITHUB_TOKEN  -> torappu.github.token
+# Omit a secret field when its variable is set. Optional mailer and GitHub
+# integrations still require their non-secret configuration in this file.
+
 # Application logging configuration
 [logger]
 enable = true
@@ -19,11 +30,11 @@ to_email = "receiver@example.com"
 frontend_url = "http://localhost:5150/"
 
 auth.user = "user@example.com"  # Uncomment and add SMTP user
-auth.password = "password"  # Uncomment and add SMTP password
+auth.password = "password"  # Uncomment and add SMTP password; or set MAILER_AUTH_PASSWORD
 
 # Database Configuration
 [database]
-uri = "postgres://ak:ak@localhost:32432/ak_asset_storage_next"
+uri = "postgres://ak:ak@localhost:32432/ak_asset_storage_next"  # or set DATABASE_URI
 
 [ak]
 asset_url = "https://ak.hycdn.cn/assetbundle/official/Android/assets"
@@ -32,8 +43,8 @@ conf_url = "https://ak-conf.hypergryph.com/config/prod/official/Android"
 [s3]
 endpoint = "http://127.0.0.1:31000"
 bucket_name = "arknights-assets"
-access_key_id = "access_key_id"
-secret_access_key = "secret_access_key"
+access_key_id = "access_key_id"  # or set S3_ACCESS_KEY_ID
+secret_access_key = "secret_access_key"  # or set S3_SECRET_ACCESS_KEY
 with_virtual_hosted_style_request = false
 
 # Optional Sentry configuration for error tracking
@@ -52,7 +63,7 @@ enable = false
 
 # Optional Torappu configuration
 [torappu]
-token = "your-torappu-token-here"
+token = "your-torappu-token-here"  # or set TORAPPU_TOKEN
 asset_base_path = "/assets"
 # Maximum asset searches (REST + MCP combined) running at once;
 # excess requests fail fast with 503 instead of queueing.
@@ -117,4 +128,4 @@ owner = "your-username"
 repo = "your-repo"
 workflow_id = "workflow-file.yml"
 ref = "main"
-token = "github-token"
+token = "github-token"  # or set TORAPPU_GITHUB_TOKEN
