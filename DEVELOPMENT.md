@@ -54,7 +54,9 @@ cargo build
 需手动补上这两个字段,或删掉配置后重新生成。UID/GID 不能为 0。
 镜像的 HOME 和缓存目录位于容器内 `/tmp`,自定义 UID 不需要写 `/root`。
 
-生产升级前先等待旧解包任务结束,准备 ServiceAccount,再将现有输出目录及其文件的
+生产升级前先从 `[torappu.kubernetes]` 配置中删除已移除的 `image_pull_secret`,
+镜像仓库认证改由节点配置;保留旧字段会因 `unknown field` 导致启动失败。
+然后等待旧解包任务结束,准备 ServiceAccount,再将现有输出目录及其文件的
 属主迁移到镜像的 `10001:10001`(或配置的非零 UID/GID)。`hostPath` 不会因镜像
 `USER` 改变而自动调整权限;只处理挂载的 asset / assetbundle / hot_update_list
 数据目录,不要修改整个 `/root` 或代码目录。确认 backend/worker 对共享文件仍有

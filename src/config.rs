@@ -233,10 +233,10 @@ impl KubernetesConfig {
             ("run_as_user", self.run_as_user),
             ("run_as_group", self.run_as_group),
         ] {
-            if id.is_some_and(|id| id == 0 || id == u32::MAX) {
+            if id.is_some_and(|id| id == 0 || i32::try_from(id).is_err()) {
                 return Err(AppError::Application(anyhow::anyhow!(
                     "torappu.kubernetes.{name} must be between 1 and {}",
-                    u32::MAX - 1
+                    i32::MAX
                 )));
             }
         }
@@ -564,7 +564,8 @@ mod tests {
             .service_account_name = " ".to_string();
         assert!(settings.validate().is_err());
 
-        for id in [0, u32::MAX] {
+        let max_id = u32::try_from(i32::MAX).unwrap();
+        for id in [0, max_id + 1, u32::MAX - 1, u32::MAX] {
             let mut settings = settings_with_mount(mount(Some("data"), None));
             settings.torappu.kubernetes.as_mut().unwrap().run_as_user = Some(id);
             assert!(settings.validate().is_err(), "UID {id} was accepted");
@@ -574,11 +575,13 @@ mod tests {
             assert!(settings.validate().is_err(), "GID {id} was accepted");
         }
 
-        let mut settings = settings_with_mount(mount(Some("data"), None));
-        let kubernetes = settings.torappu.kubernetes.as_mut().unwrap();
-        kubernetes.run_as_user = Some(1000);
-        kubernetes.run_as_group = Some(2000);
-        assert!(settings.validate().is_ok());
+        for id in [1, 1000, max_id] {
+            let mut settings = settings_with_mount(mount(Some("data"), None));
+            let kubernetes = settings.torappu.kubernetes.as_mut().unwrap();
+            kubernetes.run_as_user = Some(id);
+            kubernetes.run_as_group = Some(id);
+            assert!(settings.validate().is_ok(), "UID/GID {id} was rejected");
+        }
     }
 
     #[test]
