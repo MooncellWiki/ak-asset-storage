@@ -5,8 +5,9 @@ use crate::{
 use anyhow::anyhow;
 use k8s_openapi::api::batch::v1::Job;
 use k8s_openapi::api::core::v1::{
-    Container, EnvVar, HostPathVolumeSource, LocalObjectReference,
-    PersistentVolumeClaimVolumeSource, PodSpec, PodTemplateSpec, Volume, VolumeMount,
+    Capabilities, Container, EnvVar, HostPathVolumeSource, PersistentVolumeClaimVolumeSource,
+    PodSecurityContext, PodSpec, PodTemplateSpec, SeccompProfile, SecurityContext, Volume,
+    VolumeMount,
 };
 use k8s_openapi::apimachinery::pkg::apis::meta::v1::ObjectMeta;
 use kube::{
@@ -76,9 +77,8 @@ impl KubernetesClient {
         let jobs: Api<Job> = Api::namespaced(self.client.clone(), &self.config.namespace);
         // Built before touching the cluster so a config error fails the
         // launch without deleting the previous finished Job and its status.
-        // Image pulls (with backoff and private-registry auth via
-        // imagePullSecrets) are handled by kubelet, so there is no
-        // client-side pull loop here.
+        // Image pulls, node-level registry credentials and retries are
+        // handled by kubelet, so there is no client-side pull loop here.
         let job = build_job(
             &self.config,
             client_version,
@@ -236,12 +236,6 @@ fn build_job(
     let env = parse_env_vars(config.env_vars.as_deref().unwrap_or(&[]))?;
     let (volumes, volume_mounts) = build_volumes(config.volume_mounts.as_deref().unwrap_or(&[]));
 
-    let image_pull_secrets = config.image_pull_secret.as_ref().map(|secret_name| {
-        vec![LocalObjectReference {
-            name: secret_name.clone(),
-        }]
-    });
-
     Ok(Job {
         metadata: ObjectMeta {
             name: Some(config.job_name.clone()),
@@ -267,8 +261,17 @@ fn build_job(
                     ..Default::default()
                 }),
                 spec: Some(PodSpec {
+                    service_account_name: Some(config.service_account_name.clone()),
+                    automount_service_account_token: Some(false),
+                    enable_service_links: Some(false),
+                    security_context: Some(PodSecurityContext {
+                        seccomp_profile: Some(SeccompProfile {
+                            type_: "RuntimeDefault".to_string(),
+                            ..Default::default()
+                        }),
+                        ..Default::default()
+                    }),
                     restart_policy: Some("Never".to_string()),
-                    image_pull_secrets,
                     containers: vec![Container {
                         name: CONTAINER_NAME.to_string(),
                         image: Some(config.image_url.clone()),
@@ -278,6 +281,18 @@ fn build_job(
                         image_pull_policy: Some("Always".to_string()),
                         args: Some(args),
                         env: (!env.is_empty()).then_some(env),
+                        security_context: Some(SecurityContext {
+                            run_as_non_root: Some(true),
+                            run_as_user: config.run_as_user.map(i64::from),
+                            run_as_group: config.run_as_group.map(i64::from),
+                            privileged: Some(false),
+                            allow_privilege_escalation: Some(false),
+                            capabilities: Some(Capabilities {
+                                drop: Some(vec!["ALL".to_string()]),
+                                ..Default::default()
+                            }),
+                            ..Default::default()
+                        }),
                         volume_mounts: (!volume_mounts.is_empty()).then_some(volume_mounts),
                         ..Default::default()
                     }],
@@ -374,7 +389,9 @@ mod tests {
             image_url: "example.com/extractor:latest".to_string(),
             namespace: "ak-asset-storage".to_string(),
             job_name: "ak-asset-job".to_string(),
-            image_pull_secret: Some("registry-cred".to_string()),
+            service_account_name: "custom-extractor".to_string(),
+            run_as_user: None,
+            run_as_group: None,
             env_vars: Some(vec!["TZ=Asia/Shanghai".to_string()]),
             volume_mounts: Some(vec![KubernetesVolumeMount {
                 mount_path: "/app/data".to_string(),
@@ -426,7 +443,7 @@ mod tests {
     }
 
     #[test]
-    fn job_wires_pull_secret_and_volumes() {
+    fn job_wires_volumes() {
         let job = build_job(&config(), "c", "r", "pc", "pr", None, None).expect("job builds");
         let spec = job.spec.as_ref().unwrap();
         let pod_spec = spec.template.spec.as_ref().unwrap();
@@ -434,10 +451,7 @@ mod tests {
         assert_eq!(spec.backoff_limit, Some(0));
         assert_eq!(spec.active_deadline_seconds, Some(3600));
         assert_eq!(pod_spec.restart_policy.as_deref(), Some("Never"));
-        assert_eq!(
-            pod_spec.image_pull_secrets.as_ref().unwrap()[0].name,
-            "registry-cred"
-        );
+        assert!(pod_spec.image_pull_secrets.is_none());
         assert_eq!(
             pod_spec.volumes.as_ref().unwrap()[0]
                 .persistent_volume_claim
@@ -449,6 +463,57 @@ mod tests {
         assert_eq!(
             pod_spec.containers[0].volume_mounts.as_ref().unwrap()[0].mount_path,
             "/app/data"
+        );
+    }
+
+    #[test]
+    fn extractor_cannot_inherit_launcher_credentials_or_container_privileges() {
+        let job = build_job(&config(), "c", "r", "pc", "pr", None, None).expect("job builds");
+        let pod = job.spec.unwrap().template.spec.unwrap();
+
+        assert_eq!(
+            pod.service_account_name.as_deref(),
+            Some("custom-extractor")
+        );
+        assert_eq!(pod.automount_service_account_token, Some(false));
+        assert_eq!(pod.enable_service_links, Some(false));
+        assert_eq!(
+            pod.security_context.unwrap().seccomp_profile.unwrap().type_,
+            "RuntimeDefault"
+        );
+        let security = pod.containers[0].security_context.as_ref().unwrap();
+        assert_eq!(security.run_as_non_root, Some(true));
+        assert_eq!(security.run_as_user, None);
+        assert_eq!(security.run_as_group, None);
+        assert_eq!(security.privileged, Some(false));
+        assert_eq!(security.allow_privilege_escalation, Some(false));
+        let capabilities = security.capabilities.as_ref().unwrap();
+        assert_eq!(capabilities.drop.as_deref().unwrap(), ["ALL"]);
+        assert!(capabilities.add.is_none());
+    }
+
+    #[test]
+    fn extractor_can_match_output_volume_ownership_without_root() {
+        let mut config = config();
+        config.run_as_user = Some(1000);
+        config.run_as_group = Some(2000);
+        let job = build_job(&config, "c", "r", "pc", "pr", None, None).expect("job builds");
+        let pod = job.spec.unwrap().template.spec.unwrap();
+        let security = pod.containers[0].security_context.as_ref().unwrap();
+
+        assert_eq!(security.run_as_non_root, Some(true));
+        assert_eq!(security.run_as_user, Some(1000));
+        assert_eq!(security.run_as_group, Some(2000));
+        assert_eq!(security.allow_privilege_escalation, Some(false));
+        assert_eq!(
+            security
+                .capabilities
+                .as_ref()
+                .unwrap()
+                .drop
+                .as_deref()
+                .unwrap(),
+            ["ALL"]
         );
     }
 

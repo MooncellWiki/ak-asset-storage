@@ -37,9 +37,35 @@ cargo build
 `tmp/config.toml` 已启用 `[torappu.kubernetes]`,在 `ak-dev` 创建
 `ak-asset-job-dev`,使用公开镜像 `ghcr.io/mooncellwiki/torappu:main`。
 本机运行的 server / worker 使用 `$KUBECONFIG` / `~/.kube/config`,当前凭据
-需要有该 namespace 的 Job get/create/delete 权限。无需为公开镜像创建
-`image_pull_secret`;若将 server / worker 放进集群,再按 `deploy/k3s/rbac.yaml`
-配置同 namespace 的 ServiceAccount。
+需要有该 namespace 的 Job get/create/delete 权限。镜像拉取由节点的 kubelet
+负责;需要认证的镜像仓库在节点配置凭据(k3s 使用
+`/etc/rancher/k3s/registries.yaml`)。若将 server / worker 放进集群,再按
+`deploy/k3s/rbac.yaml` 配置同 namespace 的 ServiceAccount。
+
+解包 Job 使用独立的 `ak-asset-extractor` ServiceAccount,不挂载 API token,
+并关闭提权、丢弃全部 capabilities、使用 RuntimeDefault seccomp。`just k3s-apply`
+会通过 `deploy/k3s/dev/extractor.yaml` 在 `ak-dev` 准备这个无权限账号。
+可通过 `service_account_name` 更换名称;对应账号须提前创建,且保持无 RoleBinding、
+不挂载 token。生产准入策略里的账号白名单也要同步修改。
+
+解包容器始终启用 `runAsNonRoot`。Torappu 镜像默认以 `10001:10001` 运行,
+`just gen-config` 则将当前开发者的 UID/GID 写入 `run_as_user` / `run_as_group`,
+让解包与宿主机 server/worker 使用相同的文件属主。已有 `tmp/config.toml` 不会自动更新,
+需手动补上这两个字段,或删掉配置后重新生成。UID/GID 不能为 0。
+镜像的 HOME 和缓存目录位于容器内 `/tmp`,自定义 UID 不需要写 `/root`。
+
+生产升级前先从 `[torappu.kubernetes]` 配置中删除已移除的 `image_pull_secret`,
+镜像仓库认证改由节点配置;保留旧字段会因 `unknown field` 导致启动失败。
+然后等待旧解包任务结束,准备 ServiceAccount,再将现有输出目录及其文件的
+属主迁移到镜像的 `10001:10001`(或配置的非零 UID/GID)。`hostPath` 不会因镜像
+`USER` 改变而自动调整权限;只处理挂载的 asset / assetbundle / hot_update_list
+数据目录,不要修改整个 `/root` 或代码目录。确认 backend/worker 对共享文件仍有
+所需的读取权限,并保留其他实际写入者的权限。然后更新 Torappu 镜像和 launcher,
+最后启用生产准入策略。旧的 root 镜像在未配置非零 `run_as_user` 时会被
+`runAsNonRoot` 拒绝启动;完成升级后按下文手动触发一次真实解包。
+
+`deploy/k3s/rbac.yaml` 是独立部署示例,不在 `just k3s-apply` 的依赖清单里。
+RBAC 的 `create` 不能限制 Job 模板;集群部署还须配置针对镜像、卷及安全上下文的准入策略。
 
 k3s 自带的 `kubectl` 能隐式读取 `/etc/rancher/k3s/k3s.yaml`,kube-rs 不会。
 `just init-env` 在未设置 `KUBECONFIG` 且 `~/.kube/config` 不存在时,会将当前
@@ -76,6 +102,9 @@ kubectl -n ak-dev logs -f job/ak-asset-job-dev
 正在运行的同名 Job 会阻止重复启动;终态 Job 在下一次启动时自动替换(连同它的 Pod)。
 超过 `active_deadline_seconds`(默认 6 小时)仍未结束的 Job,包括一直卡在拉镜像或
 Pending 的,会被集群判为失败,不会永久占住启动槽位。
+若配置的 ServiceAccount 不存在,Job 会留下 `FailedCreate` 事件而没有 Pod,
+同名启动也会返回 `already running`,直到超时。用 `kubectl -n ak-dev describe job
+ak-asset-job-dev` 查看事件,先补建账号;无需扩大 launcher 的 RBAC 权限。
 
 ## 常用命令
 

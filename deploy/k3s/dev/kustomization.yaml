@@ -6,8 +6,8 @@
 # RustFS 不在这里:它的数据卷是 hostPath,指向本 checkout 的 tmp/rustfs-data,
 # 清单由 justfile 的 gen-rustfs 生成到 tmp/k3s/rustfs.yaml,随本组清单一起
 # apply(dev 与 e2e 共用同一个 RustFS 实例,见 DEVELOPMENT.md)。
-# NodePort 只监听 127.0.0.1(k3s 配置里 kube-proxy-arg nodeport-addresses=127.0.0.1/32,
-# 见 docker-config 仓库 host/k3s/config.yaml 的本地裁剪版),不暴露局域网。
+# NodePort 只监听 127.0.0.1(k3s 配置里设置
+# kube-proxy-arg: ["nodeport-addresses=127.0.0.1/32"]),不暴露局域网。
 # 端口特意选在默认 NodePort 范围内,不去扩大 service-node-port-range:
 # 扩到 9000-32767 会让随机分配的 NodePort 可能砸中 e2e/vite 的 25150-25173。
 apiVersion: kustomize.config.k8s.io/v1beta1
@@ -17,4 +17,5 @@ namespace: ak-dev
 
 resources:
   - namespace.yaml
+  - extractor.yaml
   - postgres.yaml

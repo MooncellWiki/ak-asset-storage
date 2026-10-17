@@ -87,14 +87,25 @@ asset_base_path = "/assets"
 # so keep kubeconfigs out of the server/worker pod); apply
 # deploy/k3s/rbac.yaml and set `serviceAccountName: ak-asset-storage` on the
 # server/worker pod when running inside k3s.
+# The Job itself uses the separate ak-asset-extractor account without an API
+# token, disables privilege escalation, drops all capabilities and uses
+# RuntimeDefault seccomp. RBAC alone cannot constrain Job contents: install
+# deployment-specific admission rules as explained in deploy/k3s/rbac.yaml.
+# Jobs require a non-root image USER; upgrade Torappu and prepare volume
+# ownership before deploying this launcher (see DEVELOPMENT.md).
 [torappu.kubernetes]
+# Image pulls and retries are handled by kubelet. Configure any registry
+# credentials on the Kubernetes nodes.
 image_url = "your-registry/your-image:latest"
 namespace = "ak-asset-storage"
 # Fixed Job name; doubles as the single-flight lock, a launch is rejected
 # while a Job with this name is still running.
 job_name = "ak-asset-job"
-# imagePullSecret for private registries (pulls and retries are kubelet's job)
-image_pull_secret = "ak-registry-cred"
+service_account_name = "ak-asset-extractor"
+# Optional UID/GID overrides for writable output volumes; otherwise the
+# image's USER applies (Torappu: 10001:10001). Both must be nonzero if set.
+# run_as_user = 10001
+# run_as_group = 10001
 env_vars = [ "TZ=Asia/Shanghai" ]
 # Fails a Job that has not finished in time (default 6h), including one stuck
 # pulling its image, so it cannot block later launches forever.
@@ -112,3 +123,14 @@ workflow_id = "workflow-file.yml"
 ref = "main"
 token = "github-token"
 ```
+
+`deploy/k3s/rbac.yaml` is a standalone deployment example; it is not included
+by `deploy/k3s/dev/kustomization.yaml`. Adapt the Job name and namespace to
+your configuration, and install admission rules for the permitted images,
+volume paths and security context in your cluster.
+
+Create `service_account_name` in the configured namespace before launching
+Jobs, without a RoleBinding and with token automount disabled. A missing
+account leaves the Job with `FailedCreate` events and blocks subsequent
+launches until its deadline (6 hours by default); inspect `kubectl describe
+job` when a launch reports `already running` without a Pod.
