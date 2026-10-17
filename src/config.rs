@@ -1,7 +1,7 @@
 use crate::{AppError, AppResult};
 use serde::{Deserialize, Serialize};
 use serde_variant::to_variant_name;
-use std::{collections::HashSet, fs, path::Path};
+use std::{collections::HashSet, env, fs, path::Path};
 use tracing::info;
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
@@ -314,8 +314,61 @@ impl AppSettings {
     pub fn load(path: &Path) -> AppResult<Self> {
         info!(selected_path = ?path, "loading config");
         let content = fs::read_to_string(path).map_err(|err| AppError::Application(err.into()))?;
-        let settings: Self =
-            toml::from_str(&content).map_err(|err| AppError::Application(err.into()))?;
+        Self::from_toml(&content, |key| env::var(key).ok())
+    }
+
+    /// Secret fields may also come from environment variables, so credentials
+    /// can be injected (Docker/Kubernetes secrets) without rewriting the TOML
+    /// file. Merge non-empty variables before deserializing required fields.
+    fn from_toml(content: &str, read_env: impl Fn(&str) -> Option<String>) -> AppResult<Self> {
+        let mut config: toml::Table =
+            toml::from_str(content).map_err(|err| AppError::Application(err.into()))?;
+        let override_from_env = |table: &mut toml::Table, field: &str, env_key: &str| {
+            if let Some(value) = read_env(env_key)
+                && !value.trim().is_empty()
+            {
+                info!(env_key, "config secret overridden by environment variable");
+                table.insert(field.to_string(), toml::Value::String(value));
+            }
+        };
+
+        // The URI can be the database's only field, so its entire section may
+        // be absent when credentials are supplied through the environment.
+        if let Some(database) = config
+            .entry("database")
+            .or_insert_with(|| toml::Value::Table(toml::Table::new()))
+            .as_table_mut()
+        {
+            override_from_env(database, "uri", "DATABASE_URI");
+        }
+        if let Some(s3) = config.get_mut("s3").and_then(toml::Value::as_table_mut) {
+            override_from_env(s3, "access_key_id", "S3_ACCESS_KEY_ID");
+            override_from_env(s3, "secret_access_key", "S3_SECRET_ACCESS_KEY");
+        }
+        // Optional integrations remain opt-in through their TOML sections.
+        if let Some(auth) = config
+            .get_mut("mailer")
+            .and_then(|mailer| mailer.get_mut("auth"))
+            .and_then(toml::Value::as_table_mut)
+        {
+            override_from_env(auth, "password", "MAILER_AUTH_PASSWORD");
+        }
+        if let Some(torappu) = config
+            .get_mut("torappu")
+            .and_then(toml::Value::as_table_mut)
+        {
+            override_from_env(torappu, "token", "TORAPPU_TOKEN");
+            if let Some(github) = torappu
+                .get_mut("github")
+                .and_then(toml::Value::as_table_mut)
+            {
+                override_from_env(github, "token", "TORAPPU_GITHUB_TOKEN");
+            }
+        }
+
+        let settings: Self = config
+            .try_into()
+            .map_err(|err: toml::de::Error| AppError::Application(err.into()))?;
         settings.validate()?;
         Ok(settings)
     }
@@ -410,6 +463,132 @@ mod tests {
         assert!(settings_with_token("").validate().is_err());
         assert!(settings_with_token("   ").validate().is_err());
         assert!(settings_with_token("s3cret").validate().is_ok());
+    }
+
+    #[test]
+    fn env_vars_override_config_secrets() {
+        let settings = AppSettings::from_toml(include_str!("../example.toml"), secret_env).unwrap();
+        assert_env_secrets(&settings);
+    }
+
+    fn secret_env(key: &str) -> Option<String> {
+        Some(
+            match key {
+                "DATABASE_URI" => "postgres://env/db",
+                "S3_ACCESS_KEY_ID" => "env-access-key",
+                "S3_SECRET_ACCESS_KEY" => "env-secret-key",
+                "MAILER_AUTH_PASSWORD" => " env-password ",
+                "TORAPPU_TOKEN" => "env-torappu-token",
+                "TORAPPU_GITHUB_TOKEN" => "env-github-token",
+                _ => return None,
+            }
+            .to_string(),
+        )
+    }
+
+    fn assert_env_secrets(settings: &AppSettings) {
+        assert_eq!(settings.database.uri, "postgres://env/db");
+        assert_eq!(settings.s3.access_key_id, "env-access-key");
+        assert_eq!(settings.s3.secret_access_key, "env-secret-key");
+        assert_eq!(
+            settings.mailer.as_ref().unwrap().auth.password,
+            " env-password "
+        );
+        assert_eq!(settings.torappu.token, "env-torappu-token");
+        assert_eq!(
+            settings.torappu.github.as_ref().unwrap().token,
+            "env-github-token"
+        );
+    }
+
+    const SECRET_PATHS: [&[&str]; 6] = [
+        &["database", "uri"],
+        &["s3", "access_key_id"],
+        &["s3", "secret_access_key"],
+        &["mailer", "auth", "password"],
+        &["torappu", "token"],
+        &["torappu", "github", "token"],
+    ];
+
+    fn remove_secret(config: &mut toml::Table, path: &[&str]) {
+        let (field, sections) = path.split_last().unwrap();
+        let table = sections.iter().fold(config, |table, section| {
+            table.get_mut(*section).unwrap().as_table_mut().unwrap()
+        });
+        assert!(table.remove(*field).is_some());
+    }
+
+    #[test]
+    fn env_vars_supply_missing_config_secrets() {
+        let mut config: toml::Table = toml::from_str(include_str!("../example.toml")).unwrap();
+        for path in SECRET_PATHS {
+            remove_secret(&mut config, path);
+        }
+        let content = toml::to_string(&config).unwrap();
+        let settings = AppSettings::from_toml(&content, secret_env).unwrap();
+        assert_env_secrets(&settings);
+
+        // A database supplied solely by DATABASE_URI needs no empty section.
+        config.remove("database");
+        let content = toml::to_string(&config).unwrap();
+        let settings = AppSettings::from_toml(&content, secret_env).unwrap();
+        assert_env_secrets(&settings);
+    }
+
+    #[test]
+    fn missing_or_blank_env_vars_preserve_config_secrets() {
+        let content = include_str!("../example.toml");
+        let expected = AppSettings::from_toml(content, |_| None).unwrap();
+        let expected = toml::Value::try_from(expected).unwrap();
+        for value in [None, Some(""), Some(" \t\n")] {
+            let settings = AppSettings::from_toml(content, |_| value.map(str::to_string)).unwrap();
+            assert_eq!(toml::Value::try_from(settings).unwrap(), expected);
+        }
+    }
+
+    #[test]
+    fn missing_secrets_require_non_blank_env_vars() {
+        for path in SECRET_PATHS {
+            let mut config: toml::Table = toml::from_str(include_str!("../example.toml")).unwrap();
+            remove_secret(&mut config, path);
+            let content = toml::to_string(&config).unwrap();
+            for value in [None, Some(""), Some(" \t\n")] {
+                let error = AppSettings::from_toml(&content, |_| value.map(str::to_string))
+                    .unwrap_err()
+                    .to_string();
+                assert!(error.contains("missing field"), "{path:?}: {error}");
+            }
+        }
+    }
+
+    #[test]
+    fn env_vars_do_not_enable_optional_integrations() {
+        let mut config: toml::Table = toml::from_str(include_str!("../example.toml")).unwrap();
+        config.remove("mailer");
+        config["torappu"].as_table_mut().unwrap().remove("github");
+        let content = toml::to_string(&config).unwrap();
+        let settings = AppSettings::from_toml(&content, secret_env).unwrap();
+        assert!(settings.mailer.is_none());
+        assert!(settings.torappu.github.is_none());
+    }
+
+    #[test]
+    fn env_overrides_preserve_config_validation() {
+        let mut config: toml::Table = toml::from_str(include_str!("../example.toml")).unwrap();
+        config["torappu"]["token"] = toml::Value::String(String::new());
+        let content = toml::to_string(&config).unwrap();
+        let error = AppSettings::from_toml(&content, |_| Some("  ".to_string()))
+            .unwrap_err()
+            .to_string();
+        assert!(error.contains("torappu.token must not be empty"));
+        assert!(AppSettings::from_toml(&content, secret_env).is_ok());
+
+        config["torappu"]["search_concurrency"] = toml::Value::Integer(0);
+        let content = toml::to_string(&config).unwrap();
+        let error = AppSettings::from_toml(&content, secret_env)
+            .unwrap_err()
+            .to_string();
+        assert!(error.contains("torappu.search_concurrency must be at least 1"));
     }
 
     #[test]

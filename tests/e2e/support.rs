@@ -1165,6 +1165,18 @@ pub fn spawn_worker(
 fn build_binary_command() -> Command {
     let mut cmd = Command::new(binary_path());
     cmd.arg("--worker-threads").arg("1");
+    // The config file is the single source of secrets under test; ambient
+    // developer-shell exports of the override variables must not leak in.
+    for key in [
+        "DATABASE_URI",
+        "S3_ACCESS_KEY_ID",
+        "S3_SECRET_ACCESS_KEY",
+        "MAILER_AUTH_PASSWORD",
+        "TORAPPU_TOKEN",
+        "TORAPPU_GITHUB_TOKEN",
+    ] {
+        cmd.env_remove(key);
+    }
     cmd
 }
 

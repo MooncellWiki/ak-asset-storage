@@ -25,6 +25,23 @@ The frontend lives in `app/` (Vue 3 + TypeScript + Naive UI, file-based routing)
 
 Configuration is TOML-based. See `example.toml` for a complete example.
 
+Secret fields can also be provided through environment variables; a non-empty
+variable overrides the TOML value, so credentials can be injected (Docker /
+Kubernetes secrets) without rewriting the config file:
+
+| Config field           | Environment variable   |
+| ---------------------- | ---------------------- |
+| `database.uri`         | `DATABASE_URI`         |
+| `s3.access_key_id`     | `S3_ACCESS_KEY_ID`     |
+| `s3.secret_access_key` | `S3_SECRET_ACCESS_KEY` |
+| `mailer.auth.password` | `MAILER_AUTH_PASSWORD` |
+| `torappu.token`        | `TORAPPU_TOKEN`        |
+| `torappu.github.token` | `TORAPPU_GITHUB_TOKEN` |
+
+These fields may be omitted from TOML when their environment variables are set.
+The optional mailer and GitHub integrations still require their non-secret TOML
+configuration.
+
 Main sections:
 
 - `logger`
