@@ -837,6 +837,10 @@ fn summarize_hot_update_list(raw: &str) -> Option<serde_json::Value> {
     Some(serde_json::Value::Object(summary))
 }
 
+#[expect(
+    clippy::unused_async_trait_impl,
+    reason = "rmcp's tool_handler macro generates async trait methods without await"
+)]
 #[tool_handler(router = self.tool_router)]
 impl ServerHandler for AkAssetMcpServer {
     fn get_info(&self) -> rmcp::model::ServerConfig {

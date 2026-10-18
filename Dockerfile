@@ -1,4 +1,4 @@
-# syntax=docker/dockerfile:1
+# syntax=docker/dockerfile:1@sha256:4edf897a3ffa55b89f906fc8cc78afdb3f1834cc9c7083565e611a8a7d5fe99e
 
 FROM node:24.22.0-trixie-slim@sha256:7f486cabe892bff8fef04c0f7da8dba84a560be3e4e2740b7a86afc57ebec315 AS frontend-deps
 ENV CI=true
@@ -12,7 +12,7 @@ FROM frontend-deps AS frontend-build-stage
 COPY . .
 RUN pnpm run build
 
-FROM lukemathwalker/cargo-chef:0.1.78-rust-1.97.1-trixie@sha256:6dce65df3d7430c797e94348b4cf36d8d5876b63ca54f35dbfd37a97c42d0add AS chef
+FROM lukemathwalker/cargo-chef:0.1.78-rust-1.99.1-trixie@sha256:cccf15fc75944521a3aa230fe72a101ee0edc65cd1d4b50b5914ce25317c1805 AS chef
 ENV RUSTUP_AUTO_INSTALL=0
 WORKDIR /app
 
