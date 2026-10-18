@@ -11,7 +11,3 @@ minimumReleaseAgeExclude:
   - "@shikijs/types@4.4.2"
   - shiki@4.4.2
 shellEmulator: true
-
-onlyBuiltDependencies:
-  - esbuild
-  - unrs-resolver

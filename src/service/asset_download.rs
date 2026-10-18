@@ -9,7 +9,6 @@ use crate::{
 };
 use anyhow::Context;
 use futures::{StreamExt, TryStreamExt, stream};
-use itertools::Itertools;
 use sha256::digest;
 use std::io::{Cursor, Read};
 use tracing::{debug, error, info, instrument};
@@ -126,14 +125,18 @@ impl AssetDownloadService {
         let mut zip =
             ZipArchive::new(Cursor::new(bytes)).context("Failed to create zip archive")?;
         let mut buffer = Vec::new();
-        let name_list = zip
+        let mut entries = zip
             .file_names()
-            .sorted()
-            .map(std::string::ToString::to_string)
-            .collect_vec();
+            .enumerate()
+            .map(|(index, name)| name.map(|name| (name.into_owned(), index)))
+            .collect::<zip::result::ZipResult<Vec<_>>>()
+            .context("Failed to read zip file names")?;
+        entries.sort_by(|(left, _), (right, _)| left.cmp(right));
 
-        for name in name_list {
-            let mut file = zip.by_name(&name).context("Failed to read zip file")?;
+        // Keep sorting decoded names, but read by index because zip 9 looks up
+        // names using their raw bytes, which may not be UTF-8.
+        for (_, index) in entries {
+            let mut file = zip.by_index(index).context("Failed to read zip file")?;
             file.read_to_end(&mut buffer)
                 .context("Failed to push zip file content to buffer")?;
         }
@@ -165,5 +168,93 @@ impl AssetDownloadService {
         let file_id = self.database.create_file(file).await?;
         debug!("sync file {} finished", path);
         Ok(file_id)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::AssetDownloadService;
+    use std::io::{Cursor, Write};
+    use zip::{CompressionMethod, ZipWriter, write::SimpleFileOptions};
+
+    fn archive(entries: &[(&str, &[u8])], compression: CompressionMethod) -> Vec<u8> {
+        let mut writer = ZipWriter::new(Cursor::new(Vec::new()));
+        let options = SimpleFileOptions::default().compression_method(compression);
+        for (name, contents) in entries {
+            writer.start_file(*name, options).expect("start ZIP entry");
+            writer.write_all(contents).expect("write ZIP entry");
+        }
+        writer.finish().expect("finish ZIP archive").into_inner()
+    }
+
+    #[test]
+    fn bundle_hash_ignores_entry_order_and_compression() {
+        let expected = "da83f63e1a473003712c18f5afc5a79044221943d1083c7c5a7ac7236d85e8d2";
+        let stored = archive(
+            &[("b.ab", b"second"), ("a.ab", b"first")],
+            CompressionMethod::Stored,
+        );
+        let deflated = archive(
+            &[("a.ab", b"first"), ("b.ab", b"second")],
+            CompressionMethod::Deflated,
+        );
+
+        for bytes in [stored, deflated] {
+            assert_eq!(
+                AssetDownloadService::calc_sha256(&bytes).expect("hash bundle"),
+                expected
+            );
+        }
+    }
+
+    #[test]
+    fn bundle_hash_reads_legacy_encoded_names() {
+        let mut bytes = archive(&[("caf_.ab", b"payload")], CompressionMethod::Stored);
+        let offsets = bytes
+            .windows(b"caf_.ab".len())
+            .enumerate()
+            .filter_map(|(index, name)| (name == b"caf_.ab").then_some(index))
+            .collect::<Vec<_>>();
+        assert_eq!(offsets.len(), 2);
+        for offset in offsets {
+            // Replace the local and central names with CP437-encoded "café.ab".
+            bytes[offset + 3] = 0x82;
+        }
+
+        assert_eq!(
+            AssetDownloadService::calc_sha256(&bytes).expect("hash legacy filename"),
+            "239f59ed55e737c77147cf55ad0c1b030b6d7ee748a7426952f9b852d5a935e5"
+        );
+    }
+
+    #[test]
+    fn bundle_hash_preserves_game_fixture_hashes() {
+        let fixtures: &[(&[u8], &str)] = &[
+            (
+                include_bytes!(
+                    "../../e2e/fixtures/upstream/26-05-27-13-32-37_d44f28/arts_avg_shader_profile.dat"
+                ),
+                "e7997e26db3e1957dfbd96b84d11a89d5c484422850fb83e591727a9ebb9e7c4",
+            ),
+            (
+                include_bytes!(
+                    "../../e2e/fixtures/upstream/26-05-27-13-32-37_d44f28/arts_charportraits_portraits_hub.dat"
+                ),
+                "db3c7be7c006029db5bf2c710bf98b8b1e767d33573e95f8b664d91847abe3fe",
+            ),
+            (
+                include_bytes!(
+                    "../../e2e/fixtures/upstream/26-05-27-13-32-37_d44f28/scenes_activities_a001_level_a001_01_level_a001_01_lightingdata.dat"
+                ),
+                "e044b54cc71050bec6ad3bd118cff5c198ca5316b724e88ebd60ecc408e5338b",
+            ),
+        ];
+
+        for (bytes, expected) in fixtures {
+            assert_eq!(
+                AssetDownloadService::calc_sha256(bytes).expect("hash game fixture"),
+                *expected
+            );
+        }
     }
 }

@@ -742,7 +742,7 @@ export interface operations {
                  * @description Restrict the listing to one resource type: `background`, `image`,
                  *     `item` or `character`.
                  */
-                type?: null | components["schemas"]["StoryResourceType"];
+                type?: components["schemas"]["StoryResourceType"] | null;
                 /**
                  * @description Case-insensitive substring filter on the listing id. Face-overlay
                  *     characters are listed at body granularity (`base$body`); standalone
