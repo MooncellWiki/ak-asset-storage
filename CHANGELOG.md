@@ -2,13 +2,31 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.27.0] - 2026-10-18
+
+[7d84512](7d8451237c0633cb768b1907f07973b7c0279006)...[5d66724](5d66724c09b35ac64920577f0481210b62ec8131)
+
+### 🚀 Features
+
+- Support environment overrides for config secrets (#185) ([9b8ce21](https://github.com/MooncellWiki/ak-asset-storage/commit/9b8ce217480afc977b27d3bb1e9f13d8ef4690ac))
+
+### ⚙️ Miscellaneous Tasks
+
+- Add manually triggered Claude Code Review (#187) ([6537956](https://github.com/MooncellWiki/ak-asset-storage/commit/6537956e9d3ce213d3045d646df147f739d6daba))
+- Optimize Docker dependency caching and workflow setup (#186) ([b64360c](https://github.com/MooncellWiki/ak-asset-storage/commit/b64360c9b72240ae08dd02e9c2b94863a5c42860))
+- Run Claude Code Review on Opus 5.5 (#188) ([fed592e](https://github.com/MooncellWiki/ak-asset-storage/commit/fed592e92a481689762f3fc1b605a396efc73a16))
+
 ## [0.26.2] - 2026-10-17
 
-[2ff235c](2ff235c31a135c710386e2e62902b1d90443849c)...[756976f](756976f1f71dadd059d246b5f55c745395ebc1fd)
+[2ff235c](2ff235c31a135c710386e2e62902b1d90443849c)...[7d84512](7d8451237c0633cb768b1907f07973b7c0279006)
 
 ### 🐛 Bug Fixes
 
 - Serve stateless MCP across backend replicas (#184) ([756976f](https://github.com/MooncellWiki/ak-asset-storage/commit/756976f1f71dadd059d246b5f55c745395ebc1fd))
+
+### ⚙️ Miscellaneous Tasks
+
+- Release 0.26.2 ([7d84512](https://github.com/MooncellWiki/ak-asset-storage/commit/7d8451237c0633cb768b1907f07973b7c0279006))
 
 ## [0.26.1] - 2026-10-17
 
