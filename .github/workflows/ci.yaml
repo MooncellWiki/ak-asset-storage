@@ -6,17 +6,15 @@ on:
   pull_request:
 
 env:
-  RUST_TOOLCHAIN: stable
-  TOOLCHAIN_PROFILE: minimal
   SQLX_OFFLINE: true
+
+permissions:
+  contents: read
 
 jobs:
   rustfmt:
     name: Check Rust Style
     runs-on: ubuntu-latest
-
-    permissions:
-      contents: read
 
     steps:
       - name: Checkout the code
@@ -24,15 +22,14 @@ jobs:
       - uses: actions-rust-lang/setup-rust-toolchain@v1
         with:
           components: rustfmt
+          cache: false
       - name: Rustfmt Check
         uses: actions-rust-lang/rustfmt@v1
 
   clippy:
     name: Run Clippy
     runs-on: ubuntu-latest
-
-    permissions:
-      contents: read
+    needs: eslint
 
     steps:
       - name: Checkout the code
@@ -40,16 +37,14 @@ jobs:
       - uses: actions-rust-lang/setup-rust-toolchain@v1
         with:
           components: clippy
-      - name: Setup Rust cache
-        uses: Swatinem/rust-cache@v2
-      - name: Setup Node
-        uses: ./.github/actions/node
-      - name: Build frontend
-        shell: bash
-        run: pnpm run build
+      - name: Download frontend
+        uses: actions/download-artifact@v8
+        with:
+          name: frontend-dist
+          path: dist
       - name: Run cargo clippy
         shell: bash
-        run: cargo clippy --all-features -- -D warnings
+        run: cargo clippy --locked --all-features -- -D warnings
 
   eslint:
     name: Check frontend style
@@ -62,28 +57,83 @@ jobs:
       - name: Run eslint
         shell: bash
         run: pnpm run lint
+      - name: Build frontend
+        shell: bash
+        run: pnpm run build
+      - name: Check frontend types
+        shell: bash
+        run: pnpm run typecheck
+      - name: Upload frontend
+        uses: actions/upload-artifact@v7
+        with:
+          name: frontend-dist
+          path: dist/
+          include-hidden-files: true
+          if-no-files-found: error
+          retention-days: 1
 
   test:
     name: Run Tests
     runs-on: ubuntu-latest
+    needs: eslint
     steps:
       - name: Checkout the code
         uses: actions/checkout@v7
       - uses: actions-rust-lang/setup-rust-toolchain@v1
+      - name: Download frontend
+        uses: actions/download-artifact@v8
         with:
-          components: clippy
-      - name: Setup Rust cache
-        uses: Swatinem/rust-cache@v2
-      - name: Setup Node
-        uses: ./.github/actions/node
-      - name: Build frontend
-        shell: bash
-        run: pnpm run build
+          name: frontend-dist
+          path: dist
       # The plocate search tests need real updatedb/plocate binaries and fail
       # (instead of skipping) when CI is set and they are missing.
       - name: Install plocate
         shell: bash
-        run: sudo apt-get update && sudo apt-get install -y plocate
+        run: |
+          # plocate's postinst skips the initial scan when plocate.db exists.
+          # Tests build their own indexes, so stop system indexing and remove
+          # the temporary placeholder as soon as installation finishes.
+          sudo systemctl mask plocate-updatedb.timer plocate-updatedb.service
+          sudo mkdir -p /var/lib/plocate
+          sudo touch /var/lib/plocate/plocate.db
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends plocate
+          sudo systemctl stop plocate-updatedb.timer plocate-updatedb.service
+          sudo rm -f /var/lib/plocate/plocate.db
       - name: Run cargo test
         shell: bash
-        run: cargo test --all-features -- --nocapture
+        run: cargo test --locked --all-features -- --nocapture
+
+  docker:
+    name: Build Docker image
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - name: Check Docker toolchain versions
+        run: python3 .github/scripts/check-docker-toolchains.py
+      - name: Setup Docker buildx
+        uses: docker/setup-buildx-action@v4
+      - name: Build runtime image
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          push: false
+          load: true
+          tags: ak-asset-storage:ci
+          build-args: BUILD_SHA=${{ github.sha }}
+          cache-from: type=gha,scope=docker-ci
+          cache-to: type=gha,scope=docker-ci,mode=max,ignore-error=true
+      - name: Check runtime image
+        env:
+          BUILD_SHA: ${{ github.sha }}
+        run: |
+          version=$(docker run --rm ak-asset-storage:ci /app/ak-asset-storage version)
+          [[ "$version" == *" ($BUILD_SHA)" ]]
+          docker run --rm --entrypoint sh ak-asset-storage:ci -ec '
+            test ! -e /var/lib/plocate/plocate.db
+            test -z "$(ls -A /var/lib/apt/lists)"
+            mkdir -p /tmp/assets
+            touch /tmp/assets/smoke-asset.txt
+            updatedb --database-root /tmp/assets --output /tmp/assets.db --require-visibility 0
+            plocate --database /tmp/assets.db smoke-asset.txt | grep -Fx /tmp/assets/smoke-asset.txt
+          '

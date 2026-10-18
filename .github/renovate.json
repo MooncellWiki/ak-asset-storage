@@ -1,5 +1,11 @@
 {
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
   "extends": ["github>daflyinbed/renovate-config"],
-  "ignoreDeps": ["postgres"]
+  "ignoreDeps": ["postgres"],
+  "packageRules": [
+    {
+      "matchDatasources": ["docker"],
+      "pinDigests": true
+    }
+  ]
 }

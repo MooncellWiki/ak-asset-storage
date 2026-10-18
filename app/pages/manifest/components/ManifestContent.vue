@@ -47,12 +47,12 @@
 </template>
 
 <script setup lang="ts">
-import CarbonDocumentBlank from "~icons/carbon/document-blank";
 import { ref, watch } from "vue";
+import CarbonDocumentBlank from "~icons/carbon/document-blank";
 import { client } from "~/common/client";
-import type { components } from "~/common/schema";
 import { isManifestDirectory } from "../utils";
 import type { DataTableColumns } from "naive-ui";
+import type { components } from "~/common/schema";
 
 const props = defineProps<{
   versionId?: number;
@@ -62,7 +62,7 @@ const props = defineProps<{
 const path = defineModel<string>({ required: true });
 
 const loading = ref(false);
-const detail = ref<components["schemas"]["AssetMappingDetailDto"]>();
+const detail = ref<components["schemas"]["AssetMappingDetails"]>();
 const children = ref<DirRow[]>([]);
 
 interface DirRow {
@@ -104,7 +104,7 @@ function download() {
   a.click();
 }
 
-function fmtSize(size?: number) {
+function fmtSize(size?: number | null) {
   if (!size) {
     return "-";
   }

@@ -5,7 +5,7 @@ import type { SelectGroupOption } from "naive-ui";
 
 export function useVersionSelect() {
   const versionOpts = ref<SelectGroupOption[]>([]);
-  const versions = ref<components["schemas"]["VersionDto"][]>([]);
+  const versions = ref<components["schemas"]["VersionSummary"][]>([]);
   async function load() {
     const { data } = await client.GET("/api/v1/version");
     const result: SelectGroupOption[] = [];

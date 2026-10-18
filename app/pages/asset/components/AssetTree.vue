@@ -68,13 +68,14 @@ import CarbonSearch from "~icons/carbon/search";
 import { client } from "~/common/client";
 import { getParentPaths } from "~/common/utils";
 import type { TreeNode } from "../types";
+import type { TreeOption } from "naive-ui";
 import type { components } from "~/common/schema";
 
 type AssetEntry = components["schemas"]["AssetEntry"];
 
 const props = defineProps<{
   treeData: TreeNode[];
-  onLoad: (node: TreeNode) => Promise<void>;
+  onLoad: (node: TreeOption) => Promise<void>;
 }>();
 const selectedPath = defineModel<string>({ required: true });
 const searchText = ref("");

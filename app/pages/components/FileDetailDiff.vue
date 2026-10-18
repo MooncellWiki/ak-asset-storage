@@ -10,13 +10,13 @@
 </template>
 <script lang="ts" setup>
 import { useVModel } from "@vueuse/core";
-import type { components } from "~/common/schema";
 import FileDetail from "./FileDetail.vue";
+import type { components } from "~/common/schema";
 
 const props = defineProps<{
   visible: boolean;
-  left?: components["schemas"]["BundleDetailsDto"];
-  right?: components["schemas"]["BundleDetailsDto"];
+  left?: components["schemas"]["BundleDetails"];
+  right?: components["schemas"]["BundleDetails"];
 }>();
 const emit = defineEmits<{ "update:visible": [boolean] }>();
 const show = useVModel(props, "visible", emit);

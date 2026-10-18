@@ -1,13 +1,13 @@
-import type { components } from "~/common/schema";
 import type { TreeOption } from "naive-ui";
+import type { components } from "~/common/schema";
 
-type ManifestNodeDto = components["schemas"]["ManifestNodeDto"];
+type ManifestNode = components["schemas"]["ManifestNode"];
 
 export function isManifestDirectory(nodeType: string): boolean {
   return nodeType === "directory" || nodeType === "both";
 }
 
-export function toManifestTreeOption(node: ManifestNodeDto): TreeOption {
+export function toManifestTreeOption(node: ManifestNode): TreeOption {
   return {
     key: node.path,
     label: node.name,

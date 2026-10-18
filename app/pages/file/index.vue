@@ -63,7 +63,7 @@ const { versionOpts, load } = useVersionSelect();
 onBeforeMount(() => {
   load();
 });
-const list = ref<components["schemas"]["BundleDetailsDto"][]>([]);
+const list = ref<components["schemas"]["BundleDetails"][]>([]);
 const nextCursor = ref<string | null | undefined>();
 const loading = ref(false);
 // The cursor is only valid for the conditions that produced it; when the
@@ -128,7 +128,7 @@ async function loadMore() {
     await fetchPage(nextCursor.value);
   }
 }
-const columns: TableColumns<components["schemas"]["BundleDetailsDto"]> = [
+const columns: TableColumns<components["schemas"]["BundleDetails"]> = [
   { title: "path", key: "path" },
   { title: "hash", key: "fileHash", width: 550 },
   { title: "clientVersion", key: "versionClient", width: 140 },
@@ -142,9 +142,9 @@ const columns: TableColumns<components["schemas"]["BundleDetailsDto"]> = [
     },
   },
 ];
-const detail = ref<components["schemas"]["BundleDetailsDto"]>();
+const detail = ref<components["schemas"]["BundleDetails"]>();
 const detailVisible = ref(false);
-function showDetail(data: components["schemas"]["BundleDetailsDto"]) {
+function showDetail(data: components["schemas"]["BundleDetails"]) {
   detail.value = data;
   detailVisible.value = true;
 }
