@@ -271,6 +271,10 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        AssetDirInfo: {
+            children: components["schemas"]["AssetEntry"][];
+            dir: components["schemas"]["AssetEntry"];
+        };
         AssetEntry: {
             create_at: string;
             is_dir: boolean;
@@ -586,7 +590,9 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": components["schemas"]["AssetDirInfo"];
+                };
             };
         };
     };

@@ -24,11 +24,13 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Set image name
+      - name: Set image names
         id: image
         env:
           REPOSITORY: ${{ github.repository }}
-        run: echo "name=ghcr.io/${REPOSITORY,,}" >> "$GITHUB_OUTPUT"
+        run: |
+          echo "name=ghcr.io/${REPOSITORY,,}" >> "$GITHUB_OUTPUT"
+          echo "cache=ghcr.io/${REPOSITORY,,}-cache:buildcache" >> "$GITHUB_OUTPUT"
 
       - name: Extract Docker Metadata
         id: meta
@@ -48,5 +50,6 @@ jobs:
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
-          cache-from: type=registry,ref=${{ steps.image.outputs.name }}:buildcache
-          cache-to: type=registry,ref=${{ steps.image.outputs.name }}:buildcache,mode=max
+          build-args: BUILD_SHA=${{ github.sha }}
+          cache-from: type=registry,ref=${{ steps.image.outputs.cache }}
+          cache-to: type=registry,ref=${{ steps.image.outputs.cache }},mode=max,ignore-error=true

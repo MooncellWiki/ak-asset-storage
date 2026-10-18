@@ -101,6 +101,7 @@ import { client } from "~/common/client";
 import AssetContent from "./components/AssetContent.vue";
 import AssetTree from "./components/AssetTree.vue";
 import type { TreeNode } from "./types";
+import type { TreeOption } from "naive-ui";
 
 const breakpoints = useBreakpoints({ mobile: 768 });
 const isMobile = breakpoints.smaller("mobile");
@@ -141,8 +142,9 @@ async function loadDirectory(path: string): Promise<TreeNode[]> {
   }
 }
 
-async function handleTreeLoad(node: TreeNode) {
-  node.children = await loadDirectory(node.path);
+async function handleTreeLoad(node: TreeOption) {
+  if (typeof node.key !== "string") return;
+  node.children = await loadDirectory(node.key);
 }
 
 function handleNavigation(path: string) {

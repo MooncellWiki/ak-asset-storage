@@ -406,7 +406,7 @@ pub async fn search_assets_by_path(
     path = "/files/{path}",
     tag = "files",
     params(("path" = String, Path, description = "Directory path to list")),
-    responses((status = 200, description = "Directory listing"))
+    responses((status = 200, description = "Directory listing", body = crate::external::types::AssetDirInfo))
 )]
 pub async fn list_asset(
     State(state): State<AppState>,

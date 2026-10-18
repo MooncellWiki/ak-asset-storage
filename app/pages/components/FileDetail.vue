@@ -14,7 +14,7 @@
 import type { components } from "~/common/schema";
 
 const props = defineProps<{
-  detail: components["schemas"]["BundleDetailsDto"];
+  detail: components["schemas"]["BundleDetails"];
 }>();
 
 function download() {

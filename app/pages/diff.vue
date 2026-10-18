@@ -59,19 +59,19 @@
 </template>
 <script setup lang="ts">
 import { useClipboard, useUrlSearchParams, watchDebounced } from "@vueuse/core";
+import { useMessage } from "naive-ui";
+import { h, onBeforeMount, ref, watch } from "vue";
 import CarbonArrowsHorizontal from "~icons/carbon/arrows-horizontal";
 import CarbonCopy from "~icons/carbon/copy";
 import CarbonSettings from "~icons/carbon/settings";
-import { useMessage } from "naive-ui";
-import { h, onBeforeMount, ref, watch } from "vue";
 import { client } from "~/common/client";
 import { useVersionSelect } from "~/common/useVersionSelect";
 import { isNumber } from "~/common/utils";
-import type { components } from "~/common/schema";
 import FileDetailDiff from "./components/FileDetailDiff.vue";
 import type { TreeOption, TreeOverrideNodeClickBehavior } from "naive-ui";
 import type { TreeRenderProps } from "naive-ui/es/tree/src/interface";
 import type { VNodeChild } from "vue";
+import type { components } from "~/common/schema";
 
 const params = useUrlSearchParams("history");
 const left = ref<number>();
@@ -154,8 +154,8 @@ function dirOrder(a: string, b: string) {
 const treeData = ref<TreeOption[]>([]);
 const changeOnly = ref(true);
 interface VersionFiles {
-  pathMap: Record<string, components["schemas"]["BundleDetailsDto"]>;
-  list: components["schemas"]["BundleDetailsDto"][];
+  pathMap: Record<string, components["schemas"]["BundleDetails"]>;
+  list: components["schemas"]["BundleDetails"][];
 }
 const lData = ref<VersionFiles>({ pathMap: {}, list: [] });
 const rData = ref<VersionFiles>({ pathMap: {}, list: [] });
@@ -163,7 +163,7 @@ async function loadDetail(id: number) {
   const resp = await client.GET("/api/v1/version/{id}/files", {
     params: { path: { id } },
   });
-  const pathMap: Record<string, components["schemas"]["BundleDetailsDto"]> = {};
+  const pathMap: Record<string, components["schemas"]["BundleDetails"]> = {};
   const list = (resp.data ?? []).sort((a, b) => {
     return dirOrder(a.path, b.path);
   });
@@ -176,7 +176,7 @@ function buildTree() {
   const hasLeft = typeof left.value === "number";
   const hasRight = typeof right.value === "number";
   const top: TreeOption = { children: [] };
-  function updateTree(list: components["schemas"]["BundleDetailsDto"][]) {
+  function updateTree(list: components["schemas"]["BundleDetails"][]) {
     for (const item of list) {
       const paths = item.path.split("/");
       let cur = top;
@@ -300,11 +300,11 @@ function renderLabel(props: TreeRenderProps): VNodeChild {
   }
 }
 const detailVisible = ref(false);
-const leftDetail = ref<components["schemas"]["BundleDetailsDto"]>();
-const rightDetail = ref<components["schemas"]["BundleDetailsDto"]>();
+const leftDetail = ref<components["schemas"]["BundleDetails"]>();
+const rightDetail = ref<components["schemas"]["BundleDetails"]>();
 function onLabelClick(
-  left?: components["schemas"]["BundleDetailsDto"],
-  right?: components["schemas"]["BundleDetailsDto"],
+  left?: components["schemas"]["BundleDetails"],
+  right?: components["schemas"]["BundleDetails"],
 ) {
   leftDetail.value = left;
   rightDetail.value = right;

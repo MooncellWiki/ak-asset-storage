@@ -5,14 +5,14 @@
 ```bash
 # Lint/format checks (pre-commit runs these via lint-staged)
 cargo fmt --all -- --check
-cargo clippy --all-features -- -D warnings   # CI fails on warnings
+cargo clippy --locked --all-features -- -D warnings   # CI fails on warnings
 pnpm lint                                     # ESLint for frontend
 
 # Typecheck
-pnpm typecheck                                # vue-tsc --noEmit
+pnpm typecheck                                # Checks app and build-config projects
 
 # Test
-cargo test --all-features -- --nocapture      # CI uses this exact invocation
+cargo test --locked --all-features -- --nocapture      # CI uses this exact invocation
 
 # Build frontend (required before cargo build/clippy/test for rust-embed)
 pnpm build
@@ -22,7 +22,7 @@ After editing `.rs` files, run `cargo check`. For full verification: `cargo fmt`
 
 ## Architecture
 
-Rust is now a single crate (`ak-asset-storage`, edition 2024, toolchain 1.92.0) organized by module:
+Rust is now a single crate (`ak-asset-storage`, edition 2024, toolchain pinned in `rust-toolchain.toml`) organized by module:
 
 - `src/api/` — Axum handlers, router, HTTP DTOs, embedded frontend serving
 - `src/database/` — PostgreSQL-only SQLx access behind `pub struct Database { pool: PgPool }`
@@ -44,10 +44,13 @@ Vue 3 + TypeScript + Naive UI. Lives in `app/` at repo root (not `src/`).
 - UnoCSS, unplugin-icons, auto-imported Naive UI components
 - Dev server on port 25173, proxies `/api` → `localhost:5150`
 - `pnpm api` regenerates `app/common/schema.d.ts` from OpenAPI endpoint (requires running backend)
+- Node.js uses `.node-version` (managed locally with `vp`); keep the Docker Node version in sync
 
 ## Build & Deploy
 
 Docker builds frontend first (`pnpm build` → `dist/`), then Rust binary with `SQLX_OFFLINE=true`. Release is tag-triggered → Docker image to GHCR.
+
+CI builds and checks the runtime image without pushing. Docker base images are digest-pinned and updated by Renovate; keep the cargo-chef image's Rust version in sync with `rust-toolchain.toml`. Release build caches live in the separate `ak-asset-storage-cache` GHCR package, and cache export failures do not fail releases.
 
 ## Database
 

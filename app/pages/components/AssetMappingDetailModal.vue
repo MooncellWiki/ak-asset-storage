@@ -41,7 +41,7 @@ defineEmits<{
 }>();
 
 const loading = ref(false);
-const detail = ref<components["schemas"]["AssetMappingDetailDto"]>();
+const detail = ref<components["schemas"]["AssetMappingDetails"]>();
 
 watch(
   () => [props.visible, props.versionId, props.assetName],

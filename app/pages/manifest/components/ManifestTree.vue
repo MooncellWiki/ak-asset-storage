@@ -50,17 +50,18 @@
 
 <script setup lang="ts">
 import { useDebounceFn } from "@vueuse/core";
+import { computed, h, ref, watch } from "vue";
 import CarbonDocument from "~icons/carbon/document";
 import CarbonFolder from "~icons/carbon/folder";
 import CarbonSearch from "~icons/carbon/search";
-import { computed, h, ref, watch } from "vue";
 import { client } from "~/common/client";
 import { getParentPaths } from "~/common/utils";
-import type { components } from "~/common/schema";
 import { toManifestTreeOption } from "../utils";
-import type { TreeOption, TreeRenderProps } from "naive-ui";
+import type { TreeOption } from "naive-ui";
+import type { TreeRenderProps } from "naive-ui/es/tree/src/interface";
+import type { components } from "~/common/schema";
 
-type ManifestNodeDto = components["schemas"]["ManifestNodeDto"];
+type ManifestNode = components["schemas"]["ManifestNode"];
 
 const props = defineProps<{
   versionId?: number;
@@ -75,7 +76,7 @@ const selectedPath = defineModel<string>({ required: true });
 
 const searchText = ref("");
 const isSearching = ref(false);
-const searchResults = ref<ManifestNodeDto[]>([]);
+const searchResults = ref<ManifestNode[]>([]);
 const expandedKeys = ref<string[]>([]);
 
 function findNodeType(path: string, nodes: TreeOption[]): string | undefined {
@@ -138,7 +139,7 @@ const onSearch = useDebounceFn(async () => {
   searchResults.value = data ?? [];
 }, 500);
 
-function handleSearchSelect(item: ManifestNodeDto) {
+function handleSearchSelect(item: ManifestNode) {
   selectedPath.value = item.path;
   emit("select", item.nodeType);
   isSearching.value = false;
