@@ -2,9 +2,17 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.27.1] - 2026-10-19
+
+[fecb374](fecb3748bfe6029301e3f2b7b28ddebc622ea113)...[dd37cc4](dd37cc45108d9f5f43e82a439459675c1e7a3610)
+
+### 🐛 Bug Fixes
+
+- 按 prefab body/index 槽位解析角色引用 (#190) ([dd37cc4](https://github.com/MooncellWiki/ak-asset-storage/commit/dd37cc45108d9f5f43e82a439459675c1e7a3610)), Co-authored-by:StarHeartHunt <starheart233@gmail.com>
+
 ## [0.27.0] - 2026-10-18
 
-[7d84512](7d8451237c0633cb768b1907f07973b7c0279006)...[5d66724](5d66724c09b35ac64920577f0481210b62ec8131)
+[7d84512](7d8451237c0633cb768b1907f07973b7c0279006)...[fecb374](fecb3748bfe6029301e3f2b7b28ddebc622ea113)
 
 ### 🚀 Features
 
@@ -15,6 +23,7 @@ All notable changes to this project will be documented in this file.
 - Add manually triggered Claude Code Review (#187) ([6537956](https://github.com/MooncellWiki/ak-asset-storage/commit/6537956e9d3ce213d3045d646df147f739d6daba))
 - Optimize Docker dependency caching and workflow setup (#186) ([b64360c](https://github.com/MooncellWiki/ak-asset-storage/commit/b64360c9b72240ae08dd02e9c2b94863a5c42860))
 - Run Claude Code Review on Opus 5.5 (#188) ([fed592e](https://github.com/MooncellWiki/ak-asset-storage/commit/fed592e92a481689762f3fc1b605a396efc73a16))
+- Release 0.27.0 ([fecb374](https://github.com/MooncellWiki/ak-asset-storage/commit/fecb3748bfe6029301e3f2b7b28ddebc622ea113))
 
 ## [0.26.2] - 2026-10-17
 
