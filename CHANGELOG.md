@@ -2,13 +2,25 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.27.2] - 2026-10-19
+
+[9abdd6b](9abdd6bb14e92001e8f8ad51ddcc1fcc2cf01b4a)...[74d5e0c](74d5e0c0ee77f99a0b7339316172339815a64298)
+
+### 🐛 Bug Fixes
+
+- 引用会让 native SetImage 抛异常时不记使用 (#191) ([74d5e0c](https://github.com/MooncellWiki/ak-asset-storage/commit/74d5e0c0ee77f99a0b7339316172339815a64298))
+
 ## [0.27.1] - 2026-10-19
 
-[fecb374](fecb3748bfe6029301e3f2b7b28ddebc622ea113)...[dd37cc4](dd37cc45108d9f5f43e82a439459675c1e7a3610)
+[fecb374](fecb3748bfe6029301e3f2b7b28ddebc622ea113)...[9abdd6b](9abdd6bb14e92001e8f8ad51ddcc1fcc2cf01b4a)
 
 ### 🐛 Bug Fixes
 
 - 按 prefab body/index 槽位解析角色引用 (#190) ([dd37cc4](https://github.com/MooncellWiki/ak-asset-storage/commit/dd37cc45108d9f5f43e82a439459675c1e7a3610)), Co-authored-by:StarHeartHunt <starheart233@gmail.com>
+
+### ⚙️ Miscellaneous Tasks
+
+- Release 0.27.1 ([9abdd6b](https://github.com/MooncellWiki/ak-asset-storage/commit/9abdd6bb14e92001e8f8ad51ddcc1fcc2cf01b4a))
 
 ## [0.27.0] - 2026-10-18
 
