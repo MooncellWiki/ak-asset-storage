@@ -112,9 +112,11 @@ fn parse_native_ref(raw: &str) -> NativeCharacterRef<'_> {
 /// Port of `AVGCharacterSpriteHubGroup.SetImage(holder, body, param)`: shows
 /// `spriteGroups[body].sprites[param.index]`. Native falls back to body 0 for
 /// a body the hub does not have ("No body index {0} ... use default instead")
-/// and to the body's first entry for an index outside it or a slot the link
-/// map leaves out (a face hub's base sprite, empty placeholder rows). Same
-/// shape as `StoryPlayer`'s `pickNativeSlot` (prts-widgets #441).
+/// and to index 0 for an index outside the body ("No index {0} for body group
+/// {1} ..."). The body's first listed entry stands in for both index 0 and
+/// any slot the link map leaves out (empty placeholder rows; a face hub's base
+/// sprite, which native shows bare, with no face). Same shape as
+/// `StoryPlayer`'s `pickNativeSlot` (prts-widgets #441).
 fn pick_native_slot(array: &[CharacterEntry], body: i32, index: usize) -> Option<&CharacterEntry> {
     let body = if array.iter().any(|entry| entry.body == Some(body)) {
         body
@@ -158,7 +160,9 @@ fn select_entry<'a>(
         .all(|entry| entry.body.is_some() && entry.index.is_some())
     {
         // `group` is 1-based; `_LoadImage` passes body 0 when no `$N`.
-        let body = parsed.group.map_or(0, |group| group - 1);
+        // Saturating: `$-2147483648` must not overflow (native wraps to
+        // `Int32.MaxValue`, which lands on the body-0 fallback all the same).
+        let body = parsed.group.map_or(0, |group| group.saturating_sub(1));
         return pick_native_slot(&node.array, body, parsed.index);
     }
 
@@ -181,15 +185,12 @@ fn select_entry<'a>(
     node.array.get(parsed.index).or_else(|| node.array.first())
 }
 
-/// The body form is `base$(group + 1)`, i.e. the face-overlay group index
-/// reused as the `$N` the Explorer parses back out (by group index, never by
-/// name). On the shipped `character.json` every multi-group character's
-/// `groups[i].base` ends in `$(i + 1)` and no two bases collide on a listing
-/// id; the single-group characters whose entry names carry no `$N` at all
-/// (`char_181_flower_1`'s `1`/`2`/`3`) still land on `$1`, which the widget's
-/// "no matching body, take the first group" fallback resolves correctly.
-/// Entry names, by contrast, are NOT reliable slot addresses — see
-/// `select_entry` for `avg_npc_1898_1`.
+/// The body form is `base$(group + 1)`: the face-overlay group index (an index
+/// into `character.json`'s deduplicated `groups`), which the Explorer decodes
+/// back by index (prts-widgets #333), never by matching entry names or group
+/// base names. It is not the prefab `body`, though on the shipped
+/// `character.json` the two coincide for every overlay entry. Entry names are
+/// NOT reliable slot addresses -- see `select_entry` for `avg_npc_1898_1`.
 fn resolved_id(base: &str, entry: &CharacterEntry) -> ResolvedCharacterId {
     let resource_id = format!("{base}#{}", entry.name);
     let listing_id = if entry.image.is_some() || entry.group < 0 {
@@ -329,6 +330,23 @@ mod tests {
                  "body": 0, "index": 0},
                 {"name": "2$1", "alias": "", "group": 0, "face": "avg_partial_1/2$1"}
             ]
+        },
+        "avg_two_body_1": {
+            "pos": {"x": 0, "y": 190}, "size": {"x": 970, "y": 970},
+            "groups": [{"mode": "face_overlay", "base": "avg_two_body_1/avg_two_body_1$1",
+                        "faceRect": {"x": 787, "y": 235, "w": 236, "h": 228}},
+                       {"mode": "face_overlay", "base": "avg_two_body_1/avg_two_body_1$2",
+                        "faceRect": {"x": 787, "y": 234, "w": 236, "h": 229}}],
+            "array": [
+                {"name": "1$1", "alias": "", "group": 0, "face": "avg_two_body_1/1$1",
+                 "body": 0, "index": 0},
+                {"name": "2$1", "alias": "", "group": 0, "face": "avg_two_body_1/2$1",
+                 "body": 0, "index": 1},
+                {"name": "1$2", "alias": "", "group": 1, "face": "avg_two_body_1/1$2",
+                 "body": 1, "index": 0},
+                {"name": "2$2", "alias": "", "group": -1, "image": "avg_two_body_1/2$2",
+                 "body": 1, "index": 1}
+            ]
         }
     }"#;
 
@@ -439,10 +457,44 @@ mod tests {
             links.resolve("avg_npc_1898_1#9$1"),
             resolved("avg_npc_1898_1#1$1", "avg_npc_1898_1$1")
         );
-        // A body the hub does not have falls back to body 0.
+        // A body the hub does not have falls back to body 0, including the
+        // `Int32.MinValue` body `$N - 1` would overflow on.
         assert_eq!(
             links.resolve("avg_npc_1898_1#2$5"),
             resolved("avg_npc_1898_1#2$1.", "avg_npc_1898_1$1")
+        );
+        assert_eq!(
+            links.resolve("avg_npc_1898_1#2$-2147483648"),
+            resolved("avg_npc_1898_1#2$1.", "avg_npc_1898_1$1")
+        );
+    }
+
+    /// `$N` picks the body, and a slot the link map leaves out (here the
+    /// face hub's base sprite at index 2) falls back within that body rather
+    /// than to body 0. Shaped after `avg_1038_whitw2_1`, whose bodies mix
+    /// face overlays with whole-body images.
+    #[test]
+    fn addresses_the_body_named_by_the_dollar_suffix() {
+        let links = links();
+        assert_eq!(
+            links.resolve("avg_two_body_1#1$2"),
+            resolved("avg_two_body_1#1$2", "avg_two_body_1$2")
+        );
+        assert_eq!(
+            links.resolve("avg_two_body_1$2"),
+            resolved("avg_two_body_1#1$2", "avg_two_body_1$2")
+        );
+        assert_eq!(
+            links.resolve("avg_two_body_1#2$2"),
+            resolved("avg_two_body_1#2$2", "avg_two_body_1#2$2")
+        );
+        assert_eq!(
+            links.resolve("avg_two_body_1#3$2"),
+            resolved("avg_two_body_1#1$2", "avg_two_body_1$2")
+        );
+        assert_eq!(
+            links.resolve("avg_two_body_1#3$1"),
+            resolved("avg_two_body_1#1$1", "avg_two_body_1$1")
         );
     }
 
