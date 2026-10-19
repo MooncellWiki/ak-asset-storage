@@ -30,6 +30,14 @@ pub struct CharacterLinks {
 #[derive(Debug, Deserialize)]
 struct LinkNode {
     array: Vec<CharacterEntry>,
+    /// `spriteGroups[body].sprites.Length` for every body of an
+    /// `AVGCharacterSpriteHubGroup` prefab, base sprites and placeholder rows
+    /// included -- `array` lists neither, so the lengths `SetImage`'s
+    /// off-by-one bounds guards compare against are not derivable from it.
+    /// Absent for a legacy flat `AVGCharacterSpriteHub` (whose guard is
+    /// correct) and in older `character.json`.
+    #[serde(default)]
+    bodies: Option<Vec<usize>>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -61,7 +69,8 @@ struct NativeCharacterRef<'a> {
     base: &'a str,
     /// Native `$N` suffix, 1-based: `$N` addresses `spriteGroups[N-1]`.
     group: Option<i32>,
-    /// Native `#N` suffix converted to the selected zero-based index.
+    /// Native `#N` suffix converted to the selected zero-based index (0 for
+    /// the `@alias` form, which reads `sprites[0]` when the alias misses).
     index: usize,
 }
 
@@ -131,6 +140,30 @@ fn pick_native_slot(array: &[CharacterEntry], body: i32, index: usize) -> Option
     in_body()
         .find(|entry| entry.index == Some(index))
         .or_else(|| in_body().next())
+}
+
+/// Whether `AVGCharacterSpriteHubGroup.SetImage` throws for `$N#M`. Both of
+/// its bounds guards are off by one (2.7.81 0x18402d4fa body / 0x18402d5cf
+/// index, `cmp; jle`): body falls back to 0 only past `spriteGroups.Length`
+/// and index only past `sprites.Length`, so exactly the length -- or any index
+/// into an empty body -- passes the guard and the array read raises
+/// `IndexOutOfRangeException`. Nothing up to the `DoExecuteCommands` coroutine
+/// catches it, so native stops the story there and never shows a sprite for
+/// the ref. The `@alias` overload shares the body guard and then reads
+/// `sprites[0]`, which `parse_native_ref`'s index 0 already stands for. Same
+/// rule as `StoryPlayer`'s `nativeSlotThrows`.
+fn native_slot_throws(bodies: &[usize], group: Option<i32>, index: usize) -> bool {
+    // `group` is 1-based; no `$N` is body 0.
+    let body = group.map_or(0, |group| group.saturating_sub(1));
+    let body = usize::try_from(body)
+        .ok()
+        .filter(|&body| body <= bodies.len())
+        .unwrap_or(0);
+    let Some(&count) = bodies.get(body) else {
+        return true;
+    };
+    let index = if index > count { 0 } else { index };
+    index >= count
 }
 
 fn select_entry<'a>(
@@ -243,8 +276,9 @@ impl CharacterLinks {
     }
 
     /// Resolves a raw story ref with the same direct / explicit-expression /
-    /// native suffix order as `StoryPlayer`. Unknown refs are omitted because
-    /// the player cannot display them either.
+    /// native suffix order as `StoryPlayer`. Unknown refs, and refs native
+    /// `SetImage` throws on (`native_slot_throws`), are omitted because the
+    /// player cannot display them either.
     #[must_use]
     pub fn resolve(&self, raw_ref: &str) -> Option<ResolvedCharacterId> {
         if raw_ref.is_empty() {
@@ -253,6 +287,13 @@ impl CharacterLinks {
         let normalized = raw_ref.to_lowercase();
 
         if let Some(node) = self.nodes.get(&normalized) {
+            if node
+                .bodies
+                .as_deref()
+                .is_some_and(|bodies| native_slot_throws(bodies, None, 0))
+            {
+                return None;
+            }
             return node
                 .array
                 .first()
@@ -271,6 +312,13 @@ impl CharacterLinks {
 
         let parsed = parse_native_ref(&normalized);
         let node = self.nodes.get(parsed.base)?;
+        if node
+            .bodies
+            .as_deref()
+            .is_some_and(|bodies| native_slot_throws(bodies, parsed.group, parsed.index))
+        {
+            return None;
+        }
         let entry = select_entry(node, &parsed)?;
         Some(resolved_id(parsed.base, entry))
     }
@@ -332,7 +380,7 @@ mod tests {
             ]
         },
         "avg_two_body_1": {
-            "pos": {"x": 0, "y": 190}, "size": {"x": 970, "y": 970},
+            "pos": {"x": 0, "y": 190}, "size": {"x": 970, "y": 970}, "bodies": [3, 3],
             "groups": [{"mode": "face_overlay", "base": "avg_two_body_1/avg_two_body_1$1",
                         "faceRect": {"x": 787, "y": 235, "w": 236, "h": 228}},
                        {"mode": "face_overlay", "base": "avg_two_body_1/avg_two_body_1$2",
@@ -346,6 +394,14 @@ mod tests {
                  "body": 1, "index": 0},
                 {"name": "2$2", "alias": "", "group": -1, "image": "avg_two_body_1/2$2",
                  "body": 1, "index": 1}
+            ]
+        },
+        "avg_empty_body_1": {
+            "pos": {"x": 0, "y": 190}, "size": {"x": 970, "y": 970}, "bodies": [1, 0],
+            "groups": [],
+            "array": [
+                {"name": "avg_empty_body_1", "alias": "smile", "group": -1,
+                 "image": "avg_empty_body_1/avg_empty_body_1", "body": 0, "index": 0}
             ]
         }
     }"#;
@@ -507,6 +563,46 @@ mod tests {
         assert_eq!(
             links.resolve("avg_partial_1#2$1"),
             resolved("avg_partial_1#2$1", "avg_partial_1$1")
+        );
+    }
+
+    /// `SetImage`'s guards are off by one: exactly `sprites.Length` or
+    /// `spriteGroups.Length` -- or any index into an empty body -- throws, and
+    /// native shows nothing for the ref; only past the length does it fall
+    /// back to 0. Without `bodies` the old fallbacks stay.
+    #[test]
+    fn omits_refs_native_set_image_throws_on() {
+        let links = links();
+        assert_eq!(links.resolve("avg_two_body_1#4$2"), None);
+        assert_eq!(links.resolve("avg_two_body_1#1$3"), None);
+        assert_eq!(
+            links.resolve("avg_two_body_1#5$2"),
+            resolved("avg_two_body_1#1$2", "avg_two_body_1$2")
+        );
+        assert_eq!(
+            links.resolve("avg_two_body_1#2$4"),
+            resolved("avg_two_body_1#2$1", "avg_two_body_1$1")
+        );
+        assert_eq!(links.resolve("avg_empty_body_1#1$2"), None);
+        assert_eq!(links.resolve("avg_empty_body_1@smile$2"), None);
+        assert_eq!(links.resolve("avg_empty_body_1$3"), None);
+        assert_eq!(
+            links.resolve("avg_empty_body_1@smile"),
+            resolved(
+                "avg_empty_body_1#avg_empty_body_1",
+                "avg_empty_body_1#avg_empty_body_1"
+            )
+        );
+        assert_eq!(
+            links.resolve("avg_empty_body_1"),
+            resolved(
+                "avg_empty_body_1#avg_empty_body_1",
+                "avg_empty_body_1#avg_empty_body_1"
+            )
+        );
+        assert_eq!(
+            links.resolve("avg_npc_1898_1#4$1"),
+            resolved("avg_npc_1898_1#1$1", "avg_npc_1898_1$1")
         );
     }
 }
