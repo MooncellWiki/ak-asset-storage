@@ -39,6 +39,13 @@ struct CharacterEntry {
     alias: Option<String>,
     group: i32,
     image: Option<String>,
+    /// Prefab slot `spriteGroups[body].sprites[index]`, the target `$N#M`
+    /// addresses. Present since the torappu export that added them (prts-widgets
+    /// #441 consumes the same fields); absent in older `character.json`.
+    #[serde(default)]
+    body: Option<i32>,
+    #[serde(default)]
+    index: Option<i32>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -52,7 +59,7 @@ pub struct ResolvedCharacterId {
 struct NativeCharacterRef<'a> {
     alias: Option<&'a str>,
     base: &'a str,
-    /// Native `$N` suffix, kept 1-based for entry-name matching.
+    /// Native `$N` suffix, 1-based: `$N` addresses `spriteGroups[N-1]`.
     group: Option<i32>,
     /// Native `#N` suffix converted to the selected zero-based index.
     index: usize,
@@ -102,6 +109,28 @@ fn parse_native_ref(raw: &str) -> NativeCharacterRef<'_> {
     }
 }
 
+/// Port of `AVGCharacterSpriteHubGroup.SetImage(holder, body, param)`: shows
+/// `spriteGroups[body].sprites[param.index]`. Native falls back to body 0 for
+/// a body the hub does not have ("No body index {0} ... use default instead")
+/// and to the body's first entry for an index outside it or a slot the link
+/// map leaves out (a face hub's base sprite, empty placeholder rows). Same
+/// shape as `StoryPlayer`'s `pickNativeSlot` (prts-widgets #441).
+fn pick_native_slot(array: &[CharacterEntry], body: i32, index: usize) -> Option<&CharacterEntry> {
+    let body = if array.iter().any(|entry| entry.body == Some(body)) {
+        body
+    } else {
+        0
+    };
+    // `index` originates from an `i32` suffix, so the clamp never fires; it
+    // only keeps out-of-range indexes from matching any slot (they fall back
+    // to the body's first entry, as native does).
+    let index = i32::try_from(index).unwrap_or(i32::MAX);
+    let in_body = || array.iter().filter(|entry| entry.body == Some(body));
+    in_body()
+        .find(|entry| entry.index == Some(index))
+        .or_else(|| in_body().next())
+}
+
 fn select_entry<'a>(
     node: &'a LinkNode,
     parsed: &NativeCharacterRef<'_>,
@@ -119,6 +148,22 @@ fn select_entry<'a>(
             .or_else(|| node.array.first());
     }
 
+    // Exports with `body`/`index`: address the prefab slots directly. Entry
+    // names are not a stand-in for slots -- `avg_npc_1898_1`'s faces are
+    // `1$1`, `2$1.`~`7$1.` (trailing dots), which the name-suffix guess below
+    // collapses onto `1$1` for every `#2..#7$1`.
+    if node
+        .array
+        .iter()
+        .all(|entry| entry.body.is_some() && entry.index.is_some())
+    {
+        // `group` is 1-based; `_LoadImage` passes body 0 when no `$N`.
+        let body = parsed.group.map_or(0, |group| group - 1);
+        return pick_native_slot(&node.array, body, parsed.index);
+    }
+
+    // Older exports without the fields: guess the body from the `$N` the
+    // entry names usually end with, and the slot from the order within it.
     if let Some(group) = parsed.group {
         let suffix = format!("${group}");
         let mut grouped = node
@@ -136,14 +181,15 @@ fn select_entry<'a>(
     node.array.get(parsed.index).or_else(|| node.array.first())
 }
 
-/// The body form is `base$(group + 1)`, i.e. the group index reused as the
-/// `$N` the Explorer parses back out. That holds on the shipped
-/// `character.json`: across every multi-group character, `groups[i].base` ends
-/// in `$(i + 1)` and each overlay entry name carries the matching `$N`, and no
-/// two bases collide on a listing id. The single-group characters whose entry
-/// names have no `$N` at all (`char_181_flower_1`'s `1`/`2`/`3`) still land on
-/// `$1`, which the widget's "no matching body, take the first group" fallback
-/// resolves correctly.
+/// The body form is `base$(group + 1)`, i.e. the face-overlay group index
+/// reused as the `$N` the Explorer parses back out (by group index, never by
+/// name). On the shipped `character.json` every multi-group character's
+/// `groups[i].base` ends in `$(i + 1)` and no two bases collide on a listing
+/// id; the single-group characters whose entry names carry no `$N` at all
+/// (`char_181_flower_1`'s `1`/`2`/`3`) still land on `$1`, which the widget's
+/// "no matching body, take the first group" fallback resolves correctly.
+/// Entry names, by contrast, are NOT reliable slot addresses — see
+/// `select_entry` for `avg_npc_1898_1`.
 fn resolved_id(base: &str, entry: &CharacterEntry) -> ResolvedCharacterId {
     let resource_id = format!("{base}#{}", entry.name);
     let listing_id = if entry.image.is_some() || entry.group < 0 {
@@ -260,6 +306,29 @@ mod tests {
                 {"name": "1$1", "alias": "", "group": 0, "face": "avg_Mix_1/1$1"},
                 {"name": "2$1", "alias": "", "group": 0, "face": "avg_Mix_1/2$1"}
             ]
+        },
+        "avg_npc_1898_1": {
+            "pos": {"x": 0, "y": 150}, "size": {"x": 1050, "y": 1050},
+            "groups": [{"mode": "face_overlay", "base": "avg_npc_1898_1/avg_npc_1898_1$1",
+                        "faceRect": {"x": 647, "y": 41, "w": 131, "h": 185}}],
+            "array": [
+                {"name": "1$1", "alias": "", "group": 0, "face": "avg_npc_1898_1/1$1",
+                 "body": 0, "index": 0},
+                {"name": "2$1.", "alias": "", "group": 0, "face": "avg_npc_1898_1/2$1.",
+                 "body": 0, "index": 1},
+                {"name": "7$1.", "alias": "", "group": 0, "face": "avg_npc_1898_1/7$1.",
+                 "body": 0, "index": 6}
+            ]
+        },
+        "avg_partial_1": {
+            "pos": {"x": 0, "y": 190}, "size": {"x": 970, "y": 970},
+            "groups": [{"mode": "face_overlay", "base": "avg_partial_1/avg_partial_1$1",
+                        "faceRect": {"x": 459, "y": 159, "w": 130, "h": 110}}],
+            "array": [
+                {"name": "1$1", "alias": "", "group": 0, "face": "avg_partial_1/1$1",
+                 "body": 0, "index": 0},
+                {"name": "2$1", "alias": "", "group": 0, "face": "avg_partial_1/2$1"}
+            ]
         }
     }"#;
 
@@ -344,5 +413,48 @@ mod tests {
         assert_eq!(links.resolve("avg_overlay_1#2 3$1"), None);
         assert_eq!(links.resolve("avg_unknown_1#1$1"), None);
         assert_eq!(links.resolve(""), None);
+    }
+
+    /// Same shape as StoryPlayer #441: `avg_npc_1898_1`'s faces carry trailing
+    /// dots, so the name-suffix guess resolves every `#2..#7$1` onto `1$1`.
+    /// With `body`/`index` the slots are addressed directly.
+    #[test]
+    fn picks_prefab_slots_when_entries_carry_body_and_index() {
+        let links = links();
+        assert_eq!(
+            links.resolve("avg_npc_1898_1#2$1"),
+            resolved("avg_npc_1898_1#2$1.", "avg_npc_1898_1$1")
+        );
+        assert_eq!(
+            links.resolve("avg_npc_1898_1#7$1"),
+            resolved("avg_npc_1898_1#7$1.", "avg_npc_1898_1$1")
+        );
+        // No `$N` means body 0, as `_LoadImage` does.
+        assert_eq!(
+            links.resolve("avg_npc_1898_1#2"),
+            resolved("avg_npc_1898_1#2$1.", "avg_npc_1898_1$1")
+        );
+        // Out-of-range index falls back to the body's first entry.
+        assert_eq!(
+            links.resolve("avg_npc_1898_1#9$1"),
+            resolved("avg_npc_1898_1#1$1", "avg_npc_1898_1$1")
+        );
+        // A body the hub does not have falls back to body 0.
+        assert_eq!(
+            links.resolve("avg_npc_1898_1#2$5"),
+            resolved("avg_npc_1898_1#2$1.", "avg_npc_1898_1$1")
+        );
+    }
+
+    /// A single entry missing the fields opts the whole node out of slot
+    /// addressing (version skew between the array's rows), like #441's
+    /// `every(hasNativeSlot)` gate.
+    #[test]
+    fn falls_back_to_name_suffix_when_any_entry_lacks_slots() {
+        let links = links();
+        assert_eq!(
+            links.resolve("avg_partial_1#2$1"),
+            resolved("avg_partial_1#2$1", "avg_partial_1$1")
+        );
     }
 }
