@@ -32,7 +32,7 @@ module_name_repetitions = { level = "allow", priority = 1 }
 [workspace.dependencies]
 serde = { version = "1.0.229", features = [ "derive" ] }
 serde_json = "1.0.154"
-tokio = { version = "1.53.3", features = [
+tokio = { version = "1.54.0", features = [
   "signal",
   "rt-multi-thread",
   "macros",
@@ -108,7 +108,7 @@ octocrab = "0.54.5"
 base64 = "0.23.1"
 mimalloc = "0.1.52"
 subtle = "2.6.1"
-rmcp = { version = "3.5.1", features = [
+rmcp = { version = "3.6.0", features = [
   "server",
   "macros",
   "transport-streamable-http-server",

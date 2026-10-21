@@ -10,4 +10,5 @@ minimumReleaseAgeExclude:
   - "@shikijs/themes@4.4.2"
   - "@shikijs/types@4.4.2"
   - shiki@4.4.2
+  - vite@8.3.5
 shellEmulator: true
