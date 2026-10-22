@@ -4,11 +4,15 @@ All notable changes to this project will be documented in this file.
 
 ## [0.27.2] - 2026-10-19
 
-[9abdd6b](9abdd6bb14e92001e8f8ad51ddcc1fcc2cf01b4a)...[74d5e0c](74d5e0c0ee77f99a0b7339316172339815a64298)
+[9abdd6b](9abdd6bb14e92001e8f8ad51ddcc1fcc2cf01b4a)...[381c296](381c2965a0e43f758df038497ce993e7b8fbd146)
 
 ### 🐛 Bug Fixes
 
 - 引用会让 native SetImage 抛异常时不记使用 (#191) ([74d5e0c](https://github.com/MooncellWiki/ak-asset-storage/commit/74d5e0c0ee77f99a0b7339316172339815a64298))
+
+### ⚙️ Miscellaneous Tasks
+
+- Release 0.27.2 ([381c296](https://github.com/MooncellWiki/ak-asset-storage/commit/381c2965a0e43f758df038497ce993e7b8fbd146))
 
 ## [0.27.1] - 2026-10-19
 
