@@ -393,7 +393,7 @@ pub async fn search_assets_by_path(
     let index = state.plocate.clone();
     let entries = tokio::task::spawn_blocking(move || {
         let _permit = permit;
-        index.search(&path, limit)
+        index.search(&path, None, limit)
     })
     .await
     .map_err(|err| WebError::CustomApiError(AppError::Application(err.into())))?

@@ -95,6 +95,20 @@ with_virtual_hosted_style_request = false
 
 Set `[mcp] enable = true` to expose the read-only query tools at `/mcp` (Streamable HTTP).
 
+- `read_gamedata` reads one file of a version's extracted gamedata. JSON files are parsed:
+  `keys_only` outlines the children at a JSON Pointer (key, pointer, type, size) and
+  `pointer` returns one part, refused with a hint when it exceeds `max_bytes` (default
+  20 000, at most 100 000). Other files are returned as UTF-8 text pages. Without a
+  version it reads the newest version whose `.gamedata-ready.json` marker exists.
+  `gamedata_read_concurrency` (default 2) caps parallel reads; excess calls fail fast.
+- `list_versions` / `get_version` report `gamedataStatus`: `ready` (marker present),
+  `unmarked` (directory without marker: still extracting, or extracted before markers
+  existed) or `missing`.
+- `list_files` / `search_files` file entries carry a public `url` built from
+  `server.host` (`/assets/...` for `raw/`, `/gamedata/...` for `gamedata/`).
+  `search_files` takes `path_prefix` to search one subtree; `gamedata/latest/` resolves
+  to the version the alias links to.
+
 ### Torappu
 
 ```toml

@@ -158,10 +158,28 @@ const fn default_plocate_update_interval_seconds() -> u64 {
 /// MCP (Model Context Protocol) endpoint configuration. The endpoint only
 /// mirrors the public read-only queries, but stays opt-in so existing
 /// deployments keep serving exactly the routes they had before.
-#[derive(Debug, Clone, Default, Deserialize, Serialize)]
+#[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct McpConfig {
     #[serde(default)]
     pub enable: bool,
+    /// Maximum `read_gamedata` calls parsing a file at once; excess calls
+    /// fail fast with a retryable error. A parsed table takes several times
+    /// its file size in memory (the character table is about 8 MB on disk).
+    #[serde(default = "default_gamedata_read_concurrency")]
+    pub gamedata_read_concurrency: usize,
+}
+
+impl Default for McpConfig {
+    fn default() -> Self {
+        Self {
+            enable: false,
+            gamedata_read_concurrency: default_gamedata_read_concurrency(),
+        }
+    }
+}
+
+const fn default_gamedata_read_concurrency() -> usize {
+    2
 }
 
 /// Kubernetes Job launcher configuration.
@@ -394,6 +412,11 @@ impl AppSettings {
                 "torappu.search_concurrency must be at least 1"
             )));
         }
+        if self.mcp.gamedata_read_concurrency == 0 {
+            return Err(AppError::Application(anyhow::anyhow!(
+                "mcp.gamedata_read_concurrency must be at least 1"
+            )));
+        }
         let plocate = &self.torappu.plocate;
         if plocate.update_interval_seconds == 0 {
             return Err(AppError::Application(anyhow::anyhow!(
@@ -589,6 +612,29 @@ mod tests {
             .unwrap_err()
             .to_string();
         assert!(error.contains("torappu.search_concurrency must be at least 1"));
+    }
+
+    #[test]
+    fn mcp_defaults_and_rejects_zero_gamedata_concurrency() {
+        let mut config: toml::Table = toml::from_str(include_str!("../example.toml")).unwrap();
+        config.remove("mcp");
+        let content = toml::to_string(&config).unwrap();
+        let settings = AppSettings::from_toml(&content, secret_env).unwrap();
+        assert!(!settings.mcp.enable);
+        assert_eq!(settings.mcp.gamedata_read_concurrency, 2);
+
+        config.insert(
+            "mcp".to_string(),
+            toml::Value::Table(toml::Table::from_iter([(
+                "gamedata_read_concurrency".to_string(),
+                toml::Value::Integer(0),
+            )])),
+        );
+        let content = toml::to_string(&config).unwrap();
+        let error = AppSettings::from_toml(&content, secret_env)
+            .unwrap_err()
+            .to_string();
+        assert!(error.contains("mcp.gamedata_read_concurrency must be at least 1"));
     }
 
     #[test]
