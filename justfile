@@ -69,7 +69,7 @@ gen-config:
     [server]
     binding = "localhost"
     port = 5150
-    host = "http://localhost"
+    host = "http://localhost:5150"
 
     [database]
     uri = "postgres://ak:ak@localhost:32432/ak_asset_storage_next"

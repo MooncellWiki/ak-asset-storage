@@ -95,6 +95,16 @@ with_virtual_hosted_style_request = false
 
 Set `[mcp] enable = true` to expose the read-only query tools at `/mcp` (Streamable HTTP).
 
+- `list_versions` / `get_version` report `gamedataStatus`: `ready` (marker present),
+  `unmarked` (directory without marker: still extracting, or extracted before markers
+  existed) or `missing`.
+- `list_files` / `search_files` file entries carry a public `url` built from
+  `server.host` (`/assets/...` for `raw/`, `/gamedata/...` for `gamedata/`).
+  `search_files` takes `path_prefix` to search one subtree; `gamedata/latest/` resolves
+  to the version the alias links to.
+- MCP never returns file contents: clients download a file's `url` and extract what they
+  need themselves (gamedata tables are several MB each).
+
 ### Torappu
 
 ```toml

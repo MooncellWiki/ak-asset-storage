@@ -127,14 +127,27 @@ impl PlocateIndex {
         Ok(())
     }
 
-    /// Search relative asset paths by case-sensitive literal substring.
-    /// Blocking: run behind the shared search gate in `spawn_blocking`.
-    /// Collect one extra valid entry to detect truncation without counting
-    /// every match. There is no pagination or exact total.
-    pub fn search(&self, query: &str, limit: Option<u32>) -> AppResult<AssetSearchResults> {
+    /// Search relative asset paths by case-sensitive literal substring,
+    /// optionally only below `prefix` (a literal relative path prefix such
+    /// as `gamedata/<res_version>/`). Blocking: run behind the shared search
+    /// gate in `spawn_blocking`. Collect one extra valid entry to detect
+    /// truncation without counting every match. There is no pagination or
+    /// exact total.
+    pub fn search(
+        &self,
+        query: &str,
+        prefix: Option<&str>,
+        limit: Option<u32>,
+    ) -> AppResult<AssetSearchResults> {
         if query.is_empty() || query.contains('\0') {
             return Err(AppError::InvalidInput(
                 "search path must not be empty or contain NUL characters".to_string(),
+            ));
+        }
+        let prefix = prefix.filter(|prefix| !prefix.is_empty());
+        if prefix.is_some_and(|prefix| prefix.contains('\0')) {
+            return Err(AppError::InvalidInput(
+                "search prefix must not contain NUL characters".to_string(),
             ));
         }
         let limit = limit.unwrap_or(100);
@@ -149,12 +162,24 @@ impl PlocateIndex {
                 "search index is not built yet; retry shortly".to_string(),
             ));
         }
-        let mut child = Command::new("plocate")
+        let mut command = Command::new("plocate");
+        command
             .arg("--database")
             .arg(&self.database_path)
             .arg("--null")
             .arg("--")
-            .arg(search_pattern(query))
+            .arg(search_pattern(query));
+        // plocate only lists paths matching every pattern, so the anchored
+        // prefix narrows the scan through the index instead of after it.
+        if let Some(prefix) = prefix {
+            let anchored = self.asset_root.join(prefix);
+            let mut anchored = anchored.to_string_lossy().into_owned();
+            if prefix.ends_with('/') && !anchored.ends_with('/') {
+                anchored.push('/');
+            }
+            command.arg(search_pattern(&anchored));
+        }
+        let mut child = command
             .stdout(Stdio::piped())
             .stderr(Stdio::piped())
             .spawn()
@@ -165,7 +190,13 @@ impl PlocateIndex {
             .take()
             .context("plocate stdout was not piped")
             .map_err(AppError::Application)?;
-        let matches = read_matches(BufReader::new(stdout), &self.asset_root, query, limit + 1);
+        let matches = read_matches(
+            BufReader::new(stdout),
+            &self.asset_root,
+            query,
+            prefix,
+            limit + 1,
+        );
         // Stop the enumeration instead of draining the remaining matches once
         // enough are kept. A read error kills it too, so no plocate process is
         // left running or unreaped after this call.
@@ -212,6 +243,7 @@ fn read_matches(
     mut reader: impl BufRead,
     asset_root: &Path,
     query: &str,
+    prefix: Option<&str>,
     limit: usize,
 ) -> AppResult<Vec<AssetEntry>> {
     let mut kept = Vec::new();
@@ -237,7 +269,9 @@ fn read_matches(
             continue;
         };
         if relative.starts_with("gamedata/latest")
-            || !relative.to_str().is_some_and(|path| path.contains(query))
+            || !relative.to_str().is_some_and(|path| {
+                path.contains(query) && prefix.is_none_or(|prefix| path.starts_with(prefix))
+            })
         {
             continue;
         }
@@ -352,7 +386,7 @@ mod tests {
         }
 
         fn paths(&self, query: &str) -> Vec<String> {
-            let result = self.index.search(query, None).unwrap();
+            let result = self.index.search(query, None, None).unwrap();
             assert!(!result.truncated);
             let mut paths: Vec<_> = result.results.into_iter().map(|entry| entry.path).collect();
             paths.sort();
@@ -376,12 +410,16 @@ mod tests {
             ("file", Some(201)),
         ] {
             assert!(matches!(
-                fixture.index.search(query, limit),
+                fixture.index.search(query, None, limit),
                 Err(AppError::InvalidInput(_))
             ));
         }
         assert!(matches!(
-            fixture.index.search("file", None),
+            fixture.index.search("file", Some("raw\0"), None),
+            Err(AppError::InvalidInput(_))
+        ));
+        assert!(matches!(
+            fixture.index.search("file", None, None),
             Err(AppError::Unavailable(_))
         ));
     }
@@ -408,7 +446,8 @@ mod tests {
             stream.extend_from_slice(path.to_str().unwrap().as_bytes());
             stream.push(0);
         }
-        let entries = read_matches(stream.as_slice(), &fixture.index.asset_root, "set", 2).unwrap();
+        let entries =
+            read_matches(stream.as_slice(), &fixture.index.asset_root, "set", None, 2).unwrap();
         assert_eq!(
             entries
                 .iter()
@@ -416,6 +455,43 @@ mod tests {
                 .collect::<Vec<_>>(),
             vec!["raw/set/deep/valid.png", "raw/set/deeper/other.png"]
         );
+    }
+
+    #[test]
+    fn prefix_keeps_only_matches_below_it() {
+        let fixture = Fixture::new();
+        let root = &fixture.index.asset_root;
+        let mut stream = Vec::new();
+        for path in [
+            "gamedata/v1/excel/character_table.json",
+            "gamedata/v2/excel/character_table.json",
+            "gamedata/v20/excel/character_table.json",
+            "raw/v2/excel/character_table.json",
+        ] {
+            fixture.write(path);
+            stream.extend_from_slice(root.join(path).to_str().unwrap().as_bytes());
+            stream.push(0);
+        }
+        let paths = |prefix: Option<&str>| {
+            read_matches(stream.as_slice(), root, "character_table", prefix, 10)
+                .unwrap()
+                .into_iter()
+                .map(|entry| entry.path)
+                .collect::<Vec<_>>()
+        };
+        assert_eq!(
+            paths(Some("gamedata/v2/")),
+            vec!["gamedata/v2/excel/character_table.json"]
+        );
+        assert_eq!(
+            paths(Some("gamedata/v2")),
+            vec![
+                "gamedata/v2/excel/character_table.json",
+                "gamedata/v20/excel/character_table.json"
+            ],
+            "the prefix is literal, not a whole directory name"
+        );
+        assert_eq!(paths(None).len(), 4);
     }
 
     #[test]
@@ -494,6 +570,44 @@ mod tests {
     }
 
     #[test]
+    fn prefix_narrows_the_plocate_query() {
+        if !binaries_available_for_tests() {
+            return;
+        }
+        let fixture = Fixture::new();
+        fixture.write("gamedata/v1/excel/character_table.json");
+        fixture.write("gamedata/v2/excel/character_table.json");
+        fixture.write("gamedata/v2/[uc]lua/character_table.lua");
+        fixture.write("raw/character_table.png");
+        fixture.index.update().unwrap();
+        let search = |prefix| {
+            let mut paths: Vec<_> = fixture
+                .index
+                .search("character_table", Some(prefix), None)
+                .unwrap()
+                .results
+                .into_iter()
+                .map(|entry| entry.path)
+                .collect();
+            paths.sort();
+            paths
+        };
+        assert_eq!(
+            search("gamedata/v2/"),
+            vec![
+                "gamedata/v2/[uc]lua/character_table.lua",
+                "gamedata/v2/excel/character_table.json"
+            ]
+        );
+        assert_eq!(
+            search("gamedata/v2/[uc]lua"),
+            vec!["gamedata/v2/[uc]lua/character_table.lua"]
+        );
+        assert_eq!(search("raw"), vec!["raw/character_table.png"]);
+        assert!(search("gamedata/v3/").is_empty());
+    }
+
+    #[test]
     fn truncation_uses_one_extra_existing_entry() {
         if !binaries_available_for_tests() {
             return;
@@ -503,11 +617,11 @@ mod tests {
         fixture.write("raw/01-match.png");
         fixture.write("raw/02-match.png");
         fixture.index.update().unwrap();
-        let first = fixture.index.search("match", Some(2)).unwrap();
+        let first = fixture.index.search("match", None, Some(2)).unwrap();
         assert_eq!(first.results.len(), 2);
         assert!(first.truncated);
         std::fs::remove_file(fixture.index.asset_root.join("raw/00-match.png")).unwrap();
-        let exact = fixture.index.search("match", Some(2)).unwrap();
+        let exact = fixture.index.search("match", None, Some(2)).unwrap();
         assert_eq!(exact.results.len(), 2);
         assert!(
             !exact.truncated,
@@ -528,10 +642,10 @@ mod tests {
             fixture.write(&format!("raw/match-{i:03}.png"));
         }
         fixture.index.update().unwrap();
-        let default = fixture.index.search("match", None).unwrap();
+        let default = fixture.index.search("match", None, None).unwrap();
         assert_eq!(default.results.len(), 100);
         assert!(default.truncated);
-        let maximum = fixture.index.search("match", Some(200)).unwrap();
+        let maximum = fixture.index.search("match", None, Some(200)).unwrap();
         assert_eq!(maximum.results.len(), 200);
         assert!(maximum.truncated);
     }
@@ -572,12 +686,24 @@ mod tests {
         index.update().unwrap();
         fixture.write("raw/two.json");
         index.update().unwrap();
-        assert_eq!(index.search("two.json", None).unwrap().results.len(), 1);
-        assert!(index.search("index.db", None).unwrap().results.is_empty());
+        assert_eq!(
+            index.search("two.json", None, None).unwrap().results.len(),
+            1
+        );
+        assert!(
+            index
+                .search("index.db", None, None)
+                .unwrap()
+                .results
+                .is_empty()
+        );
         // A failed replacement must leave the prior database searchable.
         let mut broken = index.clone();
         broken.asset_root = fixture.dir.join("missing");
         assert!(broken.update().is_err());
-        assert_eq!(index.search("two.json", None).unwrap().results.len(), 1);
+        assert_eq!(
+            index.search("two.json", None, None).unwrap().results.len(),
+            1
+        );
     }
 }

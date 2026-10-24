@@ -1,7 +1,7 @@
 //! MCP (Model Context Protocol) server: read-only query tools exposing the
 //! same data as the REST API (versions, manifest tree, bundles, story
-//! resources, raw asset directory) to AI clients over Streamable HTTP at
-//! `/mcp`.
+//! resources, extracted asset tree with download URLs) to AI clients over
+//! Streamable HTTP at `/mcp`.
 
 use crate::{
     AppError,
@@ -14,7 +14,13 @@ use crate::{
     },
     database::{
         bundle::BundleFilter,
+        model::VersionSummary,
         row::{AssetMappingStatus, StoryResourceType, VersionRow},
+    },
+    external::{
+        gamedata::{self, GamedataStatus},
+        torappu::TorappuClient,
+        types::AssetEntry,
     },
 };
 use rmcp::{
@@ -25,7 +31,11 @@ use rmcp::{
     tool, tool_handler, tool_router,
 };
 use serde::{Deserialize, Serialize};
-use std::sync::Arc;
+use std::{
+    fmt::Write as _,
+    path::{Component, Path},
+    sync::Arc,
+};
 use tracing::warn;
 
 const INSTRUCTIONS: &str = "\
@@ -46,8 +56,16 @@ This server indexes Arknights game assets.
   `get_story_resource_usages` finds the scripts that use one. Always use
   ids exactly as `list_story_resources` returns them: characters are either
   `base#expression` or the body form `base$body`.
-- `list_files`/`search_files` browse the extracted raw asset directory
-  (e.g. `raw/char_arts`).
+- `list_files`/`search_files` browse the extracted asset tree: `raw/`
+  holds art and audio (e.g. `raw/char_arts`), `gamedata/<res_version>/`
+  the decoded tables. Gamedata repeats once per version, so give
+  `search_files` a `path_prefix` such as `gamedata/latest/` or `raw/`.
+- File entries carry a public `url`; this server never returns file
+  contents. Decoded tables such as `excel/character_table.json` are
+  several MB each, so download the `url` and extract the part you need
+  (e.g. with jq) instead of loading a whole table into context. Pick a
+  version whose `gamedataStatus` is `ready` (`list_versions` with
+  `gamedata_ready_only`): `unmarked` versions may be mid-extraction.
 - `get_item_demand` looks up demand by Chinese item name (e.g. `固源岩`).
 All tools are read-only.";
 
@@ -81,6 +99,9 @@ struct VersionSelector {
 struct ListVersionsParams {
     /// Only include versions whose manifest import finished (status `ready`).
     ready_only: Option<bool>,
+    /// Only include versions whose gamedata extraction finished
+    /// (`gamedataStatus` `ready`), i.e. complete and safe to download.
+    gamedata_ready_only: Option<bool>,
     /// Maximum number of versions returned (1-200, default 50).
     limit: Option<u32>,
 }
@@ -149,6 +170,10 @@ struct ListFilesParams {
 struct SearchFilesParams {
     /// Case-sensitive literal substring of the relative asset path.
     q: String,
+    /// Only return paths starting with this literal relative prefix, e.g.
+    /// `raw/` or `gamedata/<res_version>/`. `gamedata/latest/` resolves to
+    /// the version the latest alias points at.
+    path_prefix: Option<String>,
     /// Maximum entries returned (1-200, default 100). No pagination.
     limit: Option<u32>,
 }
@@ -185,6 +210,15 @@ struct GetItemDemandParams {
     item_name: String,
 }
 
+/// `list_versions` entry: the REST summary plus the gamedata status.
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct McpVersionSummary {
+    #[serde(flatten)]
+    summary: VersionSummary,
+    gamedata_status: GamedataStatus,
+}
+
 /// Version details for the MCP surface: the REST `hot_update_list` raw
 /// string is megabytes, so it is replaced by per-key entry counts.
 #[derive(Serialize)]
@@ -195,9 +229,38 @@ struct McpVersionDetails {
     res_version: String,
     is_ready: bool,
     asset_mapping_status: String,
+    /// `ready` once torappu finished extracting this version's gamedata;
+    /// `unmarked`: a directory without the ready marker (still extracting,
+    /// or extracted before markers existed); `missing`: no directory.
+    gamedata_status: GamedataStatus,
     /// Per-key summary of the hot-update list: array values become
     /// `{"count": n}`, scalar values pass through.
     hot_update_summary: Option<serde_json::Value>,
+}
+
+/// An asset entry plus its public download URL (files only).
+#[derive(Serialize)]
+struct McpAssetEntry {
+    #[serde(flatten)]
+    entry: AssetEntry,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    url: Option<String>,
+}
+
+impl McpAssetEntry {
+    fn new(host: &str, entry: AssetEntry) -> Self {
+        let url = asset_url(host, &entry.path, entry.is_dir);
+        Self { entry, url }
+    }
+}
+
+#[derive(Serialize)]
+struct McpSearchResults {
+    results: Vec<McpAssetEntry>,
+    truncated: bool,
+    /// The prefix actually applied, after resolving `gamedata/latest`.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    path_prefix: Option<String>,
 }
 
 /// Wraps an unbounded query result, cutting it at `limit` so a single tool
@@ -295,6 +358,77 @@ fn directory_page<T>(
         truncated,
         next_cursor,
     })
+}
+
+/// Public URL of an extracted file, following the static routes in
+/// `router.rs`: `/assets` serves `raw/` and `/gamedata` serves `gamedata/`.
+/// Directories get none — the static routes do not list them.
+fn asset_url(host: &str, path: &str, is_dir: bool) -> Option<String> {
+    if is_dir {
+        return None;
+    }
+    let (route, rest) = path
+        .strip_prefix("raw/")
+        .map(|rest| ("assets", rest))
+        .or_else(|| {
+            path.strip_prefix("gamedata/")
+                .map(|rest| ("gamedata", rest))
+        })?;
+    if rest.is_empty() {
+        return None;
+    }
+    let mut url = format!("{}/{route}", host.trim_end_matches('/'));
+    for segment in rest.split('/') {
+        url.push('/');
+        percent_encode_segment(&mut url, segment);
+    }
+    Some(url)
+}
+
+/// Percent-encodes everything but RFC 3986 unreserved characters, so names
+/// such as `illust_char_002_amiya_epoque#4` or `[uc]lua` stay one segment.
+fn percent_encode_segment(out: &mut String, segment: &str) {
+    for byte in segment.bytes() {
+        if byte.is_ascii_alphanumeric() || matches!(byte, b'-' | b'.' | b'_' | b'~') {
+            out.push(char::from(byte));
+        } else {
+            let _ = write!(out, "%{byte:02X}");
+        }
+    }
+}
+
+/// A `path_prefix` for `search_files`: relative, without `.`/`..` segments.
+/// A leading `gamedata/latest` is replaced by the version the alias links
+/// to, because the index skips the alias itself.
+fn resolve_search_prefix(torappu: &TorappuClient, prefix: &str) -> Result<String, ErrorData> {
+    ensure_no_nul("path_prefix", prefix)?;
+    let plain = Path::new(prefix)
+        .components()
+        .all(|component| matches!(component, Component::Normal(_)));
+    if !plain {
+        return Err(bad_request(
+            "path_prefix must be a relative path such as raw/ or gamedata/<res_version>/ \
+             without . or .. segments",
+        ));
+    }
+    let alias = format!("gamedata/{}", gamedata::LATEST_ALIAS);
+    let Some(rest) = prefix
+        .strip_prefix(&alias)
+        .filter(|rest| rest.is_empty() || rest.starts_with('/'))
+    else {
+        return Ok(prefix.to_string());
+    };
+    let Some(target) = torappu.gamedata_latest_target() else {
+        return Err(bad_request(
+            "gamedata/latest does not link to a version; use gamedata/<res_version>/ \
+             with a res_version from list_versions",
+        ));
+    };
+    Ok(format!("gamedata/{target}{rest}"))
+}
+
+fn join_error(error: tokio::task::JoinError) -> ErrorData {
+    mcp_error(&AppError::Application(error.into()))
 }
 
 fn mcp_error(error: &AppError) -> ErrorData {
@@ -412,9 +546,11 @@ fn manifest_unready_error(version: &ResolvedVersion) -> Option<CallToolResult> {
 #[tool_router]
 impl AkAssetMcpServer {
     /// List game resource versions, newest first, with their numeric id,
-    /// client/res version strings, readiness and manifest import status.
-    /// Start here to pick a version for other tools; pass `ready_only` to
-    /// list only versions with an imported manifest.
+    /// client/res version strings, readiness, manifest import status and
+    /// gamedata status. Start here to pick a version for other tools; pass
+    /// `ready_only` to list only versions with an imported manifest, or
+    /// `gamedata_ready_only` for versions whose gamedata extraction finished
+    /// (download those files through their `url`).
     #[tool]
     async fn list_versions(
         &self,
@@ -431,12 +567,31 @@ impl AkAssetMcpServer {
         if params.ready_only.unwrap_or(false) {
             versions.retain(|version| version.asset_mapping_status == "ready");
         }
+        let gamedata_ready_only = params.gamedata_ready_only.unwrap_or(false);
+        let torappu = self.state.torappu.clone();
+        // One or two stats per version; a few hundred versions in total.
+        let versions = tokio::task::spawn_blocking(move || {
+            let mut versions: Vec<_> = versions
+                .into_iter()
+                .map(|summary| McpVersionSummary {
+                    gamedata_status: torappu.gamedata_status(&summary.res_version),
+                    summary,
+                })
+                .collect();
+            if gamedata_ready_only {
+                versions.retain(|version| version.gamedata_status == GamedataStatus::Ready);
+            }
+            versions
+        })
+        .await
+        .map_err(join_error)?;
         json_result(TruncatedResults::new(versions, limit))
     }
 
-    /// Get one version's details. The hot-update list is summarized to
-    /// per-key entry counts — the raw list is megabytes. Defaults to the
-    /// latest version with an imported manifest.
+    /// Get one version's details, including its gamedata status. The
+    /// hot-update list is summarized to per-key entry counts — the raw list
+    /// is megabytes. Defaults to the latest version with an imported
+    /// manifest.
     #[tool]
     async fn get_version(
         &self,
@@ -453,6 +608,7 @@ impl AkAssetMcpServer {
         };
         json_result(McpVersionDetails {
             id,
+            gamedata_status: self.state.torappu.gamedata_status(&row.res),
             client_version: row.client,
             res_version: row.res,
             is_ready: row.is_ready,
@@ -630,9 +786,10 @@ impl AkAssetMcpServer {
         json_result(TruncatedResults::new(bundles, limit))
     }
 
-    /// List the entries of one directory in the extracted raw asset tree,
-    /// e.g. `raw/char_arts`. Omit `path` to list the root. Pass `next_cursor`
-    /// back as `cursor` with the same path to continue.
+    /// List the entries of one directory in the extracted asset tree, e.g.
+    /// `raw/char_arts` or `gamedata/latest/excel`. Omit `path` to list the
+    /// root. File entries carry a public `url`. Pass `next_cursor` back as
+    /// `cursor` with the same path to continue.
     #[tool]
     async fn list_files(
         &self,
@@ -645,8 +802,12 @@ impl AkAssetMcpServer {
             .torappu
             .list_asset(&path)
             .map_err(|error| mcp_error(&error))?;
+        let host = &self.state.settings.server.host;
         json_result(directory_page(
-            dir.children,
+            dir.children
+                .into_iter()
+                .map(|entry| McpAssetEntry::new(host, entry))
+                .collect(),
             limit,
             params.cursor.as_deref(),
             DirectoryScope::Files { path },
@@ -654,14 +815,24 @@ impl AkAssetMcpServer {
     }
 
     /// Search extracted assets by relative path substring, at any depth.
-    /// Excludes gamedata/latest. Returns results and truncated, without a
-    /// total or pagination; narrow q when truncated is true.
+    /// Returns results (file entries carry a public `url`) and truncated,
+    /// without a total or pagination; narrow `q` or `path_prefix` when
+    /// `truncated` is true. Gamedata exists once per version and unscoped
+    /// matches come oldest version first, so to search current gamedata
+    /// pass `path_prefix` `gamedata/latest/` (or `gamedata/<res_version>/`);
+    /// use `raw/` for art and audio.
     #[tool]
     async fn search_files(
         &self,
         Parameters(params): Parameters<SearchFilesParams>,
     ) -> Result<CallToolResult, ErrorData> {
         ensure_no_nul("q", &params.q)?;
+        let path_prefix = params
+            .path_prefix
+            .as_deref()
+            .filter(|prefix| !prefix.is_empty())
+            .map(|prefix| resolve_search_prefix(&self.state.torappu, prefix))
+            .transpose()?;
         // Fail fast when the shared search budget (also used by REST) is
         // exhausted; the permit moves into the blocking task so it is held
         // until the search finishes.
@@ -671,14 +842,24 @@ impl AkAssetMcpServer {
             .try_acquire()
             .map_err(|error| mcp_error(&error))?;
         let index = self.state.plocate.clone();
+        let prefix = path_prefix.clone();
         let entries = tokio::task::spawn_blocking(move || {
             let _permit = permit;
-            index.search(&params.q, params.limit)
+            index.search(&params.q, prefix.as_deref(), params.limit)
         })
         .await
-        .map_err(|error| mcp_error(&AppError::Application(error.into())))?
+        .map_err(join_error)?
         .map_err(|error| mcp_error(&error))?;
-        json_result(entries)
+        let host = &self.state.settings.server.host;
+        json_result(McpSearchResults {
+            results: entries
+                .results
+                .into_iter()
+                .map(|entry| McpAssetEntry::new(host, entry))
+                .collect(),
+            truncated: entries.truncated,
+            path_prefix,
+        })
     }
 
     /// List story resources (backgrounds, images, items, characters) with the
@@ -1046,5 +1227,136 @@ mod tests {
             res_version: None,
         });
         assert!(message.contains("imported manifest"), "{message}");
+    }
+
+    #[test]
+    fn asset_urls_follow_static_routes_and_encode_segments() {
+        let host = "https://torappu.prts.wiki/";
+        assert_eq!(
+            asset_url(
+                host,
+                "raw/char_arts/illust_char_002_amiya_epoque#4.png",
+                false
+            )
+            .as_deref(),
+            Some("https://torappu.prts.wiki/assets/char_arts/illust_char_002_amiya_epoque%234.png")
+        );
+        assert_eq!(
+            asset_url(host, "gamedata/26-10-14/[uc]lua/a b+c.lua", false).as_deref(),
+            Some("https://torappu.prts.wiki/gamedata/26-10-14/%5Buc%5Dlua/a%20b%2Bc.lua")
+        );
+        assert_eq!(
+            asset_url(host, "raw/audio/语音.mp3", false).as_deref(),
+            Some("https://torappu.prts.wiki/assets/audio/%E8%AF%AD%E9%9F%B3.mp3")
+        );
+        assert!(
+            asset_url(host, "raw/char_arts", true).is_none(),
+            "directories"
+        );
+        assert!(asset_url(host, "raw/", false).is_none());
+        assert!(
+            asset_url(host, "assetbundle/x.ab", false).is_none(),
+            "not served"
+        );
+    }
+
+    #[test]
+    fn mcp_asset_entries_add_url_next_to_entry_fields() {
+        let entry = AssetEntry {
+            name: "a.png".to_string(),
+            path: "raw/a.png".to_string(),
+            size: 1,
+            create_at: String::new(),
+            modified_at: String::new(),
+            is_dir: false,
+        };
+        let json = serde_json::to_value(McpAssetEntry::new("http://h", entry.clone())).unwrap();
+        assert_eq!(json["path"], "raw/a.png");
+        assert_eq!(json["url"], "http://h/assets/a.png");
+        let dir = AssetEntry {
+            is_dir: true,
+            ..entry
+        };
+        let json = serde_json::to_value(McpAssetEntry::new("http://h", dir)).unwrap();
+        assert!(json.get("url").is_none());
+    }
+
+    #[test]
+    fn version_summaries_gain_gamedata_status() {
+        let json = serde_json::to_value(McpVersionSummary {
+            summary: VersionSummary {
+                id: 1,
+                client_version: "2.7.81".to_string(),
+                res_version: "26-10-14".to_string(),
+                is_ready: true,
+                asset_mapping_status: "ready".to_string(),
+            },
+            gamedata_status: GamedataStatus::Unmarked,
+        })
+        .unwrap();
+        assert_eq!(json["resVersion"], "26-10-14");
+        assert_eq!(json["gamedataStatus"], "unmarked");
+    }
+
+    struct GamedataFixture {
+        root: std::path::PathBuf,
+        torappu: TorappuClient,
+    }
+
+    impl GamedataFixture {
+        fn new() -> Self {
+            let root = std::env::temp_dir().join(format!(
+                "ak-mcp-gamedata-{}-{}",
+                std::process::id(),
+                std::time::SystemTime::now()
+                    .duration_since(std::time::UNIX_EPOCH)
+                    .unwrap()
+                    .as_nanos()
+            ));
+            let torappu = TorappuClient {
+                asset_base_path: root.join("assets"),
+            };
+            let write = |path: &str, content: &str| {
+                let path = torappu.asset_base_path.join(path);
+                std::fs::create_dir_all(path.parent().unwrap()).unwrap();
+                std::fs::write(path, content).unwrap();
+            };
+            write(
+                "gamedata/v1/.gamedata-ready.json",
+                r#"{"schema_version":1}"#,
+            );
+            std::os::unix::fs::symlink("./v1", torappu.asset_base_path.join("gamedata/latest"))
+                .unwrap();
+            Self { root, torappu }
+        }
+    }
+
+    impl Drop for GamedataFixture {
+        fn drop(&mut self) {
+            std::fs::remove_dir_all(&self.root).unwrap();
+        }
+    }
+
+    #[test]
+    fn search_prefixes_resolve_the_latest_alias() {
+        let fixture = GamedataFixture::new();
+        let resolve = |prefix| resolve_search_prefix(&fixture.torappu, prefix);
+        assert_eq!(resolve("raw/").unwrap(), "raw/");
+        assert_eq!(resolve("gamedata/latest/").unwrap(), "gamedata/v1/");
+        assert_eq!(resolve("gamedata/latest").unwrap(), "gamedata/v1");
+        assert_eq!(
+            resolve("gamedata/latest/excel").unwrap(),
+            "gamedata/v1/excel"
+        );
+        assert_eq!(
+            resolve("gamedata/latest_backup/").unwrap(),
+            "gamedata/latest_backup/",
+            "only the alias segment itself is replaced"
+        );
+        for invalid in ["../secret", "/etc", "./raw", "raw/../gamedata", "raw\0"] {
+            assert!(resolve(invalid).is_err(), "{invalid:?}");
+        }
+        std::fs::remove_file(fixture.torappu.asset_base_path.join("gamedata/latest")).unwrap();
+        assert!(resolve("gamedata/latest/").is_err());
     }
 }
