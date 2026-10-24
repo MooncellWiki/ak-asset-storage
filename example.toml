@@ -56,15 +56,12 @@ traces_sample_rate = 1.0
 
 # Optional MCP (Model Context Protocol) endpoint; disabled unless enabled.
 # When enabled, MCP clients connect to <host>:<port>/mcp (Streamable HTTP) and
-# can query versions, the manifest tree, bundles, story resources, the
-# extracted asset tree and gamedata files — all read-only tools.
+# can query versions, the manifest tree, bundles, story resources and the
+# extracted asset tree (file entries carry download URLs) — all read-only tools.
 # Requests are stateless and use JSON responses; replicas need no sticky
 # routing or shared MCP session store.
 [mcp]
 enable = false
-# Maximum read_gamedata calls parsing a file at once; excess calls fail fast
-# with a retryable error. A parsed table takes several times its file size.
-gamedata_read_concurrency = 2
 
 # Optional Torappu configuration
 [torappu]

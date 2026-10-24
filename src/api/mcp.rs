@@ -1,7 +1,7 @@
 //! MCP (Model Context Protocol) server: read-only query tools exposing the
 //! same data as the REST API (versions, manifest tree, bundles, story
-//! resources, raw asset directory) plus gamedata file reads to AI clients
-//! over Streamable HTTP at `/mcp`.
+//! resources, extracted asset tree with download URLs) to AI clients over
+//! Streamable HTTP at `/mcp`.
 
 use crate::{
     AppError,
@@ -18,7 +18,7 @@ use crate::{
         row::{AssetMappingStatus, StoryResourceType, VersionRow},
     },
     external::{
-        gamedata::{self, GamedataError, GamedataResult, GamedataStatus, Outline, TextSlice},
+        gamedata::{self, GamedataStatus},
         torappu::TorappuClient,
         types::AssetEntry,
     },
@@ -36,7 +36,6 @@ use std::{
     path::{Component, Path},
     sync::Arc,
 };
-use tokio::sync::Semaphore;
 use tracing::warn;
 
 const INSTRUCTIONS: &str = "\
@@ -46,9 +45,7 @@ This server indexes Arknights game assets.
   maps each asset name to the bundle containing it. Not every version has
   an imported manifest yet; `list_versions` (ready_only) shows the status.
 - Version-aware tools accept `version_id` or `res_version` and default to
-  the latest version whose manifest is imported (status `ready`);
-  `read_gamedata` instead defaults to the latest version whose gamedata
-  extraction finished (`gamedataStatus` `ready` in `list_versions`).
+  the latest version whose manifest is imported (status `ready`).
 - `search_manifest` finds which bundle contains an asset. Manifest names
   are paths like `arts/characters/char_002_amiya/...`,
   `avg/characters/avg_npc_009`, `avg/images/ac1_0` or
@@ -59,16 +56,16 @@ This server indexes Arknights game assets.
   `get_story_resource_usages` finds the scripts that use one. Always use
   ids exactly as `list_story_resources` returns them: characters are either
   `base#expression` or the body form `base$body`.
-- `read_gamedata` reads decoded game tables such as
-  `excel/character_table.json` (several MB each): outline a JSON value
-  with `keys_only`, then read just the part you need with `pointer`
-  (RFC 6901, e.g. `/char_002_amiya/name`). Story scripts and other text
-  files are read in pages via `offset`.
 - `list_files`/`search_files` browse the extracted asset tree: `raw/`
   holds art and audio (e.g. `raw/char_arts`), `gamedata/<res_version>/`
   the decoded tables. Gamedata repeats once per version, so give
   `search_files` a `path_prefix` such as `gamedata/latest/` or `raw/`.
-  File entries carry a public `url`.
+- File entries carry a public `url`; this server never returns file
+  contents. Decoded tables such as `excel/character_table.json` are
+  several MB each, so download the `url` and extract the part you need
+  (e.g. with jq) instead of loading a whole table into context. Pick a
+  version whose `gamedataStatus` is `ready` (`list_versions` with
+  `gamedata_ready_only`): `unmarked` versions may be mid-extraction.
 - `get_item_demand` looks up demand by Chinese item name (e.g. `固源岩`).
 All tools are read-only.";
 
@@ -76,18 +73,13 @@ All tools are read-only.";
 pub struct AkAssetMcpServer {
     state: Arc<AppState>,
     tool_router: Arc<ToolRouter<Self>>,
-    /// Bounds concurrent `read_gamedata` calls: each may hold a parsed
-    /// multi-megabyte table. Shared by every clone (one per request).
-    gamedata_gate: Arc<Semaphore>,
 }
 
 impl AkAssetMcpServer {
     pub fn new(state: AppState) -> Self {
-        let gamedata_gate = Arc::new(Semaphore::new(state.settings.mcp.gamedata_read_concurrency));
         Self {
             state: Arc::new(state),
             tool_router: Arc::new(Self::tool_router()),
-            gamedata_gate,
         }
     }
 }
@@ -108,7 +100,7 @@ struct ListVersionsParams {
     /// Only include versions whose manifest import finished (status `ready`).
     ready_only: Option<bool>,
     /// Only include versions whose gamedata extraction finished
-    /// (`gamedataStatus` `ready`), i.e. readable with `read_gamedata`.
+    /// (`gamedataStatus` `ready`), i.e. complete and safe to download.
     gamedata_ready_only: Option<bool>,
     /// Maximum number of versions returned (1-200, default 50).
     limit: Option<u32>,
@@ -184,35 +176,6 @@ struct SearchFilesParams {
     path_prefix: Option<String>,
     /// Maximum entries returned (1-200, default 100). No pagination.
     limit: Option<u32>,
-}
-
-/// `read_gamedata` response budget bounds, in bytes.
-const GAMEDATA_DEFAULT_MAX_BYTES: u32 = 20_000;
-const GAMEDATA_MIN_MAX_BYTES: u32 = 1_000;
-const GAMEDATA_MAX_MAX_BYTES: u32 = 100_000;
-
-#[derive(Deserialize, JsonSchema)]
-struct ReadGamedataParams {
-    /// File path inside the version's gamedata directory, e.g.
-    /// `excel/character_table.json` or a story script such as
-    /// `story/obt/main/level_main_00-01_beg.txt`.
-    path: String,
-    /// RFC 6901 JSON Pointer into a JSON file, e.g. `/char_002_amiya` or
-    /// `/char_002_amiya/phases/0`; empty or omitted selects the whole file.
-    pointer: Option<String>,
-    /// For JSON files: list the children of the value at `pointer` (key,
-    /// full pointer, type, size) instead of returning the value. Object
-    /// keys are listed in sorted order, array items by index.
-    keys_only: Option<bool>,
-    /// `next_offset` from the previous response: the first child listed by
-    /// `keys_only`, or the byte offset into a text file.
-    offset: Option<u64>,
-    /// Budget in bytes for the returned value, outline entries or text
-    /// (1000-100000, default 20000); file metadata adds a few hundred bytes.
-    /// Larger JSON values are refused with a hint instead of being cut.
-    max_bytes: Option<u32>,
-    #[serde(flatten)]
-    version: VersionSelector,
 }
 
 #[derive(Deserialize, JsonSchema)]
@@ -298,37 +261,6 @@ struct McpSearchResults {
     /// The prefix actually applied, after resolving `gamedata/latest`.
     #[serde(skip_serializing_if = "Option::is_none")]
     path_prefix: Option<String>,
-}
-
-/// Which gamedata file a `read_gamedata` response came from.
-#[derive(Serialize)]
-struct GamedataFile {
-    res_version: String,
-    gamedata_status: GamedataStatus,
-    path: String,
-    url: Option<String>,
-}
-
-#[derive(Serialize)]
-#[serde(untagged)]
-enum GamedataContent {
-    Value {
-        pointer: String,
-        value: serde_json::Value,
-    },
-    Outline {
-        pointer: String,
-        outline: Outline,
-    },
-    Text(TextSlice),
-}
-
-#[derive(Serialize)]
-struct ReadGamedataResponse {
-    #[serde(flatten)]
-    file: GamedataFile,
-    #[serde(flatten)]
-    content: GamedataContent,
 }
 
 /// Wraps an unbounded query result, cutting it at `limit` so a single tool
@@ -495,110 +427,6 @@ fn resolve_search_prefix(torappu: &TorappuClient, prefix: &str) -> Result<String
     Ok(format!("gamedata/{target}{rest}"))
 }
 
-/// Reads one gamedata file for `read_gamedata`. Blocking: parses JSON.
-fn read_gamedata_file(
-    torappu: &TorappuClient,
-    host: &str,
-    res_version: &str,
-    params: &ReadGamedataParams,
-    max_bytes: usize,
-) -> GamedataResult<ReadGamedataResponse> {
-    let resolved = torappu.gamedata_file(res_version, &params.path)?;
-    // `gamedata_file` accepted the path, so it has only plain segments
-    // (and `.`, dropped here) — use it to name the file and build its URL.
-    let path = Path::new(&params.path)
-        .components()
-        .filter_map(|component| match component {
-            Component::Normal(segment) => segment.to_str(),
-            _ => None,
-        })
-        .collect::<Vec<_>>()
-        .join("/");
-    let is_json = Path::new(&path)
-        .extension()
-        .is_some_and(|extension| extension.eq_ignore_ascii_case("json"));
-    let file = GamedataFile {
-        res_version: res_version.to_string(),
-        gamedata_status: torappu.gamedata_status(res_version),
-        url: asset_url(host, &format!("gamedata/{res_version}/{path}"), false),
-        path,
-    };
-    let keys_only = params.keys_only.unwrap_or(false);
-    let content = if is_json {
-        if params.offset.is_some() && !keys_only {
-            return Err(AppError::InvalidInput(
-                "offset pages keys_only listings for JSON files; select parts with pointer"
-                    .to_string(),
-            )
-            .into());
-        }
-        let root = gamedata::read_json(&resolved)?;
-        let pointer = params.pointer.clone().unwrap_or_default();
-        let Some(value) = root.pointer(&pointer) else {
-            let parent = pointer.rsplit_once('/').map_or("", |(parent, _)| parent);
-            return Err(GamedataError::Miss(format!(
-                "no value at pointer {pointer:?}; list the children of {parent:?} with \
-                 keys_only (keys containing `/` or `~` are escaped as ~1 and ~0)"
-            )));
-        };
-        if keys_only {
-            let offset = usize::try_from(params.offset.unwrap_or(0)).unwrap_or(usize::MAX);
-            GamedataContent::Outline {
-                outline: gamedata::outline(value, &pointer, offset, max_bytes),
-                pointer,
-            }
-        } else {
-            let size = gamedata::json_size(value);
-            if size > max_bytes {
-                return Err(GamedataError::Miss(oversized_value_message(
-                    &pointer, value, size, max_bytes,
-                )));
-            }
-            GamedataContent::Value {
-                value: value.clone(),
-                pointer,
-            }
-        }
-    } else {
-        if params
-            .pointer
-            .as_deref()
-            .is_some_and(|pointer| !pointer.is_empty())
-            || keys_only
-        {
-            return Err(AppError::InvalidInput(format!(
-                "pointer and keys_only apply to JSON files; {:?} is read as text, page it with offset",
-                params.path
-            ))
-            .into());
-        }
-        GamedataContent::Text(gamedata::read_text(
-            &resolved,
-            params.offset.unwrap_or(0),
-            max_bytes,
-        )?)
-    };
-    Ok(ReadGamedataResponse { file, content })
-}
-
-fn oversized_value_message(
-    pointer: &str,
-    value: &serde_json::Value,
-    size: usize,
-    max_bytes: usize,
-) -> String {
-    let shape = match value {
-        serde_json::Value::Object(map) => format!("an object with {} keys", map.len()),
-        serde_json::Value::Array(items) => format!("an array of {} items", items.len()),
-        other => format!("a {}", gamedata::json_type(other)),
-    };
-    format!(
-        "value at pointer {pointer:?} is {size} bytes, over max_bytes {max_bytes}; it is {shape}. \
-         Retry with keys_only: true to list its children with their pointers and sizes, \
-         then read a deeper pointer (or raise max_bytes, at most {GAMEDATA_MAX_MAX_BYTES})."
-    )
-}
-
 fn join_error(error: tokio::task::JoinError) -> ErrorData {
     mcp_error(&AppError::Application(error.into()))
 }
@@ -721,7 +549,8 @@ impl AkAssetMcpServer {
     /// client/res version strings, readiness, manifest import status and
     /// gamedata status. Start here to pick a version for other tools; pass
     /// `ready_only` to list only versions with an imported manifest, or
-    /// `gamedata_ready_only` for versions readable with `read_gamedata`.
+    /// `gamedata_ready_only` for versions whose gamedata extraction finished
+    /// (download those files through their `url`).
     #[tool]
     async fn list_versions(
         &self,
@@ -1033,64 +862,6 @@ impl AkAssetMcpServer {
         })
     }
 
-    /// Read one decoded gamedata file of a version. JSON files are parsed:
-    /// `keys_only` lists the children at `pointer` with each child's full
-    /// pointer, type and size (page with `offset`/`next_offset`); without
-    /// it the value at `pointer` (RFC 6901, e.g. `/char_002_amiya/name`)
-    /// is returned, or refused with a size hint when over `max_bytes`.
-    /// Other files (story `.txt`, lua) come back as UTF-8 text pages from
-    /// byte `offset`. Defaults to the newest version whose gamedata is
-    /// ready; the response names the `res_version` read and a public `url`.
-    #[tool]
-    async fn read_gamedata(
-        &self,
-        Parameters(params): Parameters<ReadGamedataParams>,
-    ) -> Result<CallToolResult, ErrorData> {
-        ensure_no_nul("path", &params.path)?;
-        if let Some(pointer) = params.pointer.as_deref() {
-            ensure_no_nul("pointer", pointer)?;
-            if !pointer.is_empty() && !pointer.starts_with('/') {
-                return Err(bad_request(
-                    "pointer must be empty or start with '/', e.g. /char_002_amiya",
-                ));
-            }
-        }
-        let max_bytes = params.max_bytes.unwrap_or(GAMEDATA_DEFAULT_MAX_BYTES);
-        if !(GAMEDATA_MIN_MAX_BYTES..=GAMEDATA_MAX_MAX_BYTES).contains(&max_bytes) {
-            return Err(bad_request(format!(
-                "max_bytes must be between {GAMEDATA_MIN_MAX_BYTES} and {GAMEDATA_MAX_MAX_BYTES}"
-            )));
-        }
-        let res_version = match self.resolve_gamedata_version(&params.version).await? {
-            Ok(res_version) => res_version,
-            Err(message) => return Ok(not_found(message)),
-        };
-        // Fail fast like the search gate: the permit moves into the
-        // blocking task so it is held until parsing finishes.
-        let permit = self
-            .gamedata_gate
-            .clone()
-            .try_acquire_owned()
-            .map_err(|_| {
-                mcp_error(&AppError::Unavailable(
-                    "gamedata read capacity is busy; retry shortly".to_string(),
-                ))
-            })?;
-        let torappu = self.state.torappu.clone();
-        let host = self.state.settings.server.host.clone();
-        let outcome = tokio::task::spawn_blocking(move || {
-            let _permit = permit;
-            read_gamedata_file(&torappu, &host, &res_version, &params, max_bytes as usize)
-        })
-        .await
-        .map_err(join_error)?;
-        match outcome {
-            Ok(response) => json_result(response),
-            Err(GamedataError::Miss(message)) => Ok(not_found(message)),
-            Err(GamedataError::Failed(error)) => Err(mcp_error(&error)),
-        }
-    }
-
     /// List story resources (backgrounds, images, items, characters) with the
     /// number of scripts using each. Characters are listed at body
     /// granularity (`base$body`). Supports cursor pagination.
@@ -1214,47 +985,6 @@ impl AkAssetMcpServer {
             .get_latest_ready_version()
             .await
             .map_err(|error| mcp_error(&error))
-    }
-
-    /// The gamedata directory `read_gamedata` reads: the selected version,
-    /// or (no selector, or `res_version` `latest`) the newest version whose
-    /// gamedata is ready. `Err` carries a recoverable miss message.
-    async fn resolve_gamedata_version(
-        &self,
-        version: &VersionSelector,
-    ) -> Result<Result<String, String>, ErrorData> {
-        if version.version_id.is_some() {
-            return Ok(self
-                .fetch_version(version)
-                .await?
-                .map(|row| row.res)
-                .ok_or_else(|| version_miss_message(version)));
-        }
-        if let Some(res_version) = version
-            .res_version
-            .as_deref()
-            .filter(|res| !res.is_empty() && *res != gamedata::LATEST_ALIAS)
-        {
-            ensure_no_nul("res_version", res_version)?;
-            return Ok(Ok(res_version.to_string()));
-        }
-        let versions = self
-            .state
-            .database
-            .query_versions()
-            .await
-            .map_err(|error| mcp_error(&error))?;
-        let torappu = self.state.torappu.clone();
-        let newest = tokio::task::spawn_blocking(move || {
-            versions
-                .into_iter()
-                .rev()
-                .map(|version| version.res_version)
-                .find(|res| torappu.gamedata_status(res) == GamedataStatus::Ready)
-        })
-        .await
-        .map_err(join_error)?;
-        Ok(newest.ok_or_else(|| "no version has finished gamedata extraction yet".to_string()))
     }
 
     /// Like `fetch_version`, reduced to what version-scoped queries need.
@@ -1595,28 +1325,9 @@ mod tests {
                 "gamedata/v1/.gamedata-ready.json",
                 r#"{"schema_version":1}"#,
             );
-            write(
-                "gamedata/v1/excel/character_table.json",
-                &serde_json::json!({
-                    "char_002_amiya": {"name": "阿米娅", "rarity": "TIER_5", "phases": [1, 2, 3]},
-                    "char_003_kalts": {"name": "凯尔希", "description": "x".repeat(5000)}
-                })
-                .to_string(),
-            );
-            write(
-                "gamedata/v1/story/intro.txt",
-                "[name=\"阿米娅\"]博士，欢迎回来。",
-            );
             std::os::unix::fs::symlink("./v1", torappu.asset_base_path.join("gamedata/latest"))
                 .unwrap();
             Self { root, torappu }
-        }
-
-        fn read(&self, params: serde_json::Value) -> GamedataResult<serde_json::Value> {
-            let params: ReadGamedataParams = serde_json::from_value(params).unwrap();
-            let max_bytes = params.max_bytes.unwrap_or(GAMEDATA_DEFAULT_MAX_BYTES) as usize;
-            read_gamedata_file(&self.torappu, "http://h", "v1", &params, max_bytes)
-                .map(|response| serde_json::to_value(response).unwrap())
         }
     }
 
@@ -1624,119 +1335,6 @@ mod tests {
         fn drop(&mut self) {
             std::fs::remove_dir_all(&self.root).unwrap();
         }
-    }
-
-    #[test]
-    fn read_gamedata_selects_json_parts_by_pointer() {
-        let fixture = GamedataFixture::new();
-        let response = fixture
-            .read(serde_json::json!({
-                "path": "./excel/character_table.json",
-                "pointer": "/char_002_amiya/name"
-            }))
-            .unwrap();
-        assert_eq!(response["value"], "阿米娅");
-        assert_eq!(response["res_version"], "v1");
-        assert_eq!(response["gamedata_status"], "ready");
-        assert_eq!(response["path"], "excel/character_table.json");
-        assert_eq!(
-            response["url"],
-            "http://h/gamedata/v1/excel/character_table.json"
-        );
-
-        let whole = fixture
-            .read(serde_json::json!({"path": "excel/character_table.json"}))
-            .unwrap();
-        assert_eq!(whole["pointer"], "");
-        assert_eq!(whole["value"]["char_002_amiya"]["phases"][2], 3);
-
-        assert!(matches!(
-            fixture.read(serde_json::json!({
-                "path": "excel/character_table.json",
-                "pointer": "/char_999"
-            })),
-            Err(GamedataError::Miss(_))
-        ));
-    }
-
-    #[test]
-    fn read_gamedata_refuses_oversized_values_with_an_outline_hint() {
-        let fixture = GamedataFixture::new();
-        let Err(GamedataError::Miss(message)) = fixture.read(serde_json::json!({
-            "path": "excel/character_table.json",
-            "max_bytes": 1000
-        })) else {
-            panic!("oversized value must be refused");
-        };
-        assert!(message.contains("an object with 2 keys"), "{message}");
-        assert!(message.contains("keys_only"), "{message}");
-
-        let outline = fixture
-            .read(serde_json::json!({
-                "path": "excel/character_table.json",
-                "keys_only": true,
-                "max_bytes": 1000
-            }))
-            .unwrap();
-        assert_eq!(outline["outline"]["type"], "object");
-        assert_eq!(outline["outline"]["len"], 2);
-        let entries = outline["outline"]["entries"].as_array().unwrap();
-        assert_eq!(entries[0]["pointer"], "/char_002_amiya");
-        assert_eq!(entries[1]["key"], "char_003_kalts");
-        assert!(entries[1]["bytes"].as_u64().unwrap() > 5000);
-
-        let second = fixture
-            .read(serde_json::json!({
-                "path": "excel/character_table.json",
-                "pointer": "/char_002_amiya",
-                "keys_only": true,
-                "offset": 1
-            }))
-            .unwrap();
-        assert_eq!(second["outline"]["offset"], 1);
-        // Object keys are listed in sorted order: name, phases, rarity.
-        assert_eq!(second["outline"]["entries"][0]["key"], "phases");
-    }
-
-    #[test]
-    fn read_gamedata_pages_text_files_and_rejects_mismatched_options() {
-        let fixture = GamedataFixture::new();
-        let text = fixture
-            .read(serde_json::json!({"path": "story/intro.txt"}))
-            .unwrap();
-        assert_eq!(text["text"], "[name=\"阿米娅\"]博士，欢迎回来。");
-        assert!(text["next_offset"].is_null());
-        assert_eq!(text["url"], "http://h/gamedata/v1/story/intro.txt");
-
-        for params in [
-            serde_json::json!({"path": "story/intro.txt", "pointer": "/a"}),
-            serde_json::json!({"path": "story/intro.txt", "keys_only": true}),
-            serde_json::json!({"path": "excel/character_table.json", "offset": 10}),
-        ] {
-            assert!(
-                matches!(
-                    fixture.read(params.clone()),
-                    Err(GamedataError::Failed(AppError::InvalidInput(_)))
-                ),
-                "{params}"
-            );
-        }
-        assert!(matches!(
-            fixture.read(serde_json::json!({"path": "story/missing.txt"})),
-            Err(GamedataError::Miss(_))
-        ));
-    }
-
-    #[test]
-    fn read_gamedata_params_take_top_level_version_fields() {
-        let params: ReadGamedataParams = serde_json::from_value(serde_json::json!({
-            "path": "excel/item_table.json",
-            "res_version": "latest",
-            "keys_only": true
-        }))
-        .expect("flatten");
-        assert_eq!(params.version.res_version.as_deref(), Some("latest"));
-        assert_eq!(params.keys_only, Some(true));
     }
 
     #[test]
