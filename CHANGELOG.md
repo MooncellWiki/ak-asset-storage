@@ -2,6 +2,22 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.28.0] - 2026-10-25
+
+[0024911](0024911708b43a2534fc67be848fcded7bb707f0)...[ea927a7](ea927a70982c6e0399a36699256b67869d560af0)
+
+### 🚀 Features
+
+- Link MCP file results for download and expose gamedata status (#193) ([ea927a7](https://github.com/MooncellWiki/ak-asset-storage/commit/ea927a70982c6e0399a36699256b67869d560af0))
+
+## [0.27.3] - 2026-10-22
+
+[381c296](381c2965a0e43f758df038497ce993e7b8fbd146)...[0024911](0024911708b43a2534fc67be848fcded7bb707f0)
+
+### ⚙️ Miscellaneous Tasks
+
+- Release 0.27.3 ([0024911](https://github.com/MooncellWiki/ak-asset-storage/commit/0024911708b43a2534fc67be848fcded7bb707f0))
+
 ## [0.27.2] - 2026-10-19
 
 [9abdd6b](9abdd6bb14e92001e8f8ad51ddcc1fcc2cf01b4a)...[381c296](381c2965a0e43f758df038497ce993e7b8fbd146)
