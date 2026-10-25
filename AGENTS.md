@@ -43,6 +43,7 @@ Vue 3 + TypeScript on the PRTS Design system. Lives in `app/` at repo root (not 
 - Components come from `@mooncellwiki/prts-design-vue` (`Ak*`) or plain `.ak-*` markup from `@mooncellwiki/prts-design-css`; colours only via `--ak-*` tokens
 - Styles live in each component as `<style scoped lang="scss">` (same approach as MooncellWiki/prts-widgets); `app/styles/_shared.scss` only holds mixins / breakpoints (`@use "~/styles/shared" as *;`). The only global CSS is the html/body block in `App.vue`. Header / footer / search palette chrome is adapted from prts-design `chrome/` (not exported by the npm package)
 - Shared layout parts: `components/layout/` (toolbar, split view, pane), `components/tree/FileTree.vue` (virtualised tree after @pierre/trees: sticky folders, flattened single-child chains, middle truncation, aria-activedescendant keyboard navigation; lazy trees via `useLazyTree`)
+- Web fonts are not in the npm package: `vite.config.ts` links the Arknights skin's `fonts.css` on prts.wiki (CORS allows `*.prts.wiki`); the dev server proxies that path because localhost is not allowed
 - Icons: `app/components/AsIcon.vue` (the mockups' sprite); code preview uses Shiki with a CSS-variable theme mapped to design tokens (`common/highlight.ts`), Markdown via markdown-it, dates via date-fns
 - File-based routing: `app/pages/` → routes via `vue-router/vite`
 - Path alias: `~/` → `app/`
