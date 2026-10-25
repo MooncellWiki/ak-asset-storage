@@ -18,7 +18,7 @@ use crate::{
         row::{AssetMappingStatus, StoryResourceType, VersionRow},
     },
     external::{
-        gamedata::{self, GamedataStatus},
+        gamedata::{GamedataStatus, SearchPrefixError},
         torappu::TorappuClient,
         types::AssetEntry,
     },
@@ -31,11 +31,7 @@ use rmcp::{
     tool, tool_handler, tool_router,
 };
 use serde::{Deserialize, Serialize};
-use std::{
-    fmt::Write as _,
-    path::{Component, Path},
-    sync::Arc,
-};
+use std::{fmt::Write as _, sync::Arc};
 use tracing::warn;
 
 const INSTRUCTIONS: &str = "\
@@ -402,29 +398,18 @@ fn percent_encode_segment(out: &mut String, segment: &str) {
 /// to, because the index skips the alias itself.
 fn resolve_search_prefix(torappu: &TorappuClient, prefix: &str) -> Result<String, ErrorData> {
     ensure_no_nul("path_prefix", prefix)?;
-    let plain = Path::new(prefix)
-        .components()
-        .all(|component| matches!(component, Component::Normal(_)));
-    if !plain {
-        return Err(bad_request(
-            "path_prefix must be a relative path such as raw/ or gamedata/<res_version>/ \
-             without . or .. segments",
-        ));
-    }
-    let alias = format!("gamedata/{}", gamedata::LATEST_ALIAS);
-    let Some(rest) = prefix
-        .strip_prefix(&alias)
-        .filter(|rest| rest.is_empty() || rest.starts_with('/'))
-    else {
-        return Ok(prefix.to_string());
-    };
-    let Some(target) = torappu.gamedata_latest_target() else {
-        return Err(bad_request(
-            "gamedata/latest does not link to a version; use gamedata/<res_version>/ \
-             with a res_version from list_versions",
-        ));
-    };
-    Ok(format!("gamedata/{target}{rest}"))
+    torappu
+        .resolve_search_prefix(prefix)
+        .map_err(|error| match error {
+            SearchPrefixError::NotRelative => bad_request(
+                "path_prefix must be a relative path such as raw/ or gamedata/<res_version>/ \
+                 without . or .. segments",
+            ),
+            SearchPrefixError::LatestUnlinked => bad_request(
+                "gamedata/latest does not link to a version; use gamedata/<res_version>/ \
+                 with a res_version from list_versions",
+            ),
+        })
 }
 
 fn join_error(error: tokio::task::JoinError) -> ErrorData {

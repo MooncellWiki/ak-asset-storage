@@ -69,6 +69,38 @@ impl TorappuClient {
         let name = target.file_name()?.to_str()?;
         (sibling && is_version_name(name)).then(|| name.to_string())
     }
+
+    /// A search prefix: relative, without `.`/`..` segments. A leading
+    /// `gamedata/latest` is replaced by the version the alias links to,
+    /// because the search index skips the alias itself.
+    pub fn resolve_search_prefix(&self, prefix: &str) -> Result<String, SearchPrefixError> {
+        let plain = Path::new(prefix)
+            .components()
+            .all(|component| matches!(component, Component::Normal(_)));
+        if !plain {
+            return Err(SearchPrefixError::NotRelative);
+        }
+        let alias = format!("gamedata/{LATEST_ALIAS}");
+        let Some(rest) = prefix
+            .strip_prefix(&alias)
+            .filter(|rest| rest.is_empty() || rest.starts_with('/'))
+        else {
+            return Ok(prefix.to_string());
+        };
+        let target = self
+            .gamedata_latest_target()
+            .ok_or(SearchPrefixError::LatestUnlinked)?;
+        Ok(format!("gamedata/{target}{rest}"))
+    }
+}
+
+/// Why `resolve_search_prefix` rejected a prefix.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SearchPrefixError {
+    /// Absolute, or contains `.`/`..` segments.
+    NotRelative,
+    /// `gamedata/latest` was asked for but does not link to a version.
+    LatestUnlinked,
 }
 
 #[cfg(test)]
