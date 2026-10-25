@@ -1,0 +1,74 @@
+// Pieces shared by several scoped components: `@use "~/styles/shared" as *;`
+// and include what you need. This file emits no CSS on its own.
+
+// Breakpoints of the mockups: the detail pane drops below the table, the
+// panes stack into one column, and the phone layout.
+$bp-wide: 1399px;
+$bp-narrow: 1119px;
+$bp-phone: 639px;
+
+// Monospace text: versions, paths, hashes, file names.
+@mixin mono($size: 13px) {
+  font-family: var(--ak-font-mono);
+  font-size: $size;
+  letter-spacing: 0;
+}
+
+// Right-aligned numeric table cell.
+@mixin num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+// Row actions that only show on the hovered / focused / selected row.
+// Opacity rather than visibility keeps them reachable with Tab; devices
+// without hover always show them.
+@mixin row-actions {
+  display: inline-flex;
+  gap: 4px;
+  white-space: nowrap;
+
+  @media (hover: hover) {
+    tr:not(:hover, :focus-within, .is-selected) & {
+      opacity: 0;
+    }
+  }
+}
+
+// Colour pair of a change kind, read as var(--_c) / var(--_bg).
+@mixin kind-colors {
+  &.is-add {
+    --_c: var(--ak-success);
+    --_bg: var(--ak-success-bg);
+  }
+
+  &.is-chg {
+    --_c: var(--ak-warning);
+    --_bg: var(--ak-warning-bg);
+  }
+
+  &.is-rem {
+    --_c: var(--ak-danger);
+    --_bg: var(--ak-danger-bg);
+  }
+}
+
+// Checkerboard behind transparent images.
+@mixin checker {
+  background: repeating-conic-gradient(
+      var(--ak-bg-surface-3) 0 25%,
+      var(--ak-bg-surface) 0 50%
+    )
+    0 0 / 16px 16px;
+}
+
+// Group header row of a grouped table (client version, story activity).
+@mixin group-row {
+  background: var(--ak-bg-surface-2);
+  color: var(--ak-fg);
+  text-align: left;
+  padding: 6px 12px;
+  border-top: 1px solid var(--ak-border-strong);
+  border-bottom: 1px solid var(--ak-border);
+}

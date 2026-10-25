@@ -45,44 +45,9 @@ declare module 'vue-router/auto-routes' {
       { all: ParamValue<false> },
       | never
     >,
-    '/asset/': RouteRecordInfo<
-      '/asset/',
+    '/asset': RouteRecordInfo<
       '/asset',
-      Record<never, never>,
-      Record<never, never>,
-      | never
-    >,
-    '/asset/components/AssetContent': RouteRecordInfo<
-      '/asset/components/AssetContent',
-      '/asset/components/AssetContent',
-      Record<never, never>,
-      Record<never, never>,
-      | never
-    >,
-    '/asset/components/AssetTree': RouteRecordInfo<
-      '/asset/components/AssetTree',
-      '/asset/components/AssetTree',
-      Record<never, never>,
-      Record<never, never>,
-      | never
-    >,
-    '/components/AssetMappingDetailModal': RouteRecordInfo<
-      '/components/AssetMappingDetailModal',
-      '/components/AssetMappingDetailModal',
-      Record<never, never>,
-      Record<never, never>,
-      | never
-    >,
-    '/components/FileDetail': RouteRecordInfo<
-      '/components/FileDetail',
-      '/components/FileDetail',
-      Record<never, never>,
-      Record<never, never>,
-      | never
-    >,
-    '/components/FileDetailDiff': RouteRecordInfo<
-      '/components/FileDetailDiff',
-      '/components/FileDetailDiff',
+      '/asset',
       Record<never, never>,
       Record<never, never>,
       | never
@@ -94,30 +59,16 @@ declare module 'vue-router/auto-routes' {
       Record<never, never>,
       | never
     >,
-    '/file/': RouteRecordInfo<
-      '/file/',
-      '/file',
-      Record<never, never>,
-      Record<never, never>,
-      | never
-    >,
-    '/manifest/': RouteRecordInfo<
-      '/manifest/',
+    '/manifest': RouteRecordInfo<
+      '/manifest',
       '/manifest',
       Record<never, never>,
       Record<never, never>,
       | never
     >,
-    '/manifest/components/ManifestContent': RouteRecordInfo<
-      '/manifest/components/ManifestContent',
-      '/manifest/components/ManifestContent',
-      Record<never, never>,
-      Record<never, never>,
-      | never
-    >,
-    '/manifest/components/ManifestTree': RouteRecordInfo<
-      '/manifest/components/ManifestTree',
-      '/manifest/components/ManifestTree',
+    '/story': RouteRecordInfo<
+      '/story',
+      '/story',
       Record<never, never>,
       Record<never, never>,
       | never
@@ -151,49 +102,9 @@ declare module 'vue-router/auto-routes' {
       pathParamNames:
         | 'all'
     }
-    'app/pages/asset/index.vue': {
+    'app/pages/asset.vue': {
       routes:
-        | '/asset/'
-      views:
-        | never
-      pathParamNames:
-        | never
-    }
-    'app/pages/asset/components/AssetContent.vue': {
-      routes:
-        | '/asset/components/AssetContent'
-      views:
-        | never
-      pathParamNames:
-        | never
-    }
-    'app/pages/asset/components/AssetTree.vue': {
-      routes:
-        | '/asset/components/AssetTree'
-      views:
-        | never
-      pathParamNames:
-        | never
-    }
-    'app/pages/components/AssetMappingDetailModal.vue': {
-      routes:
-        | '/components/AssetMappingDetailModal'
-      views:
-        | never
-      pathParamNames:
-        | never
-    }
-    'app/pages/components/FileDetail.vue': {
-      routes:
-        | '/components/FileDetail'
-      views:
-        | never
-      pathParamNames:
-        | never
-    }
-    'app/pages/components/FileDetailDiff.vue': {
-      routes:
-        | '/components/FileDetailDiff'
+        | '/asset'
       views:
         | never
       pathParamNames:
@@ -207,33 +118,17 @@ declare module 'vue-router/auto-routes' {
       pathParamNames:
         | never
     }
-    'app/pages/file/index.vue': {
+    'app/pages/manifest.vue': {
       routes:
-        | '/file/'
+        | '/manifest'
       views:
         | never
       pathParamNames:
         | never
     }
-    'app/pages/manifest/index.vue': {
+    'app/pages/story.vue': {
       routes:
-        | '/manifest/'
-      views:
-        | never
-      pathParamNames:
-        | never
-    }
-    'app/pages/manifest/components/ManifestContent.vue': {
-      routes:
-        | '/manifest/components/ManifestContent'
-      views:
-        | never
-      pathParamNames:
-        | never
-    }
-    'app/pages/manifest/components/ManifestTree.vue': {
-      routes:
-        | '/manifest/components/ManifestTree'
+        | '/story'
       views:
         | never
       pathParamNames:

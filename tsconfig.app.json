@@ -12,7 +12,7 @@
     "paths": {
       "~/*": ["./app/*"]
     },
-    "types": ["vite/client", "unplugin-icons/types/vue"],
+    "types": ["vite/client"],
     "allowImportingTsExtensions": true,
 
     /* Linting */
@@ -29,7 +29,6 @@
     "app/**/*.ts",
     "app/**/*.tsx",
     "app/**/*.vue",
-    "typed-router.d.ts",
-    "components.d.ts"
+    "typed-router.d.ts"
   ]
 }
