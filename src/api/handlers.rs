@@ -16,6 +16,7 @@ use crate::{
     database::model::{
         AssetMappingDetails, BundleDetails, ManifestNode, VersionDetails, VersionSummary,
     },
+    external::gamedata::SearchPrefixError,
 };
 use axum::{
     Json, debug_handler,
@@ -384,8 +385,22 @@ pub async fn list_story_resources(
 )]
 pub async fn search_assets_by_path(
     State(state): State<AppState>,
-    Query(AssetSearchQuery { path, limit }): Query<AssetSearchQuery>,
+    Query(AssetSearchQuery {
+        path,
+        prefix,
+        limit,
+    }): Query<AssetSearchQuery>,
 ) -> WebResult<Response> {
+    let prefix = prefix
+        .as_deref()
+        .filter(|prefix| !prefix.is_empty())
+        .map(|prefix| {
+            state
+                .torappu
+                .resolve_search_prefix(prefix)
+                .map_err(|error| AppError::InvalidInput(search_prefix_message(error).to_string()))
+        })
+        .transpose()?;
     // Reject before any work when the shared search budget is exhausted;
     // the permit moves into the blocking task so it is held until the
     // search finishes (issue #177).
@@ -393,7 +408,7 @@ pub async fn search_assets_by_path(
     let index = state.plocate.clone();
     let entries = tokio::task::spawn_blocking(move || {
         let _permit = permit;
-        index.search(&path, None, limit)
+        index.search(&path, prefix.as_deref(), limit)
     })
     .await
     .map_err(|err| WebError::CustomApiError(AppError::Application(err.into())))?
@@ -413,6 +428,15 @@ pub async fn list_asset(
     Path(path): Path<String>,
 ) -> WebResult<Response> {
     Ok(json(state.torappu.list_asset(&path)?))
+}
+
+const fn search_prefix_message(error: SearchPrefixError) -> &'static str {
+    match error {
+        SearchPrefixError::NotRelative => {
+            "prefix must be a relative path such as raw/ or gamedata/<res_version>/ without . or .. segments"
+        }
+        SearchPrefixError::LatestUnlinked => "gamedata/latest does not link to a version",
+    }
 }
 
 pub async fn list_root_asset(State(state): State<AppState>) -> WebResult<Response> {
