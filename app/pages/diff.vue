@@ -57,7 +57,7 @@
     </template>
   </AkEmpty>
   <AkEmpty
-    v-else-if="state === 'ready' && (!pair.left || !pair.right)"
+    v-else-if="state === 'ready' && !pair.valid"
     icon="info"
     title="选两个版本来比较"
   />
@@ -137,7 +137,7 @@
       </template>
     </PaneBox>
 
-    <template v-if="detail && bundle && pair.left && pair.right" #detail>
+    <template v-if="detail && bundle && pair.right" #detail>
       <BundleDetail
         :path="bundle"
         :left="pair.left"
@@ -207,9 +207,13 @@ function setQuery(patch: QueryPatch) {
 }
 
 // ── versions: ?diff=<left res>...<right res>, the latest two by default ──
+// An empty left side compares against nothing (everything in `right` is
+// added); the oldest version's bundle history links there.
 const pair = computed(() => {
   const [l = "", r = ""] = String(route.query.diff ?? "").split("...");
-  return { left: byRes(l), right: byRes(r) };
+  const left = byRes(l);
+  const right = byRes(r);
+  return { left, right, valid: Boolean(right && (left || l === "")) };
 });
 watch(
   [state, () => route.query.diff],
@@ -248,16 +252,16 @@ const after = shallowRef<Bundle[]>();
 const loadState = ref<"idle" | "loading" | "ready" | "error">("idle");
 let request = 0;
 async function loadLists() {
-  const { left, right } = pair.value;
+  const { left, right, valid } = pair.value;
   const seq = ++request;
-  if (!left || !right) {
+  if (!valid || !right) {
     loadState.value = "idle";
     return;
   }
   loadState.value = "loading";
   try {
     const [a, b] = await Promise.all([
-      loadVersionBundles(left.id),
+      left ? loadVersionBundles(left.id) : [],
       loadVersionBundles(right.id),
     ]);
     if (seq !== request) return;
@@ -268,9 +272,11 @@ async function loadLists() {
     if (seq === request) loadState.value = "error";
   }
 }
-watch(() => [pair.value.left?.id, pair.value.right?.id], loadLists, {
-  immediate: true,
-});
+watch(
+  () => [pair.value.left?.id, pair.value.right?.id, pair.value.valid],
+  loadLists,
+  { immediate: true },
+);
 
 const changes = computed<Change[]>(() =>
   loadState.value === "ready" && before.value && after.value

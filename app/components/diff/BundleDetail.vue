@@ -21,7 +21,7 @@
 
     <div class="compare">
       <div class="compare__col">
-        <div class="compare__ver">{{ left.resVersion }}</div>
+        <div class="compare__ver">{{ left?.resVersion ?? "—" }}</div>
         <template v-if="before">
           <div class="compare__size">{{ formatSize(before.fileSize) }}</div>
           <div class="compare__hash" :title="before.fileHash">
@@ -31,7 +31,9 @@
             <AsIcon name="download" :size="16" />下载
           </button>
         </template>
-        <div v-else class="compare__none">这一版没有</div>
+        <div v-else class="compare__none">
+          {{ left ? "这一版没有" : "此前没有" }}
+        </div>
       </div>
       <div class="compare__col is-new">
         <div class="compare__ver">{{ right.resVersion }}</div>
@@ -131,7 +133,8 @@ import type { Version } from "~/common/versions";
  */
 const props = defineProps<{
   path: string;
-  left: Version;
+  /** Undefined when comparing against nothing (the oldest version) */
+  left?: Version;
   right: Version;
   before?: Bundle;
   after?: Bundle;
