@@ -15,7 +15,7 @@
         v-for="s in sticky"
         :key="s.index"
         class="file-tree__row is-sticky"
-        :class="{ 'is-selected': s.row.node.path === selected }"
+        :class="{ 'is-selected': holds(s.row, selected) }"
         :style="{ '--_d': s.row.depth, top: `${s.top}px`, zIndex: s.z }"
         @click="jumpTo(s.index)"
       >
@@ -36,7 +36,7 @@
           :id="rowId(index)"
           class="file-tree__row"
           :class="{
-            'is-selected': row.node.path === selected,
+            'is-selected': holds(row, selected),
             'is-active': index === activeIndex,
           }"
           role="treeitem"
@@ -44,7 +44,7 @@
           :aria-posinset="row.posinset"
           :aria-setsize="row.setsize"
           :aria-expanded="row.node.isDir ? row.open : undefined"
-          :aria-selected="row.node.path === selected"
+          :aria-selected="holds(row, selected)"
           :title="row.node.path || row.label"
           :style="{
             '--_d': row.depth,
@@ -132,10 +132,16 @@ const rows = computed(() =>
 );
 type NodeRow = Row & { kind: "node" };
 const isNode = (r: Row | undefined): r is NodeRow => r?.kind === "node";
+/** Whether `row` shows `path`, also as part of a flattened `a/b/c` chain. */
+function holds(row: Row, path: string | undefined) {
+  return (
+    isNode(row) &&
+    path !== undefined &&
+    (row.node.path === path || row.merged.includes(path))
+  );
+}
 function indexOf(path: string | undefined) {
-  return path === undefined
-    ? -1
-    : rows.value.findIndex((r) => isNode(r) && r.node.path === path);
+  return path === undefined ? -1 : rows.value.findIndex((r) => holds(r, path));
 }
 
 // ── virtual scrolling ──
@@ -211,7 +217,7 @@ watch(
 function activate(row: NodeRow) {
   activePath.value = row.node.path;
   const { node, open } = row;
-  if (node.isDir && open && props.selected === node.path) {
+  if (node.isDir && open && holds(row, props.selected)) {
     emit("toggle", node.path, false);
     return;
   }

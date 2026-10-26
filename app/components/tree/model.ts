@@ -22,6 +22,8 @@ export type Row =
       node: TreeNode;
       /** Name, or `a/b/c` for a flattened chain of single-child directories */
       label: string;
+      /** Paths of the directories flattened into this row above `node` */
+      merged: string[];
       depth: number;
       open: boolean;
       /** Index of the parent row, -1 at the top level */
@@ -52,10 +54,12 @@ export function visibleRows(source: TreeSource): Row[] {
     for (const [i, first] of nodes.entries()) {
       let node = first;
       let label = first.name;
+      const merged: string[] = [];
       // Follow single-directory chains whose children are already known.
       while (source.flatten && node.isDir && !node.keep) {
         const kids = source.childrenOf(node.path);
         if (kids?.length !== 1 || !kids[0]!.isDir) break;
+        merged.push(node.path);
         node = kids[0]!;
         label = `${label}/${node.name}`;
       }
@@ -65,6 +69,7 @@ export function visibleRows(source: TreeSource): Row[] {
         kind: "node",
         node,
         label,
+        merged,
         depth,
         open,
         parent,
