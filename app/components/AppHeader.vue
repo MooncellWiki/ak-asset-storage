@@ -134,7 +134,7 @@ const logoFailed = ref(false);
     pointer-events: none;
     opacity: var(--ak-chrome-texture);
     background-image: radial-gradient(
-      rgba(255, 255, 255, 0.34) 1px,
+      color-mix(in srgb, var(--ak-gray-0) 34%, transparent) 1px,
       transparent 1.4px
     );
     background-size: 6px 6px;
@@ -242,7 +242,7 @@ const logoFailed = ref(false);
 
   .ak-kbd {
     margin-left: auto;
-    background: rgba(0, 0, 0, 0.4);
+    background: color-mix(in srgb, var(--ak-gray-1000) 40%, transparent);
     border-color: var(--ak-chrome-line-strong);
     box-shadow: inset 0 -1px 0 var(--ak-chrome-line-strong);
     color: var(--ak-fg-muted);
@@ -283,7 +283,7 @@ const logoFailed = ref(false);
 
   &[aria-expanded="true"] {
     border-color: var(--ak-theme-accent);
-    background: rgba(0, 0, 0, 0.35);
+    background: color-mix(in srgb, var(--ak-gray-1000) 35%, transparent);
     color: var(--ak-fg);
   }
 

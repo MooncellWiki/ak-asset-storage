@@ -767,10 +767,11 @@ const isMac = /Mac|iPhone|iPad/u.test(navigator.platform);
       background: var(--ak-bg-surface-2);
     }
 
+    // Dark box, white glyph in both themes (.ak-glyph-box)
     &--dark {
-      background: #1d1f20;
-      border-color: #1d1f20;
-      color: #fff;
+      background: var(--ak-gray-900);
+      border-color: var(--ak-gray-900);
+      color: var(--ak-gray-0);
     }
   }
 

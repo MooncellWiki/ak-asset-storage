@@ -100,7 +100,7 @@ const icon = computed(() => {
 
   mark {
     padding: 0;
-    background: var(--ak-yellow-soft, rgba(255, 216, 0, 0.35));
+    background: var(--ak-mark-bg);
     color: inherit;
   }
 }
