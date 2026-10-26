@@ -15,11 +15,13 @@ export function useLazyTree(fetch: (path: string) => Promise<TreeNode[]>) {
 
   function load(path: string): Promise<TreeNode[]> {
     const hit = cache.get(path);
-    if (hit) return Promise.resolve(hit);
+    // A failed directory shows as empty until it is opened again, which retries.
+    if (hit && !errors.has(path)) return Promise.resolve(hit);
     const inFlight = pending.get(path);
     if (inFlight) return inFlight;
     const gen = generation;
     errors.delete(path);
+    cache.delete(path);
     const request = fetch(path)
       .catch(() => {
         if (gen === generation) errors.add(path);
