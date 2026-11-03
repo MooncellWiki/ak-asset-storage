@@ -68,16 +68,8 @@ jobs:
           SENTRY_PROJECT: ak-asset-storage-backend
           REPOSITORY: ${{ github.repository }}
         run: |
-          # Match sentry::release_name!(): package name + Cargo package version.
-          release=$(python3 - <<'PYTHON'
-          import tomllib
-          from pathlib import Path
-          manifest = tomllib.loads(Path("Cargo.toml").read_text())
-          name = manifest["package"]["name"]
-          version = manifest["workspace"]["package"]["version"]
-          print(f"{name}@{version}")
-          PYTHON
-          )
+          # Release tags (vX.Y.Z) match the Cargo version used by sentry::release_name!().
+          release="ak-asset-storage@${GITHUB_REF_NAME#v}"
           echo "version=$release" >> "$GITHUB_OUTPUT"
           npx --yes @sentry/cli@3.8.2 releases new "$release"
           npx --yes @sentry/cli@3.8.2 releases set-commits "$release" --commit "$REPOSITORY@$GITHUB_SHA"
