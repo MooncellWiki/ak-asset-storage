@@ -88,8 +88,11 @@ pub fn init_tracing(
     }
 
     let dsn = Dsn::from_str(&sentry_cfg.dsn)?;
+    // Tracing ERROR/WARN events carry no stack trace unless one is attached
+    // here; panics get one regardless.
     let mut options = sentry::ClientOptions::new()
         .maybe_release(sentry::release_name!())
+        .attach_stacktrace(true)
         .traces_sample_rate(sentry_cfg.traces_sample_rate);
     options.dsn = Some(dsn);
     Ok(sentry::init(options))
