@@ -25,6 +25,13 @@ just up            # sqlx migrate run
 
 ## Daily Workflow
 
+Run `just dev` to build and start the API and frontend in two tmux panes.
+The worker is optional; start it separately with the command below when needed.
+Detach with `Ctrl-b d`, reconnect with `just dev`, and stop the session's services
+with `just dev-stop`. This requires tmux and the setup above.
+
+Alternatively, run each service separately:
+
 ```bash
 cargo run --bin ak-asset-storage -- server -c tmp/config.toml   # API on :5150
 cargo run --bin ak-asset-storage -- worker -c tmp/config.toml
