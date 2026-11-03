@@ -29,6 +29,15 @@ COPY --from=frontend-build-stage /app/dist /app/dist
 ARG BUILD_SHA=dev
 RUN BUILD_SHA=${BUILD_SHA} cargo build --release --locked --bin ak-asset-storage
 
+# Split symbols from the exact binary used by the runtime image.
+RUN mkdir -p /debug \
+    && objcopy --only-keep-debug target/release/ak-asset-storage /debug/ak-asset-storage.debug \
+    && objcopy --strip-debug target/release/ak-asset-storage \
+    && objcopy --add-gnu-debuglink=/debug/ak-asset-storage.debug target/release/ak-asset-storage
+
+FROM scratch AS debug-files
+COPY --from=build-stage /debug/ /
+
 FROM debian:13-slim@sha256:62bd423aeee912639ca8ee681c2b762cb3e25137e0a92b20be455898a9f034ad
 # plocate provides `updatedb`/`plocate` for the asset search index
 # Its postinst skips the initial full-filesystem scan if plocate.db exists.

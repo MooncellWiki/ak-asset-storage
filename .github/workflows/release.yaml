@@ -42,6 +42,46 @@ jobs:
             type=semver,pattern={{major}}.{{minor}}
             type=sha
 
+      - name: Export Sentry debug files
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          target: debug-files
+          outputs: type=local,dest=${{ runner.temp }}/sentry-debug
+          build-args: BUILD_SHA=${{ github.sha }}
+          cache-from: type=registry,ref=${{ steps.image.outputs.cache }}
+
+      - name: Upload Sentry debug files
+        env:
+          SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
+          SENTRY_ORG: mooncellwiki
+          SENTRY_PROJECT: ak-asset-storage-backend
+        run: |
+          : "${SENTRY_AUTH_TOKEN:?Set the SENTRY_AUTH_TOKEN repository secret}"
+          npx --yes @sentry/cli@3.8.2 debug-files upload --wait "$RUNNER_TEMP/sentry-debug"
+
+      - name: Associate Sentry release with commit
+        id: sentry-release
+        env:
+          SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
+          SENTRY_ORG: mooncellwiki
+          SENTRY_PROJECT: ak-asset-storage-backend
+          REPOSITORY: ${{ github.repository }}
+        run: |
+          # Match sentry::release_name!(): package name + Cargo package version.
+          release=$(python3 - <<'PYTHON'
+          import tomllib
+          from pathlib import Path
+          manifest = tomllib.loads(Path("Cargo.toml").read_text())
+          name = manifest["package"]["name"]
+          version = manifest["workspace"]["package"]["version"]
+          print(f"{name}@{version}")
+          PYTHON
+          )
+          echo "version=$release" >> "$GITHUB_OUTPUT"
+          npx --yes @sentry/cli@3.8.2 releases new "$release"
+          npx --yes @sentry/cli@3.8.2 releases set-commits "$release" --commit "$REPOSITORY@$GITHUB_SHA"
+
       - name: Build and Push Docker Image
         id: build-and-push
         uses: docker/build-push-action@v7
@@ -53,3 +93,11 @@ jobs:
           build-args: BUILD_SHA=${{ github.sha }}
           cache-from: type=registry,ref=${{ steps.image.outputs.cache }}
           cache-to: type=registry,ref=${{ steps.image.outputs.cache }},mode=max,ignore-error=true
+
+      - name: Finalize Sentry release
+        env:
+          SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
+          SENTRY_ORG: mooncellwiki
+          SENTRY_PROJECT: ak-asset-storage-backend
+          SENTRY_RELEASE: ${{ steps.sentry-release.outputs.version }}
+        run: npx --yes @sentry/cli@3.8.2 releases finalize "$SENTRY_RELEASE"
