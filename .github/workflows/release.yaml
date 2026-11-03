@@ -105,26 +105,11 @@ jobs:
           name: sentry-debug-file
           path: ${{ runner.temp }}/sentry-debug
 
-      - name: Resolve Sentry release
-        id: release
-        env:
-          TAG_VERSION: ${{ needs.build.outputs.version }}
-        run: |
-          # Same name as sentry::release_name!() (CARGO_PKG_NAME@CARGO_PKG_VERSION) in the binary.
-          read -r name version < <(python3 -c '
-          import tomllib
-          cargo = tomllib.load(open("Cargo.toml", "rb"))
-          print(cargo["package"]["name"], cargo["workspace"]["package"]["version"])
-          ')
-          if [[ "$version" != "$TAG_VERSION" ]]; then
-            echo "::warning::Tag $GITHUB_REF_NAME does not match Cargo version $version; using the version the binary reports"
-          fi
-          echo "name=$name@$version" >> "$GITHUB_OUTPUT"
-
       - name: Upload debug file and create release
         env:
           SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
-          RELEASE: ${{ steps.release.outputs.name }}
+          # Release tags match the Cargo version that sentry::release_name!() reports.
+          RELEASE: ak-asset-storage@${{ needs.build.outputs.version }}
           REPOSITORY: ${{ github.repository }}
         run: |
           : "${SENTRY_AUTH_TOKEN:?Set the SENTRY_AUTH_TOKEN repository secret}"
