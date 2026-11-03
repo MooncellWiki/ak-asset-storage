@@ -185,7 +185,3 @@ pre-release-hook = [
   "pre-release",
   "{{version}}"
 ]
-
-# Keep line tables and symbols for Sentry; Docker strips the runtime binary.
-[profile.release]
-debug = true

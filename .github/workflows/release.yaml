@@ -11,6 +11,8 @@ jobs:
     permissions:
       contents: read
       packages: write
+    outputs:
+      version: ${{ steps.meta.outputs.version }}
     steps:
       - uses: actions/checkout@v7
 
@@ -42,38 +44,6 @@ jobs:
             type=semver,pattern={{major}}.{{minor}}
             type=sha
 
-      - name: Export Sentry debug files
-        uses: docker/build-push-action@v7
-        with:
-          context: .
-          target: debug-files
-          outputs: type=local,dest=${{ runner.temp }}/sentry-debug
-          build-args: BUILD_SHA=${{ github.sha }}
-          cache-from: type=registry,ref=${{ steps.image.outputs.cache }}
-
-      - name: Upload Sentry debug files
-        env:
-          SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
-          SENTRY_ORG: mooncellwiki
-          SENTRY_PROJECT: ak-asset-storage-backend
-        run: |
-          : "${SENTRY_AUTH_TOKEN:?Set the SENTRY_AUTH_TOKEN repository secret}"
-          npx --yes @sentry/cli@3.8.2 debug-files upload --wait "$RUNNER_TEMP/sentry-debug"
-
-      - name: Associate Sentry release with commit
-        id: sentry-release
-        env:
-          SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
-          SENTRY_ORG: mooncellwiki
-          SENTRY_PROJECT: ak-asset-storage-backend
-          REPOSITORY: ${{ github.repository }}
-        run: |
-          # Release tags (vX.Y.Z) match the Cargo version used by sentry::release_name!().
-          release="ak-asset-storage@${GITHUB_REF_NAME#v}"
-          echo "version=$release" >> "$GITHUB_OUTPUT"
-          npx --yes @sentry/cli@3.8.2 releases new "$release"
-          npx --yes @sentry/cli@3.8.2 releases set-commits "$release" --commit "$REPOSITORY@$GITHUB_SHA"
-
       - name: Build and Push Docker Image
         id: build-and-push
         uses: docker/build-push-action@v7
@@ -86,10 +56,79 @@ jobs:
           cache-from: type=registry,ref=${{ steps.image.outputs.cache }}
           cache-to: type=registry,ref=${{ steps.image.outputs.cache }},mode=max,ignore-error=true
 
-      - name: Finalize Sentry release
+      # Sentry steps run after the push so they cannot block the image. The
+      # export reuses this builder's cache; the check confirms it matches the
+      # pushed binary rather than a rebuild.
+      - name: Export Sentry debug file
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          target: debug-files
+          outputs: type=local,dest=${{ runner.temp }}/sentry-debug
+          build-args: BUILD_SHA=${{ github.sha }}
+          cache-from: type=registry,ref=${{ steps.image.outputs.cache }}
+
+      - name: Setup sentry-cli
+        uses: ./.github/actions/sentry-cli
+
+      - name: Check debug file matches the pushed binary
+        env:
+          IMAGE: ${{ steps.image.outputs.name }}@${{ steps.build-and-push.outputs.digest }}
+        run: .github/scripts/check-sentry-debug-file.sh "$IMAGE" "$RUNNER_TEMP/sentry-debug/ak-asset-storage.debug"
+
+      - name: Upload debug file
+        uses: actions/upload-artifact@v7
+        with:
+          name: sentry-debug-file
+          path: ${{ runner.temp }}/sentry-debug/
+          if-no-files-found: error
+          retention-days: 7
+
+  # Separate job: a Sentry outage or token problem fails only this job, which
+  # can be re-run on its own without rebuilding the image.
+  sentry:
+    name: Sentry release
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Setup sentry-cli
+        uses: ./.github/actions/sentry-cli
+
+      - name: Download debug file
+        uses: actions/download-artifact@v8
+        with:
+          name: sentry-debug-file
+          path: ${{ runner.temp }}/sentry-debug
+
+      - name: Resolve Sentry release
+        id: release
+        env:
+          TAG_VERSION: ${{ needs.build.outputs.version }}
+        run: |
+          # Same name as sentry::release_name!() (CARGO_PKG_NAME@CARGO_PKG_VERSION) in the binary.
+          read -r name version < <(python3 -c '
+          import tomllib
+          cargo = tomllib.load(open("Cargo.toml", "rb"))
+          print(cargo["package"]["name"], cargo["workspace"]["package"]["version"])
+          ')
+          if [[ "$version" != "$TAG_VERSION" ]]; then
+            echo "::warning::Tag $GITHUB_REF_NAME does not match Cargo version $version; using the version the binary reports"
+          fi
+          echo "name=$name@$version" >> "$GITHUB_OUTPUT"
+
+      - name: Upload debug file and create release
         env:
           SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
-          SENTRY_ORG: mooncellwiki
-          SENTRY_PROJECT: ak-asset-storage-backend
-          SENTRY_RELEASE: ${{ steps.sentry-release.outputs.version }}
-        run: npx --yes @sentry/cli@3.8.2 releases finalize "$SENTRY_RELEASE"
+          RELEASE: ${{ steps.release.outputs.name }}
+          REPOSITORY: ${{ github.repository }}
+        run: |
+          : "${SENTRY_AUTH_TOKEN:?Set the SENTRY_AUTH_TOKEN repository secret}"
+          sentry-cli debug-files upload --wait-for 600 "$RUNNER_TEMP/sentry-debug"
+          sentry-cli releases new "$RELEASE"
+          sentry-cli releases set-commits "$RELEASE" --commit "$REPOSITORY@$GITHUB_SHA"
+          sentry-cli releases finalize "$RELEASE"
