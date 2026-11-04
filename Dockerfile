@@ -22,12 +22,25 @@ RUN cargo chef prepare --recipe-path recipe.json
 
 FROM chef AS build-stage
 ENV SQLX_OFFLINE=true
+# Line tables and function names are enough for Sentry symbolication. Set here,
+# not in Cargo.toml, so other release builds keep Cargo's default stripping.
+ENV CARGO_PROFILE_RELEASE_DEBUG=line-tables-only
 COPY --from=planner /app/recipe.json recipe.json
 RUN cargo chef cook --release --locked --recipe-path recipe.json
 COPY . .
 COPY --from=frontend-build-stage /app/dist /app/dist
 ARG BUILD_SHA=dev
 RUN BUILD_SHA=${BUILD_SHA} cargo build --release --locked --bin ak-asset-storage
+
+# Split the debug info from the binary the runtime image ships. Workflows check
+# the exported file against that binary with .github/scripts/check-sentry-debug-file.sh.
+RUN mkdir -p /debug \
+    && objcopy --only-keep-debug target/release/ak-asset-storage /debug/ak-asset-storage.debug \
+    && objcopy --strip-debug target/release/ak-asset-storage \
+    && objcopy --add-gnu-debuglink=/debug/ak-asset-storage.debug target/release/ak-asset-storage
+
+FROM scratch AS debug-files
+COPY --from=build-stage /debug/ /
 
 FROM debian:13-slim@sha256:62bd423aeee912639ca8ee681c2b762cb3e25137e0a92b20be455898a9f034ad
 # plocate provides `updatedb`/`plocate` for the asset search index

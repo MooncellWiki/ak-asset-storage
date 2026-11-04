@@ -11,6 +11,8 @@ jobs:
     permissions:
       contents: read
       packages: write
+    outputs:
+      version: ${{ steps.meta.outputs.version }}
     steps:
       - uses: actions/checkout@v7
 
@@ -53,3 +55,65 @@ jobs:
           build-args: BUILD_SHA=${{ github.sha }}
           cache-from: type=registry,ref=${{ steps.image.outputs.cache }}
           cache-to: type=registry,ref=${{ steps.image.outputs.cache }},mode=max,ignore-error=true
+
+      # Sentry steps run after the push so they cannot block the image. The
+      # export reuses this builder's cache; the check confirms it matches the
+      # pushed binary rather than a rebuild.
+      - name: Export Sentry debug file
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          target: debug-files
+          outputs: type=local,dest=${{ runner.temp }}/sentry-debug
+          build-args: BUILD_SHA=${{ github.sha }}
+          cache-from: type=registry,ref=${{ steps.image.outputs.cache }}
+
+      - name: Setup sentry-cli
+        uses: ./.github/actions/sentry-cli
+
+      - name: Check debug file matches the pushed binary
+        env:
+          IMAGE: ${{ steps.image.outputs.name }}@${{ steps.build-and-push.outputs.digest }}
+        run: .github/scripts/check-sentry-debug-file.sh "$IMAGE" "$RUNNER_TEMP/sentry-debug/ak-asset-storage.debug"
+
+      - name: Upload debug file
+        uses: actions/upload-artifact@v7
+        with:
+          name: sentry-debug-file
+          path: ${{ runner.temp }}/sentry-debug/
+          if-no-files-found: error
+          retention-days: 7
+
+  # Separate job: a Sentry outage or token problem fails only this job, which
+  # can be re-run on its own without rebuilding the image.
+  sentry:
+    name: Sentry release
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Setup sentry-cli
+        uses: ./.github/actions/sentry-cli
+
+      - name: Download debug file
+        uses: actions/download-artifact@v8
+        with:
+          name: sentry-debug-file
+          path: ${{ runner.temp }}/sentry-debug
+
+      - name: Upload debug file and create release
+        env:
+          SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
+          # Release tags match the Cargo version that sentry::release_name!() reports.
+          RELEASE: ak-asset-storage@${{ needs.build.outputs.version }}
+          REPOSITORY: ${{ github.repository }}
+        run: |
+          : "${SENTRY_AUTH_TOKEN:?Set the SENTRY_AUTH_TOKEN repository secret}"
+          sentry-cli debug-files upload --wait-for 600 "$RUNNER_TEMP/sentry-debug"
+          sentry-cli releases new "$RELEASE"
+          sentry-cli releases set-commits "$RELEASE" --commit "$REPOSITORY@$GITHUB_SHA"
+          sentry-cli releases finalize "$RELEASE"

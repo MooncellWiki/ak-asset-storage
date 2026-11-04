@@ -1,0 +1,26 @@
+name: Setup sentry-cli
+description: Install the pinned standalone sentry-cli and select the backend Sentry project
+
+runs:
+  using: composite
+  steps:
+    - name: Install sentry-cli
+      shell: bash
+      env:
+        # Standalone binary: no npm install scripts run. When bumping, take the
+        # sentry-cli-Linux-x86_64 digest from the GitHub release assets.
+        VERSION: 3.8.2
+        SHA256: c958865f9d4000183509ea21b1f04925d5390de6d8d87386b9e69f2b305070c3
+      run: |
+        bin="$RUNNER_TEMP/sentry-cli"
+        mkdir -p "$bin"
+        curl -fsSL --retry 3 -o "$bin/sentry-cli" \
+          "https://github.com/getsentry/sentry-cli/releases/download/$VERSION/sentry-cli-Linux-x86_64"
+        echo "$SHA256  $bin/sentry-cli" | sha256sum --check --strict
+        chmod +x "$bin/sentry-cli"
+        echo "$bin" >> "$GITHUB_PATH"
+        {
+          echo "SENTRY_ORG=mooncellwiki"
+          echo "SENTRY_PROJECT=ak-asset-storage-backend"
+          echo "SENTRY_DISABLE_UPDATE_CHECK=true"
+        } >> "$GITHUB_ENV"

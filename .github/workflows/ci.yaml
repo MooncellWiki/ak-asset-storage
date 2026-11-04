@@ -137,3 +137,17 @@ jobs:
             updatedb --database-root /tmp/assets --output /tmp/assets.db --require-visibility 0
             plocate --database /tmp/assets.db smoke-asset.txt | grep -Fx /tmp/assets/smoke-asset.txt
           '
+      # Same debug-file path as the release workflow, without uploading.
+      - name: Export Sentry debug file
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          target: debug-files
+          outputs: type=local,dest=${{ runner.temp }}/sentry-debug
+          build-args: BUILD_SHA=${{ github.sha }}
+          cache-from: type=gha,scope=docker-ci
+      - name: Setup sentry-cli
+        uses: ./.github/actions/sentry-cli
+      - name: Check Sentry debug file
+        run: |
+          .github/scripts/check-sentry-debug-file.sh ak-asset-storage:ci "$RUNNER_TEMP/sentry-debug/ak-asset-storage.debug"
