@@ -151,4 +151,3 @@ jobs:
       - name: Check Sentry debug file
         run: |
           .github/scripts/check-sentry-debug-file.sh ak-asset-storage:ci "$RUNNER_TEMP/sentry-debug/ak-asset-storage.debug"
-          sentry-cli debug-files upload --no-upload "$RUNNER_TEMP/sentry-debug"
