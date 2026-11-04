@@ -245,6 +245,40 @@ k3s-apply: gen-rustfs
 up:
     sqlx migrate run
 
+# Start or reattach to the frontend and API in two tmux panes.
+dev:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    command -v tmux >/dev/null || { echo 'Install tmux first.' >&2; exit 1; }
+    session="akas-dev-$(printf '%s' "$PWD" | cksum | cut -d ' ' -f 1)"
+    if ! tmux has-session -t "=$session" 2>/dev/null; then
+        just up
+        pnpm build
+        cargo build --locked --bin ak-asset-storage
+        tmux new-session -d -s "$session" -n dev -c "$PWD" \
+            'target/debug/ak-asset-storage server -c tmp/config.toml'
+        trap 'tmux kill-session -t "=$session" 2>/dev/null || true' ERR
+        tmux set-option -w -t "$session:dev" remain-on-exit on
+        tmux split-window -h -t "$session:dev" -c "$PWD" \
+            'pnpm dev'
+        tmux select-layout -t "$session:dev" tiled
+        trap - ERR
+    fi
+    if [[ -n "${TMUX:-}" ]]; then
+        tmux switch-client -t "=$session"
+    else
+        tmux attach-session -t "=$session"
+    fi
+
+# Stop the dev processes for this checkout.
+dev-stop:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    session="akas-dev-$(printf '%s' "$PWD" | cksum | cut -d ' ' -f 1)"
+    if tmux has-session -t "=$session" 2>/dev/null; then
+        tmux kill-session -t "=$session"
+    fi
+
 pre-release version:
     git cliff -o CHANGELOG.md --tag {{version}} && git add CHANGELOG.md
 

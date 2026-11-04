@@ -108,7 +108,18 @@ ak-asset-job-dev` 查看事件,先补建账号;无需扩大 launcher 的 RBAC �
 
 ## 常用命令
 
+完成上面的一次性准备后，运行 `just dev` 即可在 tmux 两个窗格里启动
+server 和前端，默认不启动 worker；需要时可使用下方命令单独启动 worker。
+首次创建会话前会执行数据库迁移、前端构建和后端编译；
+重复运行会连接已有会话。每个 checkout 使用独立的会话。
+
+`Ctrl-b d` 脱离会话并保留服务，`just dev` 重新连接，`just dev-stop`
+停止整个会话及其中的服务。单个窗格里的 `Ctrl-c` 只停止该服务；代码修改后，
+用 `just dev-stop` 再 `just dev` 重新构建并启动。前端仍由 Vite 自动热更新。
+
 ```bash
+just dev          # 启动 server 和前端（需要 tmux，不启动 worker）
+just dev-stop     # 停止当前 checkout 的 dev 会话
 target/debug/ak-asset-storage server -c tmp/config.toml   # :5150,MCP 开启
 target/debug/ak-asset-storage --worker-threads 2 worker -c tmp/config.toml --concurrent 5
 pnpm dev          # 前端 :25173,代理 /api → 5150
