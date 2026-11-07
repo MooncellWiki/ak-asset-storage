@@ -101,7 +101,6 @@
     <FilePreview
       v-else-if="current.kind === 'file'"
       :entry="current.entry"
-      :siblings="current.siblings"
       :segments="segments"
     />
 
@@ -312,7 +311,7 @@ watch(
 // ── what the path points at ──
 type Current =
   | { kind: "dir"; entries: AssetEntry[] }
-  | { kind: "file"; entry: AssetEntry; siblings: AssetEntry[] }
+  | { kind: "file"; entry: AssetEntry }
   | { kind: "missing" };
 const current = shallowRef<Current>();
 let request = 0;
@@ -335,7 +334,7 @@ watch(
         const entries = await listDir(p);
         if (seq === request) current.value = { kind: "dir", entries };
       } else if (seq === request) {
-        current.value = { kind: "file", entry, siblings };
+        current.value = { kind: "file", entry };
       }
     } catch {
       if (seq === request) current.value = { kind: "missing" };

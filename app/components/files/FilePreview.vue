@@ -111,21 +111,6 @@
           </button>
         </dd>
       </KvList>
-      <h3 class="preview__sub">{{ folder }}</h3>
-      <ResList>
-        <ResItem
-          v-for="s in siblings"
-          :key="s.path"
-          :to="{ query: { path: s.path } }"
-          :title="s.name"
-          :count="formatSize(s.size)"
-          :icon="entryIcon(s)"
-          :selected="s.path === entry.path"
-        />
-      </ResList>
-      <PaneNote v-if="siblings.length === MAX_SIBLINGS"
-        >只列出前 {{ MAX_SIBLINGS }} 个</PaneNote
-      >
     </PaneBox>
   </div>
 </template>
@@ -151,25 +136,20 @@ import PaneBox from "../layout/PaneBox.vue";
 import PaneNote from "../layout/PaneNote.vue";
 import MarkdownView from "../MarkdownView.vue";
 import PathBar from "../PathBar.vue";
-import ResItem from "../ResItem.vue";
-import ResList from "../ResList.vue";
-import { entryIcon } from "./entries";
 import type { PathSegment } from "../PathBar.vue";
 import type { AssetEntry } from "./entries";
 
 /**
  * One file: a preview by type (image, audio, video, highlighted text,
- * Markdown) with copy / download, and its details and siblings on the side.
+ * Markdown) with copy / download, and its details on the side.
  */
 const props = defineProps<{
   entry: AssetEntry;
-  siblings: AssetEntry[];
   segments: PathSegment[];
 }>();
 
 /** Text files larger than this are offered as a download only. */
 const MAX_PREVIEW = 1024 * 1024;
-const MAX_SIBLINGS = 200;
 
 const copy = useCopy();
 const url = computed(() => assetUrl(props.entry.path));
@@ -224,13 +204,6 @@ const tabs = computed(() => {
 });
 const shown = computed(
   () => (pretty.value && formatted.value) || text.value || "",
-);
-
-const folder = computed(
-  () => parentPath(props.entry.path).split("/").at(-1) ?? "",
-);
-const siblings = computed(() =>
-  props.siblings.filter((e) => !e.is_dir).slice(0, MAX_SIBLINGS),
 );
 </script>
 
@@ -314,14 +287,6 @@ const siblings = computed(() =>
     > span {
       color: var(--ak-fg-muted);
     }
-  }
-
-  &__sub {
-    margin: 0;
-    padding: var(--ak-space-3) var(--ak-space-4) var(--ak-space-2);
-    border-top: 1px solid var(--ak-border);
-    font-size: var(--ak-fs-sm);
-    font-weight: 700;
   }
 }
 </style>

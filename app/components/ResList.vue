@@ -5,7 +5,7 @@
 </template>
 
 <script setup lang="ts">
-/** A list of ResItem rows (story resources, siblings, search results). */
+/** A list of ResItem rows (story resources, search results). */
 defineSlots<{ default?: () => unknown }>();
 </script>
 
