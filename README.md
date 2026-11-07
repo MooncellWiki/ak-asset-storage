@@ -19,7 +19,7 @@ Rust backend is a single crate organized by module:
 - `src/worker/` - polling loop and manifest watcher
 - `src/commands/` - CLI entrypoints for `server`, `worker`, `seed`, and `import-manifest`
 
-The frontend lives in `app/` (Vue 3 + TypeScript + Naive UI, file-based routing).
+The frontend lives in `app/` (Vue 3 + TypeScript + [PRTS Design](https://mooncellwiki.github.io/prts-design/), file-based routing).
 
 ## Configuration
 

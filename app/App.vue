@@ -1,91 +1,74 @@
 <template>
-  <NConfigProvider :theme="theme" class="h-100vh">
-    <NModalProvider>
-      <NMessageProvider>
-        <NLayout class="h-full">
-          <NLayoutHeader class="h-4rem flex p-0.75rem" bordered>
-            <NMenu :options="opts" mode="horizontal"></NMenu>
-            <NButton class="m-auto mr-0" secondary @click="toggleDark()">
-              {{ isDark ? "浅色" : "深色" }}
-            </NButton>
-          </NLayoutHeader>
-          <NLayout
-            position="absolute"
-            class="top-4rem!"
-            content-class="mx-auto h-[calc(100vh-4rem)]"
-          >
-            <div class="container mx-auto mt-2">
-              <RouterView />
-            </div>
-          </NLayout>
-        </NLayout>
-      </NMessageProvider>
-    </NModalProvider>
-  </NConfigProvider>
+  <AkToastProvider :max="4">
+    <a class="app-skip" href="#content">跳到内容</a>
+    <AppHeader />
+    <main id="content" class="app-main">
+      <RouterView />
+    </main>
+    <AppFooter />
+    <SearchPalette />
+  </AkToastProvider>
 </template>
-<script setup lang="ts">
-import { useDark, useToggle } from "@vueuse/core";
-import { darkTheme } from "naive-ui";
-import { computed, h } from "vue";
-import { RouterLink } from "vue-router";
 
-const isDark = useDark();
-const toggleDark = useToggle(isDark);
-const theme = computed(() => {
-  return isDark.value ? darkTheme : undefined;
-});
-const opts = [
-  {
-    label: () =>
-      h(
-        RouterLink,
-        {
-          to: {
-            path: "/file",
-          },
-        },
-        () => "file",
-      ),
-    key: "file",
-  },
-  {
-    label: () =>
-      h(
-        RouterLink,
-        {
-          to: {
-            path: "/diff",
-          },
-        },
-        () => "diff",
-      ),
-    key: "diff",
-  },
-  {
-    label: () =>
-      h(
-        RouterLink,
-        {
-          to: {
-            path: "/manifest",
-          },
-        },
-        () => "manifest",
-      ),
-    key: "manifest",
-  },
-  {
-    label: () =>
-      h(
-        RouterLink,
-        {
-          to: {
-            path: "/asset",
-          },
-        },
-        () => "asset",
-      ),
-    key: "asset",
-  },
-];
+<script setup lang="ts">
+import { AkToastProvider } from "@mooncellwiki/prts-design-vue";
+import AppFooter from "./components/AppFooter.vue";
+import AppHeader from "./components/AppHeader.vue";
+import SearchPalette from "./components/SearchPalette.vue";
 </script>
+
+<style lang="scss">
+// The only global rules: the page canvas behind the .ak-scope body.
+html {
+  background: var(--ak-bg-canvas);
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  background: var(--ak-bg-canvas);
+}
+
+#app {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+</style>
+
+<style scoped lang="scss">
+@use "~/styles/shared" as *;
+
+.app-main {
+  flex: 1;
+  width: 100%;
+  max-width: 1680px;
+  margin: 0 auto;
+  padding: var(--ak-space-5) var(--ak-gutter) var(--ak-space-16);
+  box-sizing: border-box;
+
+  @media (max-width: $bp-phone) {
+    padding-top: var(--ak-space-4);
+  }
+}
+
+// Off screen until focused with Tab.
+.app-skip {
+  position: absolute;
+  left: 8px;
+  top: 8px;
+  z-index: 9999;
+  padding: 8px 12px;
+  background: var(--ak-accent);
+  color: var(--ak-accent-fg);
+  font-weight: 700;
+  line-height: 1.3;
+  transform: translateY(calc(-100% - 12px));
+
+  &:focus {
+    transform: none;
+  }
+}
+</style>

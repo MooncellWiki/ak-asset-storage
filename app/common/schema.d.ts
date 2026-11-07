@@ -539,6 +539,12 @@ export interface operations {
             query: {
                 /** @description Case-sensitive literal substring of the relative asset path. */
                 path: string;
+                /**
+                 * @description Only match paths under this relative prefix, e.g. `raw/` or
+                 *     `gamedata/<res_version>/`; `gamedata/latest/` resolves to the version
+                 *     the alias links to. Blank counts as absent.
+                 */
+                prefix?: string | null;
                 /** @description Maximum entries returned (1-200, default 100). No pagination. */
                 limit?: number | null;
             };

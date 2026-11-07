@@ -4,13 +4,11 @@ import { createRouter, createWebHistory } from "vue-router";
 import { routes } from "vue-router/auto-routes";
 import { DataLoaderPlugin } from "vue-router/experimental";
 import App from "./App.vue";
-import "./styles/main.css";
-import "virtual:uno.css";
-// import "@unocss/reset/tailwind.css";
+import "@mooncellwiki/prts-design-css/standalone.css";
 
 const app = createApp(App);
 const router = createRouter({
-  routes,
+  routes: [...routes, { path: "/file", redirect: "/diff" }],
   history: createWebHistory(import.meta.env.BASE_URL),
 });
 app.use(DataLoaderPlugin, { router });
