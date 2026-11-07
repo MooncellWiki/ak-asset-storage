@@ -49,6 +49,16 @@
     </template>
   </AsToolbar>
 
+  <AkMessage
+    v-if="unfinished.length > 0"
+    class="diff-unfinished"
+    variant="warning"
+    show-icon
+  >
+    {{ unfinished.join("、") }}
+    还没下载完，这里只有已入库的部分，新增和删除的数量不准。
+  </AkMessage>
+
   <AkEmpty v-if="state === 'error'" code="503" title="暂时拿不到版本列表">
     <template #extra>
       <button type="button" class="ak-btn ak-btn--sm" @click="reload">
@@ -154,6 +164,7 @@
 <script setup lang="ts">
 import {
   AkEmpty,
+  AkMessage,
   AkPagination,
   AkSearch,
   AkSkeleton,
@@ -245,6 +256,13 @@ function swap() {
   const { left, right } = pair.value;
   setQuery({ diff: `${right?.resVersion ?? ""}...${left?.resVersion ?? ""}` });
 }
+
+/** Versions still downloading list only some of their bundles. */
+const unfinished = computed(() =>
+  [pair.value.left, pair.value.right].flatMap((v) =>
+    v && !v.isReady ? [v.resVersion] : [],
+  ),
+);
 
 // ── bundle lists of both versions ──
 const before = shallowRef<Bundle[]>();
@@ -445,6 +463,10 @@ function copyLink() {
 </script>
 
 <style scoped lang="scss">
+.diff-unfinished {
+  margin-bottom: var(--ak-space-4);
+}
+
 .diff-sep {
   width: 1px;
   height: 24px;

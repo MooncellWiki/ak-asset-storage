@@ -69,7 +69,10 @@ export function useVersions() {
 export function versionOptions(list: Version[]): SelectGroupOption[] {
   const groups: SelectGroupOption[] = [];
   for (const v of list) {
-    const option = { label: `${v.clientVersion} ${v.resVersion}`, value: v.id };
+    const option = {
+      label: `${v.clientVersion} ${v.resVersion}${v.isReady ? "" : " (未完成)"}`,
+      value: v.id,
+    };
     const last = groups.at(-1);
     if (last?.label === v.clientVersion) last.children.push(option);
     else
