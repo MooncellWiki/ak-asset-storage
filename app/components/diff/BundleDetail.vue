@@ -45,7 +45,7 @@
               class="compare__delta"
               :class="{ 'is-up': delta > 0, 'is-down': delta < 0 }"
             >
-              {{ kind ? formatDelta(delta) : "未变化" }}
+              {{ kind === "same" ? "未变化" : formatDelta(delta) }}
             </span>
           </div>
           <div class="compare__hash" :title="after.fileHash">

@@ -21,13 +21,13 @@ import { formatCount } from "~/common/utils";
 import type { ChangeKind } from "~/common/bundles";
 
 /**
- * Added / modified / removed toggles. Each cell is its own change colour:
+ * Added / modified / removed / unchanged toggles. Each cell is its own colour:
  * pressed = tinted with the colour, released = grey with the count struck out.
  */
 defineProps<{ counts?: Record<ChangeKind, number> }>();
 const model = defineModel<Record<ChangeKind, boolean>>({ required: true });
 
-const KINDS: ChangeKind[] = ["add", "chg", "rem"];
+const KINDS: ChangeKind[] = ["add", "chg", "rem", "same"];
 </script>
 
 <style scoped lang="scss">

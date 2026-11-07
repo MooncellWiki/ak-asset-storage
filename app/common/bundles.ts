@@ -2,7 +2,8 @@ import { client } from "./client";
 import type { components } from "./schema";
 
 export type Bundle = components["schemas"]["BundleDetails"];
-export type ChangeKind = "add" | "chg" | "rem";
+/** `same`: on both sides with the same content, listed only on request. */
+export type ChangeKind = "add" | "chg" | "rem" | "same";
 
 export interface Change {
   path: string;
@@ -15,11 +16,13 @@ export const KIND_LETTER: Record<ChangeKind, string> = {
   add: "A",
   chg: "M",
   rem: "D",
+  same: "=",
 };
 export const KIND_LABEL: Record<ChangeKind, string> = {
   add: "新增",
   chg: "修改",
   rem: "删除",
+  same: "未变更",
 };
 
 /** Bundle lists of recently viewed versions (each is ~15k rows / 3 MB). */
@@ -45,15 +48,17 @@ export function loadVersionBundles(id: number): Promise<Bundle[]> {
   return request;
 }
 
-/** Bundles added, modified (hash differs) or removed going from `left` to `right`. */
+/** Every bundle going from `left` to `right`: added, modified (hash differs), removed or the same. */
 export function diffBundles(left: Bundle[], right: Bundle[]): Change[] {
   const before = new Map(left.map((b) => [b.path, b]));
   const changes: Change[] = [];
   for (const b of right) {
     const old = before.get(b.path);
     if (!old) changes.push({ path: b.path, kind: "add", new: b });
-    else if (old.fileHash !== b.fileHash)
-      changes.push({ path: b.path, kind: "chg", old, new: b });
+    else {
+      const kind = old.fileHash === b.fileHash ? "same" : "chg";
+      changes.push({ path: b.path, kind, old, new: b });
+    }
     before.delete(b.path);
   }
   for (const old of before.values())
@@ -104,7 +109,7 @@ function dirNode(name: string, path: string): DirNode {
     path,
     dirs: new Map(),
     files: [],
-    counts: { add: 0, chg: 0, rem: 0 },
+    counts: { add: 0, chg: 0, rem: 0, same: 0 },
   };
 }
 

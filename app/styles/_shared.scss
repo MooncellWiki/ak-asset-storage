@@ -52,6 +52,11 @@ $bp-phone: 639px;
     --_c: var(--ak-danger);
     --_bg: var(--ak-danger-bg);
   }
+
+  &.is-same {
+    --_c: var(--ak-fg-muted);
+    --_bg: var(--ak-bg-surface-2);
+  }
 }
 
 // Checkerboard behind transparent images.

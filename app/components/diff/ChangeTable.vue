@@ -100,7 +100,8 @@ function save(c: Change) {
       box-shadow: inset 3px 0 var(--_c);
     }
 
-    &.is-rem > td {
+    &.is-rem > td,
+    &.is-same > td {
       color: var(--ak-fg-muted);
     }
   }

@@ -74,7 +74,7 @@
     </template>
   </AkEmpty>
   <AkEmpty
-    v-else-if="loadState === 'ready' && changes.length === 0"
+    v-else-if="loadState === 'ready' && noChanges && !kinds.same"
     icon="check"
     title="两版之间没有变更"
   />
@@ -283,14 +283,16 @@ const changes = computed<Change[]>(() =>
     ? diffBundles(before.value, after.value)
     : [],
 );
+const noChanges = computed(() => changes.value.every((c) => c.kind === "same"));
 
 // ── filters: change kinds and a path substring ──
-const ALL_KINDS: Record<ChangeKind, boolean> = {
+const DEFAULT_KINDS: Record<ChangeKind, boolean> = {
   add: true,
   chg: true,
   rem: true,
+  same: false,
 };
-const kinds = ref({ ...ALL_KINDS });
+const kinds = ref({ ...DEFAULT_KINDS });
 const keyword = ref("");
 const q = refDebounced(keyword, 150);
 const matched = computed(() => {
@@ -300,7 +302,12 @@ const matched = computed(() => {
     : changes.value;
 });
 const counts = computed(() => {
-  const result: Record<ChangeKind, number> = { add: 0, chg: 0, rem: 0 };
+  const result: Record<ChangeKind, number> = {
+    add: 0,
+    chg: 0,
+    rem: 0,
+    same: 0,
+  };
   for (const c of matched.value) result[c.kind]++;
   return result;
 });
@@ -341,7 +348,7 @@ const tree = computed(() => {
 });
 function resetFilters() {
   keyword.value = "";
-  kinds.value = { ...ALL_KINDS };
+  kinds.value = { ...DEFAULT_KINDS };
 }
 
 // ── tree: ?dir=<directory>&bundle=<path> ──
@@ -388,7 +395,7 @@ const rows = computed(() => {
     withSubdirs.value
       ? d === "" || c.path.startsWith(`${d}/`)
       : parentPath(c.path) === d;
-  const order = { add: 0, chg: 1, rem: 2 };
+  const order = { add: 0, chg: 1, rem: 2, same: 3 };
   return visible.value
     .filter(inDir)
     .sort((a, b) => order[a.kind] - order[b.kind]);
@@ -426,13 +433,7 @@ const detail = computed(() => {
   const path = bundle.value;
   if (!path || loadState.value !== "ready") return undefined;
   const change = changes.value.find((c) => c.path === path);
-  if (change)
-    return { kind: change.kind, before: change.old, after: change.new };
-  return {
-    kind: undefined,
-    before: before.value?.find((b) => b.path === path),
-    after: after.value?.find((b) => b.path === path),
-  };
+  return { kind: change?.kind, before: change?.old, after: change?.new };
 });
 
 const sameVersion = computed(

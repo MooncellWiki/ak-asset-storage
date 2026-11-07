@@ -8,7 +8,7 @@
 import { KIND_LABEL, KIND_LETTER } from "~/common/bundles";
 import type { ChangeKind } from "~/common/bundles";
 
-/** The A / M / D box of a change (colour plus letter, never colour alone). */
+/** The A / M / D / = box of a change (colour plus letter, never colour alone). */
 defineProps<{ kind: ChangeKind }>();
 </script>
 
