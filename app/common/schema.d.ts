@@ -219,6 +219,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/story-resources/explore": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["explore_story_resources"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/version": {
         parameters: {
             query?: never;
@@ -317,6 +333,16 @@ export interface components {
             bundles: components["schemas"]["BundleDetails"][];
             nextCursor?: string | null;
         };
+        CategoryCounts: {
+            /** Format: int64 */
+            npc: number;
+            /** Format: int64 */
+            operator: number;
+            /** Format: int64 */
+            other: number;
+        };
+        /** @enum {string} */
+        CharacterCategory: "operator" | "npc" | "other";
         DockerLaunchRequest: {
             client_version: string;
             exclude?: string | null;
@@ -328,6 +354,54 @@ export interface components {
         DockerLaunchResponse: {
             container_name: string;
             status: string;
+        };
+        ExploreEntry: {
+            /**
+             * Format: int64
+             * @description Distinct scripts across the whole group, never sum/max of variants.
+             */
+            count: number;
+            face?: string | null;
+            /** @description All indexed variants of this base, including those not matching q. */
+            members: components["schemas"]["ExploreResource"][];
+            /** Format: int64 */
+            merged: number;
+            resource: components["schemas"]["ExploreResource"];
+        };
+        ExploreResource: {
+            base?: string | null;
+            category?: components["schemas"]["CharacterCategory"] | null;
+            id: string;
+            /** Format: int64 */
+            scriptCount: number;
+            type: components["schemas"]["StoryResourceType"];
+        };
+        ExploreResponse: {
+            /** @description Matching character counts ignore the selected category. */
+            categoryCounts: components["schemas"]["CategoryCounts"];
+            /** @description Matching counts ignore selected type; category affects characters only. */
+            counts: components["schemas"]["TypeCounts"];
+            entries: components["schemas"]["ExploreEntry"][];
+            /**
+             * Format: int64
+             * @description Zero-based position within the filtered results, if focus matches.
+             */
+            focusIndex?: number | null;
+            /** Format: int64 */
+            matchedTotal: number;
+            /** Format: int64 */
+            page: number;
+            /** Format: int64 */
+            pageCount: number;
+            /** Format: int64 */
+            pageSize: number;
+            selection?: components["schemas"]["ExploreEntry"] | null;
+            /**
+             * Format: int64
+             * @description Current type, with grouping but without q/category filters.
+             */
+            total: number;
+            updatedAt?: string | null;
         };
         Health: {
             ok: boolean;
@@ -366,6 +440,16 @@ export interface components {
         StoryResourceUsageResponse: {
             nextCursor?: string | null;
             usages: components["schemas"]["StoryResourceUsageItem"][];
+        };
+        TypeCounts: {
+            /** Format: int64 */
+            background: number;
+            /** Format: int64 */
+            character: number;
+            /** Format: int64 */
+            image: number;
+            /** Format: int64 */
+            item: number;
         };
         VersionDetails: {
             clientVersion: string;
@@ -776,6 +860,51 @@ export interface operations {
                 };
             };
             /** @description Invalid resource type, query, cursor or limit */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    explore_story_resources: {
+        parameters: {
+            query: {
+                type: components["schemas"]["StoryResourceType"];
+                /** @description Case-insensitive AND keywords; accepts script commands and wiki filenames. */
+                q?: string | null;
+                category?: components["schemas"]["CharacterCategory"] | null;
+                /** @description Defaults to base. Merges only characters, before counting/paging. */
+                groupBy?: ("resource" | "base") | null;
+                sort?: ("id" | "scriptCount") | null;
+                order?: ("asc" | "desc") | null;
+                /** @description 1-based, clamped to the last page. Defaults to 1. */
+                page?: number | null;
+                /** @description Defaults to 60, maximum 500. */
+                pageSize?: number | null;
+                /**
+                 * @description Exact listing id to open. Locates its page when it matches the filters;
+                 *     otherwise returns selection separately without changing the filters.
+                 */
+                focus?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Page, grouping, search facets and optional focused resource from one snapshot */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ExploreResponse"];
+                };
+            };
+            /** @description Invalid filter or pagination */
             400: {
                 headers: {
                     [name: string]: unknown;

@@ -50,6 +50,7 @@ impl StoryUsageImportService {
             })?
             .map_err(AppError::Application)?;
 
+        let aliases = links.listing_aliases();
         let gamedata_root = self.gamedata_root.clone();
         let rows = tokio::task::spawn_blocking(move || build_snapshot(&gamedata_root, &links))
             .await
@@ -63,7 +64,9 @@ impl StoryUsageImportService {
             .map(|row| row.script_path.as_str())
             .collect::<std::collections::HashSet<_>>()
             .len();
-        self.database.replace_story_resource_usages(&rows).await?;
+        self.database
+            .replace_story_resource_usages(&rows, &aliases)
+            .await?;
         tracing::info!(
             scripts = script_count,
             rows = rows.len(),

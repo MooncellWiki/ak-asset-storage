@@ -1,0 +1,31 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            WITH catalog AS MATERIALIZED (\n                SELECT c.*,\n                    CASE WHEN $4::boolean THEN coalesce(base, id) ELSE id END AS group_id,\n                    CASE WHEN $4 THEN group_script_count ELSE script_count END AS count,\n                    jsonb_build_object('type', resource_type, 'id', id, 'base', base,\n                        'category', category, 'scriptCount', script_count) AS resource\n                FROM story_resource_catalog c\n            ), matched AS (\n                SELECT *, CASE WHEN cardinality($2::text[]) = 1\n                    AND $2[1] = ANY(aliases) AND position('#' IN id) = 0\n                    AND resource_type = 'character'\n                    THEN nullif(split_part($2[1], '#', 2), '') ELSE NULL END AS face\n                FROM catalog c\n                WHERE NOT EXISTS (SELECT FROM unnest($2::text[]) term\n                                  WHERE position(term IN lower(c.id)) = 0)\n                   OR (cardinality($2::text[]) = 1 AND $2[1] = ANY(c.aliases))\n            ), grouped AS MATERIALIZED (\n                SELECT DISTINCT ON (resource_type, group_id) *\n                FROM matched ORDER BY resource_type, group_id, sort_key, id COLLATE \"C\"\n            ), filtered AS MATERIALIZED (\n                SELECT * FROM grouped WHERE resource_type <> 'character'\n                    OR $3::text IS NULL OR category = $3\n            ), ordered AS MATERIALIZED (\n                SELECT *, row_number() OVER (ORDER BY\n                    CASE WHEN $5::boolean AND NOT $6::boolean THEN count END ASC,\n                    CASE WHEN $5 AND $6 THEN count END DESC,\n                    CASE WHEN NOT $5 AND $6 THEN sort_key END DESC,\n                    CASE WHEN $5 OR NOT $6 THEN sort_key END ASC,\n                    id COLLATE \"C\" ASC) - 1 AS position\n                FROM filtered WHERE resource_type = $1\n            ), focus AS (\n                SELECT * FROM catalog WHERE resource_type = $1 AND id = $9::text\n            ), stats AS (\n                SELECT count(*) AS matched_total,\n                    (SELECT count(DISTINCT group_id) FROM catalog WHERE resource_type = $1) AS total,\n                    (SELECT o.position FROM ordered o JOIN focus f USING (resource_type, group_id)) AS focus_index\n                FROM ordered\n            ), paging AS (\n                SELECT *, greatest(1, (matched_total + $8::bigint - 1) / $8) AS page_count,\n                    coalesce(focus_index / $8 + 1,\n                        least($7::bigint, greatest(1, (matched_total + $8 - 1) / $8))) AS page\n                FROM stats\n            ), selected AS (\n                SELECT o.*, false AS selection FROM ordered o, paging p\n                WHERE o.position >= (p.page - 1) * $8 AND o.position < p.page * $8\n                UNION ALL\n                SELECT f.*, NULL::text AS face, NULL::bigint AS position, true AS selection FROM focus f\n            ), members AS (\n                SELECT c.resource_type, coalesce(c.base, c.id) AS member_key,\n                    jsonb_agg(c.resource ORDER BY c.sort_key, c.id COLLATE \"C\") AS members\n                FROM catalog c\n                WHERE (c.resource_type, coalesce(c.base, c.id)) IN (\n                    SELECT resource_type, coalesce(base, id) FROM selected\n                )\n                GROUP BY c.resource_type, coalesce(c.base, c.id)\n            ), entries AS (\n                SELECT s.position, s.selection, jsonb_build_object(\n                    'resource', s.resource, 'face', s.face, 'count', s.count,\n                    'merged', CASE WHEN $4 THEN jsonb_array_length(m.members) ELSE 1 END,\n                    'members', m.members) AS entry\n                FROM selected s JOIN members m\n                    ON m.resource_type = s.resource_type AND m.member_key = coalesce(s.base, s.id)\n            )\n            SELECT jsonb_build_object(\n                'entries', coalesce((SELECT jsonb_agg(entry ORDER BY position) FROM entries WHERE NOT selection), '[]'),\n                'selection', (SELECT entry FROM entries WHERE selection),\n                'focusIndex', p.focus_index,\n                'total', p.total, 'matchedTotal', p.matched_total,\n                'page', p.page, 'pageSize', $8::bigint, 'pageCount', p.page_count,\n                'counts', jsonb_build_object(\n                    'character', (SELECT count(*) FROM filtered WHERE resource_type = 'character'),\n                    'background', (SELECT count(*) FROM filtered WHERE resource_type = 'background'),\n                    'image', (SELECT count(*) FROM filtered WHERE resource_type = 'image'),\n                    'item', (SELECT count(*) FROM filtered WHERE resource_type = 'item')),\n                'categoryCounts', jsonb_build_object(\n                    'operator', (SELECT count(*) FROM grouped WHERE category = 'operator'),\n                    'npc', (SELECT count(*) FROM grouped WHERE category = 'npc'),\n                    'other', (SELECT count(*) FROM grouped WHERE category = 'other')),\n                'updatedAt', (SELECT updated_at::text FROM story_dataset)\n            ) AS \"response!: serde_json::Value\" FROM paging p\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "response!: serde_json::Value",
+        "type_info": "Jsonb",
+        "origin": "Expression"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Text",
+        "TextArray",
+        "Text",
+        "Bool",
+        "Bool",
+        "Bool",
+        "Int8",
+        "Int8",
+        "Text"
+      ]
+    },
+    "nullable": [
+      null
+    ]
+  },
+  "hash": "cf0218cabb35058d818c167609ee1625ce583f7892ac712231454e1f5d125677"
+}

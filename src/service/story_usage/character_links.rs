@@ -238,6 +238,21 @@ fn resolved_id(base: &str, entry: &CharacterEntry) -> ResolvedCharacterId {
 }
 
 impl CharacterLinks {
+    /// Explicit expression names, including unused faces of an indexed body.
+    /// Search uses these aliases without downloading character.json in the client.
+    #[must_use]
+    pub fn listing_aliases(&self) -> HashMap<String, String> {
+        self.nodes
+            .iter()
+            .flat_map(|(base, node)| {
+                node.array.iter().map(move |entry| {
+                    let resolved = resolved_id(base, entry);
+                    (resolved.resource_id.to_lowercase(), resolved.listing_id)
+                })
+            })
+            .collect()
+    }
+
     /// Loads `raw/avg/character.json` from the torappu asset root.
     pub fn load(asset_root: &Path) -> anyhow::Result<Self> {
         let path = asset_root.join("raw").join("avg").join("character.json");
