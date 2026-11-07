@@ -1,0 +1,23 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT story_refresh_resource_catalog($1)",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "story_refresh_resource_catalog",
+        "type_info": "Void",
+        "origin": "Expression"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Jsonb"
+      ]
+    },
+    "nullable": [
+      null
+    ]
+  },
+  "hash": "a8e366865ba96b9907810b90f7b285191b331cb5df4e7053e766c530fd5b740f"
+}
