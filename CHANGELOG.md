@@ -2,13 +2,31 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.29.0] - 2026-11-07
+
+[cc937d6](cc937d63c46037603aec5b28f4b93dcc41566cf2)...[49b49a6](49b49a650e15726053129f65430a0ad4740ae165)
+
+### 🚀 Features
+
+- Add dev script (#197) ([47f1427](https://github.com/MooncellWiki/ak-asset-storage/commit/47f1427510e173053229bc1903b48b127486f4f4))
+- 前端按 PRTS Design 设计稿重做，去掉 Naive UI (#194) ([b5c1b8a](https://github.com/MooncellWiki/ak-asset-storage/commit/b5c1b8ae33027e510a1a05547d7c5bd8c6896a99))
+- 预计算剧情资源汇总并提供分页浏览接口 (#199) ([49b49a6](https://github.com/MooncellWiki/ak-asset-storage/commit/49b49a650e15726053129f65430a0ad4740ae165)), Co-authored-by:StarHeartHunt <starheart233@gmail.com>
+
+### ⚙️ Miscellaneous Tasks
+
+- Upload Rust debug symbols and link Sentry releases (#196) ([0908272](https://github.com/MooncellWiki/ak-asset-storage/commit/0908272ed372feef4484d89f8e39980a12fbe2ab)), Co-authored-by:StarHeartHunt <starheart233@gmail.com>
+
 ## [0.28.0] - 2026-10-25
 
-[0024911](0024911708b43a2534fc67be848fcded7bb707f0)...[ea927a7](ea927a70982c6e0399a36699256b67869d560af0)
+[0024911](0024911708b43a2534fc67be848fcded7bb707f0)...[cc937d6](cc937d63c46037603aec5b28f4b93dcc41566cf2)
 
 ### 🚀 Features
 
 - Link MCP file results for download and expose gamedata status (#193) ([ea927a7](https://github.com/MooncellWiki/ak-asset-storage/commit/ea927a70982c6e0399a36699256b67869d560af0))
+
+### ⚙️ Miscellaneous Tasks
+
+- Release 0.28.0 ([cc937d6](https://github.com/MooncellWiki/ak-asset-storage/commit/cc937d63c46037603aec5b28f4b93dcc41566cf2))
 
 ## [0.27.3] - 2026-10-22
 
