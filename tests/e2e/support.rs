@@ -11,6 +11,7 @@ use axum::{
     routing::{get, post},
 };
 use serde::{Deserialize, Serialize, de::DeserializeOwned};
+use sqlx::{Postgres, migrate::MigrateDatabase};
 use std::fmt::Write as _;
 use std::{
     collections::{HashMap, HashSet},
@@ -34,10 +35,8 @@ const FAKE_AK_PORT: u16 = 25151;
 const FAKE_KUBE_PORT: u16 = 25155;
 const BUCKET_NAME: &str = "ak-asset-storage-e2e";
 const RC_ALIAS_NAME: &str = "ak-asset-storage-e2e";
-const DATABASE_NAME: &str = "ak_asset_storage_e2e";
-// Dev dependencies live in the local k3s (deploy/k3s/dev plus the generated
-// tmp/k3s/rustfs.yaml): PostgreSQL on NodePort 32432, RustFS on 31000, both
-// bound to 127.0.0.1 only.
+// Local k3s and CI containers expose the same loopback endpoints. Keep the
+// disposable test database and bucket separate from the development data.
 const DEV_NAMESPACE: &str = "ak-dev";
 const DATABASE_URI: &str = "postgres://ak:ak@localhost:32432/ak_asset_storage_e2e";
 const POSTGRES_ADMIN_URI: &str = "postgres://ak:ak@localhost:32432/postgres";
@@ -150,11 +149,18 @@ pub struct BundleListResponse {
 impl TestEnv {
     pub async fn bootstrap() -> Self {
         let (mut env, config_path) = Self::bootstrap_common(false).await;
-        let server = spawn_server(&config_path);
+        env.server = Some(spawn_server(&config_path));
         wait_for_http_ok(&format!("http://127.0.0.1:{SERVER_PORT}/api/v1/_health")).await;
 
-        env.server = Some(server);
         env
+    }
+
+    /// Reap the server before the next test reuses its port and runtime directory.
+    /// `kill_on_drop` also terminates child processes if a test panics.
+    pub async fn shutdown(mut self) {
+        if let Some(mut server) = self.server.take() {
+            server.kill().await.unwrap();
+        }
     }
 
     pub async fn bootstrap_worker() -> Self {
@@ -534,12 +540,26 @@ pub fn load_fixture(repo_root: &StdPath) -> Fixture {
     }
 }
 
-/// Dev dependencies (`PostgreSQL`, `RustFS`) run in the local k3s: PostgreSQL
-/// via `deploy/k3s/dev`, and RustFS via the hostPath manifest generated into
-/// `tmp/k3s/rustfs.yaml` by `just gen-rustfs` (its data directory is this
-/// checkout's tmp/rustfs-data). Re-applying is idempotent; no Docker daemon is
-/// involved anywhere in the e2e flow.
+/// Local runs provision k3s dependencies; CI supplies containers on the same
+/// ports. Both modes reset only the dedicated e2e database and bucket.
 async fn ensure_dependencies_ready(repo_root: &StdPath) {
+    match std::env::var("AK_E2E_DEPENDENCIES").as_deref() {
+        Err(std::env::VarError::NotPresent) | Ok("k3s") => {
+            ensure_k3s_dependencies_ready(repo_root).await;
+        }
+        Ok("external") => {}
+        other => panic!("expected AK_E2E_DEPENDENCIES=k3s or external, got {other:?}"),
+    }
+
+    wait_for_postgres().await;
+    wait_for_rustfs().await;
+    recreate_database().await;
+    let database = connect_database().await;
+    database.migrate().await.unwrap();
+    database.pool().close().await;
+}
+
+async fn ensure_k3s_dependencies_ready(repo_root: &StdPath) {
     let context = local_kube_context().await;
     let status = Command::new("just")
         .arg("gen-rustfs")
@@ -598,12 +618,6 @@ async fn ensure_dependencies_ready(repo_root: &StdPath) {
             .unwrap();
         assert!(status.success(), "{deployment} did not roll out");
     }
-
-    wait_for_postgres().await;
-    wait_for_rustfs().await;
-    recreate_database(&context).await;
-    let database = connect_database().await;
-    database.migrate().await.unwrap();
 }
 
 async fn recreate_bucket(repo_root: &StdPath) {
@@ -957,36 +971,11 @@ async fn local_kube_context() -> String {
     context.to_string()
 }
 
-/// Drops and recreates the e2e database inside the k3s dev postgres.
-async fn recreate_database(context: &str) {
-    let drop_statement = format!("DROP DATABASE IF EXISTS {DATABASE_NAME} WITH (FORCE);");
-    let create_statement = format!("CREATE DATABASE {DATABASE_NAME};");
-
-    for statement in [drop_statement, create_statement] {
-        let status = Command::new("kubectl")
-            .args([
-                "--context",
-                context,
-                "-n",
-                DEV_NAMESPACE,
-                "exec",
-                "deploy/postgres",
-                "--",
-                "psql",
-                "-U",
-                "ak",
-                "-d",
-                "postgres",
-                "-c",
-                &statement,
-            ])
-            .stdout(Stdio::inherit())
-            .stderr(Stdio::inherit())
-            .status()
-            .await
-            .unwrap();
-        assert!(status.success(), "database operation failed");
-    }
+/// Use the `SQLx` database lifecycle API so this works without kubectl or psql.
+/// The fixed URI deliberately targets only the disposable e2e database.
+async fn recreate_database() {
+    Postgres::force_drop_database(DATABASE_URI).await.unwrap();
+    Postgres::create_database(DATABASE_URI).await.unwrap();
 }
 
 fn write_config(
@@ -1013,14 +1002,14 @@ asset_url = "http://127.0.0.1:{FAKE_AK_PORT}/assetbundle/official/Android/assets
 conf_url = "http://127.0.0.1:{FAKE_AK_PORT}/config/prod/official/Android"
 
 [s3]
-endpoint = "http://127.0.0.1:31000"
+endpoint = "{S3_ENDPOINT}"
 bucket_name = "{BUCKET_NAME}"
 access_key_id = "torappu"
 secret_access_key = "torappu123"
 with_virtual_hosted_style_request = false
 
 [sentry]
-dsn = "https://public@example.com/1"
+dsn = "https://test@127.0.0.1:9/1"
 traces_sample_rate = 0.0
 
 [torappu]
@@ -1164,7 +1153,7 @@ pub fn spawn_worker(
 
 fn build_binary_command() -> Command {
     let mut cmd = Command::new(binary_path());
-    cmd.arg("--worker-threads").arg("1");
+    cmd.arg("--worker-threads").arg("1").kill_on_drop(true);
     // The config file is the single source of secrets under test; ambient
     // developer-shell exports of the override variables must not leak in.
     for key in [
@@ -1181,10 +1170,7 @@ fn build_binary_command() -> Command {
 }
 
 fn binary_path() -> PathBuf {
-    std::env::var_os("CARGO_BIN_EXE_ak-asset-storage").map_or_else(
-        || PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("target/debug/ak-asset-storage"),
-        PathBuf::from,
-    )
+    PathBuf::from(env!("CARGO_BIN_EXE_ak-asset-storage"))
 }
 
 async fn wait_for_postgres() {

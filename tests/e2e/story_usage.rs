@@ -141,7 +141,7 @@ async fn wait_for_usages(
 }
 
 #[tokio::test]
-#[ignore = "manual e2e test requiring a local k3s (deploy/k3s/dev), rc, and fixture assets"]
+#[ignore = "e2e: requires PostgreSQL, RustFS, rc and plocate; see e2e/README.md"]
 async fn manual_import_replaces_snapshot_and_serves_api() {
     let env = TestEnv::bootstrap().await;
     publish_version(&env, V1_RES);
@@ -206,23 +206,15 @@ async fn manual_import_replaces_snapshot_and_serves_api() {
     // full-image characters keep their resolved expression ids.
     let (status, body) = env.get_text("/api/v1/story-resources?limit=200").await;
     assert_eq!(status, StatusCode::OK);
-    assert!(
-        body.contains(r#"{"type":"background","id":"bg_test_1","scriptCount":1}"#),
-        "{body}"
-    );
-    assert!(
-        body.contains(r#"{"type":"item","id":"item_test_1","scriptCount":1}"#),
-        "{body}"
-    );
-    assert!(
-        body.contains(r#"{"type":"character","id":"avg_npc_001$1","scriptCount":1}"#),
-        "{body}"
-    );
+    for resource in [
+        r#"{"type":"background","id":"bg_test_1","scriptCount":1}"#,
+        r#"{"type":"item","id":"item_test_1","scriptCount":1}"#,
+        r#"{"type":"character","id":"avg_npc_001$1","scriptCount":1}"#,
+        r#"{"type":"character","id":"char_img_1#char_img_1_2","scriptCount":1}"#,
+    ] {
+        assert!(body.contains(resource), "missing {resource} in {body}");
+    }
     assert!(!body.contains("avg_npc_001#"), "{body}");
-    assert!(
-        body.contains(r#"{"type":"character","id":"char_img_1#char_img_1_2","scriptCount":1}"#),
-        "{body}"
-    );
     assert!(!body.contains(r#""id":"char_img_1$1""#), "{body}");
     assert!(!body.contains("bg_info_ignored"), "{body}");
 
@@ -244,20 +236,15 @@ async fn manual_import_replaces_snapshot_and_serves_api() {
     assert!(!body.contains("avg_npc_001"), "{body}");
 
     // Invalid type / limit / missing params are rejected.
-    let (status, _) = env
-        .get_text("/api/v1/story-resource-usages?type=unknown&id=x")
-        .await;
-    assert_eq!(status, StatusCode::BAD_REQUEST);
-    let (status, _) = env
-        .get_text("/api/v1/story-resource-usages?type=item&id=x&limit=201")
-        .await;
-    assert_eq!(status, StatusCode::BAD_REQUEST);
-    let (status, _) = env
-        .get_text("/api/v1/story-resource-usages?id=bg_test_1")
-        .await;
-    assert_eq!(status, StatusCode::BAD_REQUEST);
-    let (status, _) = env.get_text("/api/v1/story-resources?type=unknown").await;
-    assert_eq!(status, StatusCode::BAD_REQUEST);
+    for path in [
+        "/api/v1/story-resource-usages?type=unknown&id=x",
+        "/api/v1/story-resource-usages?type=item&id=x&limit=201",
+        "/api/v1/story-resource-usages?id=bg_test_1",
+        "/api/v1/story-resources?type=unknown",
+    ] {
+        let (status, _) = env.get_text(path).await;
+        assert_eq!(status, StatusCode::BAD_REQUEST, "{path}");
+    }
 
     // Switching latest to a new version and re-importing replaces the snapshot.
     publish_version(&env, V2_RES);
@@ -278,10 +265,12 @@ async fn manual_import_replaces_snapshot_and_serves_api() {
         "{body}"
     );
     assert!(body.contains(r#""displayNames":["测试者乙"]"#), "{body}");
+
+    env.shutdown().await;
 }
 
 #[tokio::test]
-#[ignore = "manual e2e test requiring a local k3s (deploy/k3s/dev), rc, and fixture assets"]
+#[ignore = "e2e: requires PostgreSQL, RustFS, rc and plocate; see e2e/README.md"]
 async fn failed_import_keeps_previous_snapshot() {
     let env = TestEnv::bootstrap().await;
     publish_version(&env, V1_RES);
@@ -325,10 +314,12 @@ async fn failed_import_keeps_previous_snapshot() {
 
     let paths = script_paths(&database, StoryResourceType::Background, "bg_test_1").await;
     assert_eq!(paths, vec!["activities/test/level_test_01_beg"]);
+
+    env.shutdown().await;
 }
 
 #[tokio::test]
-#[ignore = "manual e2e test requiring a local k3s (deploy/k3s/dev), rc, and fixture assets"]
+#[ignore = "e2e: requires PostgreSQL, RustFS, rc and plocate; see e2e/README.md"]
 async fn gamedata_ready_watcher_imports_and_follows_latest() {
     let env = TestEnv::bootstrap_worker().await;
     publish_version(&env, V1_RES);
@@ -365,5 +356,7 @@ async fn gamedata_ready_watcher_imports_and_follows_latest() {
         "old snapshot rows must be replaced after latest switch: {old_paths:?}"
     );
 
-    let _ = worker.start_kill();
+    worker.kill().await.unwrap();
+
+    env.shutdown().await;
 }

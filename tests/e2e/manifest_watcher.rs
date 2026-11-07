@@ -6,7 +6,7 @@ use tokio::time::sleep;
 const RES_VERSION: &str = "26-05-27-13-32-37_d44f28";
 
 #[tokio::test]
-#[ignore = "manual e2e test requiring a local k3s (deploy/k3s/dev), rc, and fixture assets"]
+#[ignore = "e2e: requires PostgreSQL, RustFS, rc and plocate; see e2e/README.md"]
 async fn manifest_watcher_imports_new_manifest_file() {
     let env = TestEnv::bootstrap_worker().await;
     let version_id = env
@@ -28,9 +28,11 @@ async fn manifest_watcher_imports_new_manifest_file() {
 
     // Wait for bundles to be downloaded (seed logic)
     let ready_result = support::wait_for_ready_version(&database, Duration::from_mins(1)).await;
-    let _ = worker.start_kill();
+    worker.kill().await.unwrap();
 
     mapping_result.unwrap();
     ready_result.unwrap();
     support::assert_manifest_fixture_imported(&database, version_id).await;
+
+    env.shutdown().await;
 }
