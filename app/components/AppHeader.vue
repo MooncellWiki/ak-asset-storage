@@ -380,6 +380,7 @@ const logoFailed = ref(false);
 
   .search-trigger {
     order: -1;
+    align-self: center;
     width: min(50vw, 320px);
     margin: 0 var(--ak-space-3);
   }
