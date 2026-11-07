@@ -313,7 +313,10 @@ async fn failed_import_keeps_previous_snapshot() {
         sort_order: 0,
     };
     let result = database
-        .replace_story_resource_usages(&[duplicate.clone(), duplicate])
+        .replace_story_resource_usages(
+            &[duplicate.clone(), duplicate],
+            &std::collections::HashMap::new(),
+        )
         .await;
     assert!(
         result.is_err(),

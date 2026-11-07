@@ -3,6 +3,7 @@
 use crate::api::{
     AppState, embed, handlers, mcp,
     middleware::{apply_axum_middleware, serve_dir_with_charset},
+    story_explorer,
 };
 use axum::{Json, Router, handler::HandlerWithoutStateExt, routing::get};
 use rmcp::transport::streamable_http_server::{
@@ -48,6 +49,7 @@ pub fn build_router(state: AppState) -> Router {
         .routes(routes!(handlers::get_item_demand))
         .routes(routes!(handlers::get_story_resource_usages))
         .routes(routes!(handlers::list_story_resources))
+        .routes(routes!(story_explorer::explore_story_resources))
         .routes(routes!(handlers::launch_container))
         .split_for_parts();
 

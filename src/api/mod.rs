@@ -7,6 +7,7 @@ mod middleware;
 mod router;
 mod state;
 mod story;
+mod story_explorer;
 mod types;
 mod utils;
 

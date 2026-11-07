@@ -105,6 +105,38 @@ Set `[mcp] enable = true` to expose the read-only query tools at `/mcp` (Streama
 - MCP never returns file contents: clients download a file's `url` and extract what they
   need themselves (gamedata tables are several MB each).
 
+### Story resource explorer
+
+`GET /api/v1/story-resources/explore?type=character&page=1&pageSize=60`
+returns one page with `total`, `matchedTotal`, `counts` (all resource types),
+`categoryCounts`, and the dataset's `updatedAt`. It does not require the client
+to collect the entire resource list. The existing cursor-based list and usage
+interfaces remain compatible.
+
+- `q`: case-insensitive AND keywords, literal substring matching; also accepts
+  pasted script commands, wiki filenames, and exact expression aliases.
+- `groupBy=base|resource` (default `base`): characters sharing a character.json
+  base are grouped **before** counting, sorting and paging. Group `count` is
+  the distinct union of scripts across all variants; each member keeps its own
+  `scriptCount`. Any matching member includes the group, represented by the
+  first matching member in natural order.
+- `category=operator|npc|other`: filters characters only. Type counts ignore
+  the selected type; category counts also ignore the selected category.
+- `sort=id|scriptCount`, `order=asc|desc`: natural ID sorting compares numeric
+  runs by value, with the original ID as the deterministic tie-breaker. Script
+  count ties use ascending natural ID order.
+- `page` is 1-based and clamps to the last page; `pageSize` is 1–500 (default 60).
+- `focus`: an exact listing ID for a shared detail. Returns `selection` and
+  locates its page if it matches the filters; otherwise the detail remains
+  available separately. `focusIndex` is zero-based, or null when not matched.
+
+`story_resource_catalog` is derived data: the migration backfills it from the
+current usages, and subsequent story imports rebuild it in the **same
+transaction** as usages and `story_dataset.updated_at`. Re-imports also include
+unused face aliases from character.json; the migration alone can recover only
+aliases already in the usage snapshot. Deploy this backend and migration before
+switching prts-widgets to the paginated interface.
+
 ### Torappu
 
 ```toml

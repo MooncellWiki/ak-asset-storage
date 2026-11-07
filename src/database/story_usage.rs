@@ -36,7 +36,11 @@ impl Database {
     /// Replaces the whole `story_resource_usages` snapshot and touches
     /// `story_dataset.updated_at` in one transaction. On failure the previous
     /// snapshot stays readable.
-    pub async fn replace_story_resource_usages(&self, rows: &[StoryUsageRow]) -> AppResult<()> {
+    pub async fn replace_story_resource_usages(
+        &self,
+        rows: &[StoryUsageRow],
+        aliases: &std::collections::HashMap<String, String>,
+    ) -> AppResult<()> {
         let mut tx = self
             .pool()
             .begin()
@@ -75,6 +79,12 @@ impl Database {
             .await
             .map_err(|err| AppError::ExternalService(err.into()))?;
         }
+
+        let aliases = serde_json::to_value(aliases)?;
+        sqlx::query!("SELECT story_refresh_resource_catalog($1)", aliases)
+            .execute(&mut *tx)
+            .await
+            .map_err(|err| AppError::ExternalService(err.into()))?;
 
         sqlx::query!(
             r#"
