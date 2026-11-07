@@ -179,6 +179,17 @@
                 >
                   <AsIcon name="book" :size="16" />
                 </RouterLink>
+                <a
+                  v-if="wikiPages.get(u.scriptPath)"
+                  class="ak-btn ak-btn--ghost ak-btn--icon ak-btn--sm"
+                  :href="wikiPages.get(u.scriptPath)"
+                  target="_blank"
+                  rel="noopener"
+                  title="在 PRTS 查看"
+                  aria-label="在 PRTS 查看"
+                >
+                  <AsIcon name="external" :size="16" />
+                </a>
               </span>
             </td>
           </tr>
@@ -211,6 +222,7 @@ import { useRoute, useRouter } from "vue-router";
 import { client } from "~/common/client";
 import { useCopy } from "~/common/clipboard";
 import { assetUrl, formatCount, splitPath } from "~/common/utils";
+import { loadStoryPages } from "~/common/wiki";
 import AsIcon from "~/components/AsIcon.vue";
 import PaneBox from "~/components/layout/PaneBox.vue";
 import PaneNote from "~/components/layout/PaneNote.vue";
@@ -378,6 +390,13 @@ async function loadUsages(more = false) {
   }
 }
 watch([type, selectedId], () => loadUsages(), { immediate: true });
+
+/** Wiki pages of the loaded scripts; rows without one just have no link. */
+const wikiPages = shallowRef(new Map<string, string>());
+watch(usages, async (list) => {
+  const pages = await loadStoryPages(list.map((u) => u.scriptPath));
+  if (list === usages.value) wikiPages.value = pages;
+});
 
 const scriptFilter = ref("");
 /** Loaded scripts grouped by their directory (one activity / chapter each). */

@@ -26,6 +26,15 @@
           </button>
         </div>
         <div class="preview__actions">
+          <a
+            v-if="wikiPage"
+            class="ak-btn ak-btn--sm"
+            :href="wikiPage"
+            target="_blank"
+            rel="noopener"
+          >
+            <AsIcon name="external" :size="16" />在 PRTS 查看
+          </a>
           <button
             v-if="text !== undefined"
             type="button"
@@ -129,6 +138,7 @@ import {
   formatSize,
   parentPath,
 } from "~/common/utils";
+import { loadStoryPages, storyScript } from "~/common/wiki";
 import AsIcon from "../AsIcon.vue";
 import CodeView from "../CodeView.vue";
 import KvList from "../KvList.vue";
@@ -204,6 +214,20 @@ const tabs = computed(() => {
 });
 const shown = computed(
   () => (pretty.value && formatted.value) || text.value || "",
+);
+
+/** The wiki page of a story script, when there is one. */
+const wikiPage = ref<string>();
+watch(
+  () => props.entry.path,
+  async (path) => {
+    wikiPage.value = undefined;
+    const script = storyScript(path);
+    if (!script) return;
+    const pages = await loadStoryPages([script]);
+    if (path === props.entry.path) wikiPage.value = pages.get(script);
+  },
+  { immediate: true },
 );
 </script>
 
