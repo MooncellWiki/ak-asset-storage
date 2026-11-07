@@ -114,7 +114,8 @@ to collect the entire resource list. The existing cursor-based list and usage
 interfaces remain compatible.
 
 - `q`: case-insensitive AND keywords, literal substring matching; also accepts
-  pasted script commands, wiki filenames, and exact expression aliases.
+  pasted script commands, wiki filenames, and exact expression aliases. Up to
+  2048 bytes; only the first 32 distinct keywords are used.
 - `groupBy=base|resource` (default `base`): characters sharing a character.json
   base are grouped **before** counting, sorting and paging. Group `count` is
   the distinct union of scripts across all variants; each member keeps its own
@@ -123,12 +124,16 @@ interfaces remain compatible.
 - `category=operator|npc|other`: filters characters only. Type counts ignore
   the selected type; category counts also ignore the selected category.
 - `sort=id|scriptCount`, `order=asc|desc`: natural ID sorting compares numeric
-  runs by value, with the original ID as the deterministic tie-breaker. Script
-  count ties use ascending natural ID order.
+  runs by value and orders `_` < `#` < `$` < digits < letters, with the original
+  ID as the deterministic tie-breaker. Script count ties use ascending natural
+  ID order.
 - `page` is 1-based and clamps to the last page; `pageSize` is 1–500 (default 60).
 - `focus`: an exact listing ID for a shared detail. Returns `selection` and
   locates its page if it matches the filters; otherwise the detail remains
   available separately. `focusIndex` is zero-based, or null when not matched.
+
+Responses carry `Cache-Control: private, max-age=60`, so browsers may reuse them
+briefly while shared caches never store them.
 
 `story_resource_catalog` is derived data: the migration backfills it from the
 current usages, and subsequent story imports rebuild it in the **same

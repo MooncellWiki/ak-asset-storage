@@ -12,6 +12,112 @@ pub struct StoryExploreOptions<'a> {
     pub focus: Option<&'a str>,
 }
 
+impl Database {
+    /// All results and facets come from one database snapshot. Search and
+    /// grouping precede paging; unrelated types contribute counts, not rows.
+    pub async fn explore_story_resources(
+        &self,
+        options: &StoryExploreOptions<'_>,
+    ) -> AppResult<serde_json::Value> {
+        sqlx::query_scalar!(
+            r#"
+            WITH catalog AS MATERIALIZED (
+                SELECT c.*,
+                    CASE WHEN $4::boolean THEN coalesce(base, id) ELSE id END AS group_id,
+                    CASE WHEN $4 THEN group_script_count ELSE script_count END AS count,
+                    jsonb_build_object('type', resource_type, 'id', id, 'base', base,
+                        'category', category, 'scriptCount', script_count) AS resource
+                FROM story_resource_catalog c
+            ), matched AS (
+                SELECT *, CASE WHEN cardinality($2::text[]) = 1
+                    AND $2[1] = ANY(aliases) AND position('#' IN id) = 0
+                    AND resource_type = 'character'
+                    THEN nullif(split_part($2[1], '#', 2), '') ELSE NULL END AS face
+                FROM catalog c
+                WHERE NOT EXISTS (SELECT FROM unnest($2::text[]) term
+                                  WHERE position(term IN lower(c.id)) = 0)
+                   OR (cardinality($2::text[]) = 1 AND $2[1] = ANY(c.aliases))
+            ), grouped AS MATERIALIZED (
+                SELECT DISTINCT ON (resource_type, group_id) *
+                FROM matched ORDER BY resource_type, group_id, sort_key, id COLLATE "C"
+            ), filtered AS MATERIALIZED (
+                SELECT * FROM grouped WHERE resource_type <> 'character'
+                    OR $3::text IS NULL OR category = $3
+            ), ordered AS MATERIALIZED (
+                SELECT *, row_number() OVER (ORDER BY
+                    CASE WHEN $5::boolean AND NOT $6::boolean THEN count END ASC,
+                    CASE WHEN $5 AND $6 THEN count END DESC,
+                    CASE WHEN NOT $5 AND $6 THEN sort_key END DESC,
+                    CASE WHEN $5 OR NOT $6 THEN sort_key END ASC,
+                    id COLLATE "C" ASC) - 1 AS position
+                FROM filtered WHERE resource_type = $1
+            ), focus AS (
+                SELECT * FROM catalog WHERE resource_type = $1 AND id = $9::text
+            ), stats AS (
+                SELECT count(*) AS matched_total,
+                    (SELECT count(DISTINCT group_id) FROM catalog WHERE resource_type = $1) AS total,
+                    (SELECT o.position FROM ordered o JOIN focus f USING (resource_type, group_id)) AS focus_index
+                FROM ordered
+            ), paging AS (
+                SELECT *, greatest(1, (matched_total + $8::bigint - 1) / $8) AS page_count,
+                    coalesce(focus_index / $8 + 1,
+                        least($7::bigint, greatest(1, (matched_total + $8 - 1) / $8))) AS page
+                FROM stats
+            ), selected AS (
+                SELECT o.*, false AS selection FROM ordered o, paging p
+                WHERE o.position >= (p.page - 1) * $8 AND o.position < p.page * $8
+                UNION ALL
+                SELECT f.*, NULL::text AS face, NULL::bigint AS position, true AS selection FROM focus f
+            ), members AS (
+                SELECT c.resource_type, coalesce(c.base, c.id) AS member_key,
+                    jsonb_agg(c.resource ORDER BY c.sort_key, c.id COLLATE "C") AS members
+                FROM catalog c
+                WHERE (c.resource_type, coalesce(c.base, c.id)) IN (
+                    SELECT resource_type, coalesce(base, id) FROM selected
+                )
+                GROUP BY c.resource_type, coalesce(c.base, c.id)
+            ), entries AS (
+                SELECT s.position, s.selection, jsonb_build_object(
+                    'resource', s.resource, 'face', s.face, 'count', s.count,
+                    'merged', CASE WHEN $4 THEN jsonb_array_length(m.members) ELSE 1 END,
+                    'members', m.members) AS entry
+                FROM selected s JOIN members m
+                    ON m.resource_type = s.resource_type AND m.member_key = coalesce(s.base, s.id)
+            )
+            SELECT jsonb_build_object(
+                'entries', coalesce((SELECT jsonb_agg(entry ORDER BY position) FROM entries WHERE NOT selection), '[]'),
+                'selection', (SELECT entry FROM entries WHERE selection),
+                'focusIndex', p.focus_index,
+                'total', p.total, 'matchedTotal', p.matched_total,
+                'page', p.page, 'pageSize', $8::bigint, 'pageCount', p.page_count,
+                'counts', jsonb_build_object(
+                    'character', (SELECT count(*) FROM filtered WHERE resource_type = 'character'),
+                    'background', (SELECT count(*) FROM filtered WHERE resource_type = 'background'),
+                    'image', (SELECT count(*) FROM filtered WHERE resource_type = 'image'),
+                    'item', (SELECT count(*) FROM filtered WHERE resource_type = 'item')),
+                'categoryCounts', jsonb_build_object(
+                    'operator', (SELECT count(*) FROM grouped WHERE category = 'operator'),
+                    'npc', (SELECT count(*) FROM grouped WHERE category = 'npc'),
+                    'other', (SELECT count(*) FROM grouped WHERE category = 'other')),
+                'updatedAt', (SELECT updated_at::text FROM story_dataset)
+            ) AS "response!: serde_json::Value" FROM paging p
+            "#,
+            options.resource_type,
+            options.terms,
+            options.category,
+            options.merged,
+            options.sort_count,
+            options.descending,
+            options.page,
+            options.page_size,
+            options.focus,
+        )
+        .fetch_one(self.pool())
+        .await
+        .map_err(|err| AppError::ExternalService(err.into()))
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -241,110 +347,82 @@ mod tests {
         assert_eq!(result["entries"], serde_json::json!([]));
         assert_eq!(result["pageCount"], 1);
     }
-}
 
-impl Database {
-    /// All results and facets come from one database snapshot. Search and
-    /// grouping precede paging; unrelated types contribute counts, not rows.
-    pub async fn explore_story_resources(
-        &self,
-        options: &StoryExploreOptions<'_>,
-    ) -> AppResult<serde_json::Value> {
-        sqlx::query_scalar!(
-            r#"
-            WITH catalog AS MATERIALIZED (
-                SELECT c.*,
-                    CASE WHEN $4::boolean THEN coalesce(base, id) ELSE id END AS group_id,
-                    CASE WHEN $4 THEN group_script_count ELSE script_count END AS count,
-                    jsonb_build_object('type', resource_type, 'id', id, 'base', base,
-                        'category', category, 'scriptCount', script_count) AS resource
-                FROM story_resource_catalog c
-            ), matched AS (
-                SELECT *, CASE WHEN cardinality($2::text[]) = 1
-                    AND $2[1] = ANY(aliases) AND position('#' IN id) = 0
-                    AND resource_type = 'character'
-                    THEN nullif(split_part($2[1], '#', 2), '') ELSE NULL END AS face
-                FROM catalog c
-                WHERE NOT EXISTS (SELECT FROM unnest($2::text[]) term
-                                  WHERE position(term IN lower(c.id)) = 0)
-                   OR (cardinality($2::text[]) = 1 AND $2[1] = ANY(c.aliases))
-            ), grouped AS MATERIALIZED (
-                SELECT DISTINCT ON (resource_type, group_id) *
-                FROM matched ORDER BY resource_type, group_id, sort_key, id COLLATE "C"
-            ), filtered AS MATERIALIZED (
-                SELECT * FROM grouped WHERE resource_type <> 'character'
-                    OR $3::text IS NULL OR category = $3
-            ), ordered AS MATERIALIZED (
-                SELECT *, row_number() OVER (ORDER BY
-                    CASE WHEN $5::boolean AND NOT $6::boolean THEN count END ASC,
-                    CASE WHEN $5 AND $6 THEN count END DESC,
-                    CASE WHEN NOT $5 AND $6 THEN sort_key END DESC,
-                    CASE WHEN $5 OR NOT $6 THEN sort_key END ASC,
-                    id COLLATE "C" ASC) - 1 AS position
-                FROM filtered WHERE resource_type = $1
-            ), focus AS (
-                SELECT * FROM catalog WHERE resource_type = $1 AND id = $9::text
-            ), stats AS (
-                SELECT count(*) AS matched_total,
-                    (SELECT count(DISTINCT group_id) FROM catalog WHERE resource_type = $1) AS total,
-                    (SELECT o.position FROM ordered o JOIN focus f USING (resource_type, group_id)) AS focus_index
-                FROM ordered
-            ), paging AS (
-                SELECT *, greatest(1, (matched_total + $8::bigint - 1) / $8) AS page_count,
-                    coalesce(focus_index / $8 + 1,
-                        least($7::bigint, greatest(1, (matched_total + $8 - 1) / $8))) AS page
-                FROM stats
-            ), selected AS (
-                SELECT o.*, false AS selection FROM ordered o, paging p
-                WHERE o.position >= (p.page - 1) * $8 AND o.position < p.page * $8
-                UNION ALL
-                SELECT f.*, NULL::text AS face, NULL::bigint AS position, true AS selection FROM focus f
-            ), members AS (
-                SELECT c.resource_type, coalesce(c.base, c.id) AS member_key,
-                    jsonb_agg(c.resource ORDER BY c.sort_key, c.id COLLATE "C") AS members
-                FROM catalog c
-                WHERE (c.resource_type, coalesce(c.base, c.id)) IN (
-                    SELECT resource_type, coalesce(base, id) FROM selected
-                )
-                GROUP BY c.resource_type, coalesce(c.base, c.id)
-            ), entries AS (
-                SELECT s.position, s.selection, jsonb_build_object(
-                    'resource', s.resource, 'face', s.face, 'count', s.count,
-                    'merged', CASE WHEN $4 THEN jsonb_array_length(m.members) ELSE 1 END,
-                    'members', m.members) AS entry
-                FROM selected s JOIN members m
-                    ON m.resource_type = s.resource_type AND m.member_key = coalesce(s.base, s.id)
-            )
-            SELECT jsonb_build_object(
-                'entries', coalesce((SELECT jsonb_agg(entry ORDER BY position) FROM entries WHERE NOT selection), '[]'),
-                'selection', (SELECT entry FROM entries WHERE selection),
-                'focusIndex', p.focus_index,
-                'total', p.total, 'matchedTotal', p.matched_total,
-                'page', p.page, 'pageSize', $8::bigint, 'pageCount', p.page_count,
-                'counts', jsonb_build_object(
-                    'character', (SELECT count(*) FROM filtered WHERE resource_type = 'character'),
-                    'background', (SELECT count(*) FROM filtered WHERE resource_type = 'background'),
-                    'image', (SELECT count(*) FROM filtered WHERE resource_type = 'image'),
-                    'item', (SELECT count(*) FROM filtered WHERE resource_type = 'item')),
-                'categoryCounts', jsonb_build_object(
-                    'operator', (SELECT count(*) FROM grouped WHERE category = 'operator'),
-                    'npc', (SELECT count(*) FROM grouped WHERE category = 'npc'),
-                    'other', (SELECT count(*) FROM grouped WHERE category = 'other')),
-                'updatedAt', (SELECT updated_at::text FROM story_dataset)
-            ) AS "response!: serde_json::Value" FROM paging p
-            "#,
-            options.resource_type,
-            options.terms,
-            options.category,
-            options.merged,
-            options.sort_count,
-            options.descending,
-            options.page,
-            options.page_size,
-            options.focus,
-        )
-        .fetch_one(self.pool())
-        .await
-        .map_err(|err| AppError::ExternalService(err.into()))
+    #[sqlx::test]
+    #[ignore = "requires local PostgreSQL; run with DATABASE_URL and --ignored"]
+    async fn catalog_keeps_the_widget_order_and_categories(pool: sqlx::PgPool) {
+        use StoryResourceType::{Background, Character};
+        let database = Database { pool };
+        let listing = |kind, id: &str| usage("a", kind, id, id);
+        let mut rows = [
+            "bg_desert03_d",
+            "bg_desert_2",
+            "bg_desert_1",
+            "bg_desert_10",
+        ]
+        .map(|id| listing(Background, id))
+        .to_vec();
+        let characters = [
+            ("avg_npc_009", "npc"),
+            ("avg_npc_1898_1$1", "npc"),
+            ("npc_2001_aya_1#npc_2001_Aya_1", "npc"),
+            ("avgnew_npc_140_1$1", "npc"),
+            ("avg_003_kalts_1$1", "operator"),
+            ("char_211_adnach_1#char_211_adnach_6", "operator"),
+            ("avgnew_112_siege_1$1", "operator"),
+            ("avg_char_501_durin_1#x", "operator"),
+            ("avg_doc_1#avg_doc_1", "other"),
+            ("char_empty#char_empty", "other"),
+            ("avg_4091_ulika2_1$1", "operator"),
+            ("avg_4091_ulika_1$1", "operator"),
+        ];
+        rows.extend(characters.map(|(id, _)| listing(Character, id)));
+        database
+            .replace_story_resource_usages(&rows, &HashMap::new())
+            .await
+            .expect("import");
+
+        let ids = |result: &serde_json::Value| {
+            result["entries"]
+                .as_array()
+                .expect("entries")
+                .iter()
+                .map(|entry| entry["resource"]["id"].as_str().expect("id").to_string())
+                .collect::<Vec<_>>()
+        };
+        let mut query = options();
+        query.page_size = 50;
+        query.merged = false;
+        query.resource_type = "background";
+        let result = database
+            .explore_story_resources(&query)
+            .await
+            .expect("backgrounds");
+        assert_eq!(
+            ids(&result),
+            [
+                "bg_desert_1",
+                "bg_desert_2",
+                "bg_desert_10",
+                "bg_desert03_d"
+            ]
+        );
+
+        query.resource_type = "character";
+        let result = database
+            .explore_story_resources(&query)
+            .await
+            .expect("characters");
+        let listed = ids(&result);
+        let at = |id: &str| listed.iter().position(|item| item == id).expect("listed");
+        assert!(at("avg_4091_ulika_1$1") < at("avg_4091_ulika2_1$1"));
+        for entry in result["entries"].as_array().expect("entries") {
+            let id = entry["resource"]["id"].as_str().expect("id");
+            let (_, category) = characters
+                .iter()
+                .find(|(character, _)| *character == id)
+                .expect("known id");
+            assert_eq!(entry["resource"]["category"], *category, "{id}");
+        }
     }
 }

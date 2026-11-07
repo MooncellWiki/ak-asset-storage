@@ -7,19 +7,20 @@ CREATE TABLE story_resource_catalog (
     script_count BIGINT NOT NULL,
     group_script_count BIGINT NOT NULL,
     aliases TEXT[] NOT NULL,
-    sort_key TEXT[] COLLATE "C" NOT NULL,
+    sort_key TEXT COLLATE "C" NOT NULL,
     PRIMARY KEY (resource_type, id)
 );
-CREATE INDEX story_resource_catalog_base_idx ON story_resource_catalog (base)
-    WHERE base IS NOT NULL;
 
--- Numeric runs compare by significant length, then value (no integer overflow).
+-- Natural order for COLLATE "C", matching the Intl.Collator("en", { numeric: true })
+-- the widget used to sort with: `_` < `#` < `$` < digits < letters, so `_` becomes
+-- a space. Numeric runs compare by significant length, then value (no integer
+-- overflow), and their zero-padded length keeps them between `$` and letters.
 -- Equal natural keys are ordered by the original id by callers.
-CREATE FUNCTION story_resource_sort_key(value TEXT) RETURNS TEXT[]
+CREATE FUNCTION story_resource_sort_key(value TEXT) RETURNS TEXT
 LANGUAGE SQL IMMUTABLE STRICT PARALLEL SAFE AS $$
-    SELECT array_agg(CASE WHEN token[1] ~ '^[0-9]'
-        THEN 'n' || lpad(length(ltrim(token[1], '0'))::text, 10, '0') || ltrim(token[1], '0')
-        ELSE 't' || token[1] END ORDER BY ordinal)
+    SELECT string_agg(CASE WHEN token[1] ~ '^[0-9]'
+        THEN lpad(length(ltrim(token[1], '0'))::text, 10, '0') || ltrim(token[1], '0')
+        ELSE replace(token[1], '_', ' ') END, '' ORDER BY ordinal)
     FROM regexp_matches(lower(value), '([0-9]+|[^0-9]+)', 'g') WITH ORDINALITY AS parts(token, ordinal)
 $$;
 

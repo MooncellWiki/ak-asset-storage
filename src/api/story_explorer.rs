@@ -1,9 +1,10 @@
 //! A complete browse response: callers never need to collect the catalog to
 //! search, sort, group, count facets, jump pages, or open a shared resource.
-use std::sync::LazyLock;
+use std::{collections::HashSet, sync::LazyLock};
 
 use axum::{
     extract::{Query, State},
+    http::{HeaderValue, header::CACHE_CONTROL},
     response::Response,
 };
 use regex::Regex;
@@ -162,6 +163,30 @@ fn normalize_query(raw: &str) -> String {
     text.replace('-', "#")
 }
 
+/// Every term is a substring scan over the whole catalog, so a public request
+/// must not be able to multiply the query cost with thousands of short terms.
+const MAX_SEARCH_TERMS: usize = 32;
+
+/// The catalog only changes on import. The deployment sits behind a CDN and
+/// this response varies by query string, so only the browser may store it.
+const CACHE_POLICY: HeaderValue = HeaderValue::from_static("private, max-age=60");
+
+fn search_terms(raw: &str) -> Vec<String> {
+    let normalized = normalize_query(raw);
+    let mut seen = HashSet::new();
+    normalized
+        .split_whitespace()
+        .filter(|term| seen.insert(*term))
+        .take(MAX_SEARCH_TERMS)
+        .map(str::to_string)
+        .collect()
+}
+
+fn cacheable(mut response: Response) -> Response {
+    response.headers_mut().insert(CACHE_CONTROL, CACHE_POLICY);
+    response
+}
+
 #[utoipa::path(
     get, path = "/story-resources/explore", tag = "story", params(ExploreQuery),
     responses(
@@ -189,10 +214,7 @@ pub async fn explore_story_resources(
             "invalid search or pagination".to_string(),
         ));
     }
-    let terms = normalize_query(raw)
-        .split_whitespace()
-        .map(str::to_string)
-        .collect::<Vec<_>>();
+    let terms = search_terms(raw);
     let response = state
         .database
         .explore_story_resources(&StoryExploreOptions {
@@ -209,12 +231,12 @@ pub async fn explore_story_resources(
         .await?;
     let response: ExploreResponse =
         serde_json::from_value(response).map_err(crate::AppError::from)?;
-    Ok(json(response))
+    Ok(cacheable(json(response)))
 }
 
 #[cfg(test)]
 mod tests {
-    use super::normalize_query;
+    use super::*;
 
     #[test]
     fn search_accepts_script_commands_and_wiki_filenames() {
@@ -226,6 +248,28 @@ mod tests {
         assert_eq!(
             normalize_query("文件:Avg avg 2026 yu 1-1$1.png"),
             "avg_2026_yu_1#1$1"
+        );
+    }
+
+    #[test]
+    fn search_terms_are_distinct_and_bounded() {
+        assert_eq!(search_terms("npc NPC  10"), ["npc", "10"]);
+        assert_eq!(search_terms(&"a ".repeat(1024)), ["a"]);
+        let many = (0..100)
+            .map(|n| format!("t{n}"))
+            .collect::<Vec<_>>()
+            .join(" ");
+        let terms = search_terms(&many);
+        assert_eq!(terms.len(), MAX_SEARCH_TERMS);
+        assert_eq!(terms[0], "t0");
+    }
+
+    #[test]
+    fn responses_stay_out_of_shared_caches() {
+        let response = cacheable(json(serde_json::json!({})));
+        assert_eq!(
+            response.headers().get(CACHE_CONTROL).expect("header"),
+            "private, max-age=60"
         );
     }
 }
