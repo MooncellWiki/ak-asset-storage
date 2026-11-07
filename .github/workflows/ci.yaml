@@ -100,28 +100,109 @@ jobs:
       # The plocate search tests need real updatedb/plocate binaries and fail
       # (instead of skipping) when CI is set and they are missing.
       - name: Install plocate
-        shell: bash
-        run: |
-          # plocate's postinst skips the initial scan when plocate.db exists.
-          # Tests build their own indexes, so stop system indexing and remove
-          # the temporary placeholder as soon as installation finishes.
-          sudo systemctl mask plocate-updatedb.timer plocate-updatedb.service
-          sudo mkdir -p /var/lib/plocate
-          sudo touch /var/lib/plocate/plocate.db
-          sudo apt-get update
-          sudo apt-get install -y --no-install-recommends plocate
-          sudo systemctl stop plocate-updatedb.timer plocate-updatedb.service
-          sudo rm -f /var/lib/plocate/plocate.db
+        uses: ./.github/actions/plocate
       - name: Run cargo test
         shell: bash
         run: cargo test --locked --all-features -- --nocapture
       # sqlx::test creates an isolated database per test. Scoped by name because
-      # the other ignored tests are the manual k3s e2e suite.
+      # the other ignored tests run in the separate e2e job.
       - name: Run PostgreSQL tests
         shell: bash
         env:
           DATABASE_URL: postgres://postgres:postgres@localhost:5432/postgres
         run: cargo test --locked --all-features --lib database::story_explorer -- --ignored --nocapture
+
+  e2e:
+    name: Run E2E Tests
+    runs-on: ubuntu-latest
+    needs: eslint
+    timeout-minutes: 30
+    env:
+      AK_E2E_DEPENDENCIES: external
+      # Compile against a migrated database that the e2e harness never resets.
+      DATABASE_URL: postgres://ak:ak@localhost:32432/ak_asset_storage_next
+      SQLX_OFFLINE: "false"
+      RUST_BACKTRACE: "1"
+    services:
+      postgres:
+        image: postgres:17.6
+        env:
+          POSTGRES_USER: ak
+          POSTGRES_PASSWORD: ak
+          POSTGRES_DB: ak_asset_storage_next
+        ports:
+          - 32432:5432
+        options: >-
+          --health-cmd "pg_isready -U ak -d ak_asset_storage_next"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
+      rustfs:
+        image: rustfs/rustfs:1.0.3@sha256:9ca9559533b537d10482fe923288b676ad08f92a7069d9a17327fbae3cab688b
+        env:
+          RUSTFS_ACCESS_KEY: torappu
+          RUSTFS_SECRET_KEY: torappu123
+          RUSTFS_ADDRESS: 0.0.0.0:9000
+          RUSTFS_CONSOLE_ENABLE: "false"
+        ports:
+          - 31000:9000
+        options: >-
+          --health-cmd "curl -fsS http://127.0.0.1:9000/health"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
+    steps:
+      - name: Checkout the code
+        uses: actions/checkout@v7
+      - uses: actions-rust-lang/setup-rust-toolchain@v2
+      - name: Download frontend
+        uses: actions/download-artifact@v8
+        with:
+          name: frontend-dist
+          path: dist
+      - name: Install plocate
+        uses: ./.github/actions/plocate
+      - name: Install SQLx CLI
+        uses: taiki-e/install-action@v2
+        with:
+          tool: sqlx-cli@0.9.0
+      - name: Install RustFS CLI
+        env:
+          VERSION: 0.1.36
+          SHA256: 4a8128911ccad4e7b481f26635a4cfd1ec064412210526e57ad2c748d356f3b7
+        run: |
+          bin="$RUNNER_TEMP/rustfs-cli"
+          mkdir -p "$bin"
+          archive="rustfs-cli-linux-amd64-v$VERSION.tar.gz"
+          curl -fsSL --retry 3 -o "$bin/$archive" \
+            "https://github.com/rustfs/cli/releases/download/v$VERSION/$archive"
+          echo "$SHA256  $bin/$archive" | sha256sum --check --strict
+          tar -xzf "$bin/$archive" -C "$bin" rc
+          echo "$bin" >> "$GITHUB_PATH"
+          "$bin/rc" --version
+      - name: Migrate compile-time database
+        run: sqlx migrate run
+      - name: Run e2e tests
+        run: |
+          set -o pipefail
+          cargo test --locked --all-features --test e2e -- \
+            --ignored --nocapture --test-threads=1 2>&1 | tee "$RUNNER_TEMP/e2e.log"
+      - name: Collect service logs
+        if: failure()
+        env:
+          POSTGRES_CONTAINER: ${{ job.services.postgres.id }}
+          RUSTFS_CONTAINER: ${{ job.services.rustfs.id }}
+        run: |
+          docker logs "$POSTGRES_CONTAINER" > "$RUNNER_TEMP/e2e-postgres.log" 2>&1
+          docker logs "$RUSTFS_CONTAINER" > "$RUNNER_TEMP/e2e-rustfs.log" 2>&1
+      - name: Upload failure logs
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: e2e-logs
+          path: ${{ runner.temp }}/e2e*.log
+          if-no-files-found: ignore
+          retention-days: 7
 
   docker:
     name: Build Docker image

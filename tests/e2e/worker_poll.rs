@@ -2,7 +2,7 @@ use crate::support::{self, TestEnv};
 use std::time::Duration;
 
 #[tokio::test]
-#[ignore = "manual e2e test requiring a local k3s (deploy/k3s/dev), rc, and fixture assets"]
+#[ignore = "e2e: requires PostgreSQL, RustFS, rc and plocate; see e2e/README.md"]
 async fn worker_polls_new_version_and_downloads_assets() {
     let env = TestEnv::bootstrap_worker().await;
     let mut worker = support::spawn_worker(env.config_path(), None, 1);
@@ -12,7 +12,7 @@ async fn worker_polls_new_version_and_downloads_assets() {
         .await
         .unwrap();
 
-    let _ = worker.start_kill();
+    worker.kill().await.unwrap();
 
     let versions = database.query_versions().await.unwrap();
     assert_eq!(versions.len(), 1);
@@ -32,4 +32,6 @@ async fn worker_polls_new_version_and_downloads_assets() {
     );
 
     env.assert_s3_state().await;
+
+    env.shutdown().await;
 }

@@ -20,7 +20,7 @@ const REMOTE_RES_VERSION: &str = "26-05-27-13-32-37_d44f28";
 const REMOTE_CLIENT_VERSION: &str = "2.7.41";
 
 #[tokio::test]
-#[ignore = "manual e2e test requiring a local k3s (deploy/k3s/dev), rc, and fixture assets"]
+#[ignore = "e2e: requires PostgreSQL, RustFS, rc and plocate; see e2e/README.md"]
 async fn worker_launches_job_on_new_version() {
     let env = TestEnv::bootstrap_worker_with_kubernetes().await;
 
@@ -37,7 +37,7 @@ async fn worker_launches_job_on_new_version() {
         .await
         .expect("worker did not create the launch Job within timeout");
 
-    let _ = worker.start_kill();
+    worker.kill().await.unwrap();
 
     // launch_container builds container args as
     //   [client_version, res_version, "-c", prev_client, "-r", prev_res_version]
@@ -62,4 +62,6 @@ async fn worker_launches_job_on_new_version() {
     );
     // The image configured for the worker is the one the Job runs.
     assert_eq!(job.image, "alpine:3.20");
+
+    env.shutdown().await;
 }

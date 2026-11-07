@@ -131,5 +131,8 @@ just e2e          # e2e 全套(串行)
 dev 与 e2e 共用同一套 k3s 依赖(PostgreSQL + RustFS,同一个
 `tmp/rustfs-data`),但分别使用 `ak_asset_storage_next` / `ak_asset_storage_e2e`
 两个库和 `arknights-assets` / `ak-asset-storage-e2e` 两个桶,互不影响。
-e2e 启动时会先调用 `just gen-rustfs` 再 apply,确保 RustFS 清单与当前 checkout
+本地默认模式下,e2e 启动时会先调用 `just gen-rustfs` 再 apply,确保 RustFS 清单与当前 checkout
 一致;e2e 的 Job 启动测试使用进程内假 Kubernetes API,不会实际运行提取镜像。
+
+CI 设置 `AK_E2E_DEPENDENCIES=external`,使用独立的 PostgreSQL/RustFS 容器,
+跳过本地 k3s 初始化。依赖和运行方式见 [e2e/README.md](e2e/README.md)。
