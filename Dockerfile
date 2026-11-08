@@ -18,11 +18,6 @@ RUN cargo chef prepare --recipe-path recipe.json
 
 FROM chef AS build-stage
 ENV SQLX_OFFLINE=true
-# Validate queries against a disposable local PostgreSQL during the final
-# build, keeping the checked-in .sqlx directory untouched.
-RUN apt-get update \
-    && apt-get install -y --no-install-recommends postgresql \
-    && rm -rf /var/lib/apt/lists/*
 # Line tables and function names are enough for Sentry symbolication. Set here,
 # not in Cargo.toml, so other release builds keep Cargo's default stripping.
 ENV CARGO_PROFILE_RELEASE_DEBUG=line-tables-only
@@ -31,11 +26,7 @@ RUN cargo chef cook --release --locked --recipe-path recipe.json
 COPY . .
 COPY --from=frontend / /app/dist
 ARG BUILD_SHA=dev
-RUN pg_virtualenv sh -ec '\
-    export DATABASE_URL="postgresql://${PGUSER}:${PGPASSWORD}@${PGHOST}:${PGPORT}/${PGDATABASE}"; \
-    bash .github/scripts/migrate-build-database.sh; \
-    SQLX_OFFLINE=false BUILD_SHA="$1" cargo build --release --locked --bin ak-asset-storage \
-    ' sh "${BUILD_SHA}"
+RUN BUILD_SHA=${BUILD_SHA} cargo build --release --locked --bin ak-asset-storage
 
 # Split the debug info from the binary the runtime image ships. Workflows check
 # the exported file against that binary with .github/scripts/check-sentry-debug-file.sh.

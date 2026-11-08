@@ -1,0 +1,17 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO launcher_entries (release_id, path, md5, size) SELECT $1, * FROM UNNEST($2::text[], $3::text[], $4::bigint[])",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Int8",
+        "TextArray",
+        "TextArray",
+        "Int8Array"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "7041feb949c03ea22e81c6e12e46e563d05e2019c6cf1a50303e0ae1332142c4"
+}
