@@ -23,6 +23,24 @@ function proxy(target: string): ProxyOptions {
   return { target: remote ?? target, changeOrigin: Boolean(remote) };
 }
 
+// Release builds set AK_FE_CDN (e.g. https://static.prts.wiki/torappu-fe/) and
+// upload the build assets there, so tabs opened on an earlier release can still
+// load their chunks after a deploy replaces the embedded copy. Only asset URLs
+// move: `base` stays "/" since the router uses it as the history base.
+const ASSETS_DIR = "fe";
+// An empty AK_FE_CDN means no CDN.
+const feCdn = process.env.AK_FE_CDN
+  ? process.env.AK_FE_CDN.replace(/\/?$/, "/")
+  : undefined;
+function assetUrl(
+  filename: string,
+  { type }: { type: "asset" | "public" },
+): string | undefined {
+  if (feCdn && type === "asset" && filename.startsWith(`${ASSETS_DIR}/`))
+    return feCdn + filename.slice(ASSETS_DIR.length + 1);
+  return undefined;
+}
+
 // Web fonts are not in @mooncellwiki/prts-design-css; prts.wiki serves the
 // Arknights skin's set and allows *.prts.wiki origins (CORS). The dev server
 // proxies it, since localhost is not allowed.
@@ -53,7 +71,10 @@ function skinFonts(): Plugin {
 
 export default defineConfig({
   build: {
-    assetsDir: "fe",
+    assetsDir: ASSETS_DIR,
+  },
+  experimental: {
+    renderBuiltUrl: assetUrl,
   },
   define: {
     __APP_VERSION__: JSON.stringify(cargoVersion ?? "dev"),

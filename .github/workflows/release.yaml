@@ -4,6 +4,12 @@ on:
     tags:
       - "*"
 
+env:
+  # The CDN serves this bucket prefix. Asset names hash content but not this
+  # URL, so moving FE_CDN needs a fresh prefix: existing objects are skipped.
+  FE_CDN: https://static.prts.wiki/torappu-fe/
+  FE_OSS_PREFIX: torappu-fe/
+
 jobs:
   build:
     name: Release
@@ -34,6 +40,38 @@ jobs:
           echo "name=ghcr.io/${REPOSITORY,,}" >> "$GITHUB_OUTPUT"
           echo "cache=ghcr.io/${REPOSITORY,,}-cache:buildcache" >> "$GITHUB_OUTPUT"
 
+      # Reads pnpm from packageManager and Node.js from .node-version, then
+      # installs the dependencies. Tag-scoped caches are not reused, so only
+      # restore the store.
+      - name: Setup pnpm and Node.js
+        uses: pnpm/setup@v3
+        with:
+          cache: true
+          save-cache: false
+          require-lockfile: true
+
+      # The assets go to OSS before the image is pushed, so the chunks its
+      # index.html names are on the CDN by the time it is deployed.
+      - name: Build frontend
+        env:
+          AK_FE_CDN: ${{ env.FE_CDN }}
+        run: pnpm run build
+
+      - name: Setup ossutil
+        uses: ./.github/actions/ossutil
+
+      - name: Upload frontend assets
+        env:
+          OSS_ACCESS_KEY_ID: ${{ secrets.OSS_ACCESS_KEY_ID }}
+          OSS_ACCESS_KEY_SECRET: ${{ secrets.OSS_ACCESS_KEY_SECRET }}
+          OSS_REGION: ${{ secrets.OSS_REGION }}
+          # GitHub runners are overseas; use OSS transfer acceleration.
+          OSS_ENDPOINT: oss-accelerate.aliyuncs.com
+          OSS_BUCKET: ${{ secrets.OSS_BUCKET }}
+        run: |
+          : "${OSS_BUCKET:?Set the OSS_BUCKET repository secret}"
+          .github/scripts/upload-frontend.sh dist "$FE_CDN" "oss://$OSS_BUCKET/$FE_OSS_PREFIX"
+
       - name: Extract Docker Metadata
         id: meta
         uses: docker/metadata-action@v6
@@ -52,6 +90,8 @@ jobs:
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
+          # The uploaded files (see the Dockerfile's frontend stage).
+          build-contexts: frontend=dist
           build-args: BUILD_SHA=${{ github.sha }}
           cache-from: type=registry,ref=${{ steps.image.outputs.cache }}
           cache-to: type=registry,ref=${{ steps.image.outputs.cache }},mode=max,ignore-error=true
@@ -65,6 +105,7 @@ jobs:
           context: .
           target: debug-files
           outputs: type=local,dest=${{ runner.temp }}/sentry-debug
+          build-contexts: frontend=dist
           build-args: BUILD_SHA=${{ github.sha }}
           cache-from: type=registry,ref=${{ steps.image.outputs.cache }}
 
