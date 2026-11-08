@@ -182,27 +182,11 @@ jobs:
           "$bin/rc" --version
       - name: Migrate compile-time database
         run: sqlx migrate run
+      # Service container logs are printed by the runner's "Stop containers" step.
       - name: Run e2e tests
         run: |
-          set -o pipefail
           cargo test --locked --all-features --test e2e -- \
-            --ignored --nocapture --test-threads=1 2>&1 | tee "$RUNNER_TEMP/e2e.log"
-      - name: Collect service logs
-        if: failure()
-        env:
-          POSTGRES_CONTAINER: ${{ job.services.postgres.id }}
-          RUSTFS_CONTAINER: ${{ job.services.rustfs.id }}
-        run: |
-          docker logs "$POSTGRES_CONTAINER" > "$RUNNER_TEMP/e2e-postgres.log" 2>&1
-          docker logs "$RUSTFS_CONTAINER" > "$RUNNER_TEMP/e2e-rustfs.log" 2>&1
-      - name: Upload failure logs
-        if: failure()
-        uses: actions/upload-artifact@v7
-        with:
-          name: e2e-logs
-          path: ${{ runner.temp }}/e2e*.log
-          if-no-files-found: ignore
-          retention-days: 7
+            --ignored --nocapture --test-threads=1
 
   docker:
     name: Build Docker image
