@@ -113,8 +113,11 @@ incomplete multipart uploads left by process termination.
 
 Discovery continues while archival is running. Row locks prevent duplicate
 downloads by concurrent workers and release automatically after interruption.
-Failures are recorded per content pair and retried after the configured delay;
-successful objects remain available across restarts. A publication becomes
+Failures are recorded per content pair and retried after the configured delay,
+starting when the attempt fails. If a source is unavailable or fails
+verification, the worker tries the other known paths for that same content,
+including current releases discovered before a historical manifest was imported.
+Successful objects remain available across restarts. A publication becomes
 ready only when every entry references a verified, uploaded object.
 
 #### Import historical manifests

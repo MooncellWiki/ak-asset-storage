@@ -12,7 +12,7 @@ use crate::{
 };
 use futures::{StreamExt, stream};
 use std::path::Path;
-use tracing::{error, info};
+use tracing::{error, info, warn};
 
 #[derive(Clone)]
 pub struct LauncherArchiveService {
@@ -46,7 +46,7 @@ impl LauncherArchiveService {
         stream::iter(0..self.concurrency)
             .for_each_concurrent(self.concurrency, |_| async {
                 loop {
-                    let job = match self.database.claim_launcher_blob().await {
+                    let mut job = match self.database.claim_launcher_blob().await {
                         Ok(Some(job)) => job,
                         Ok(None) => break,
                         Err(err) => {
@@ -54,11 +54,16 @@ impl LauncherArchiveService {
                             break;
                         }
                     };
-                    let result = self.archive_blob(&job).await;
+                    let result = self.archive_blob(&mut job).await;
                     let recorded = match result {
                         Ok(hash) => job.complete(&hash).await,
                         Err(err) => {
-                            error!(path = job.path, ?err, "Launcher file will be retried");
+                            error!(
+                                md5 = job.md5,
+                                size = job.size,
+                                ?err,
+                                "Launcher file will be retried"
+                            );
                             job.fail(&err.to_string(), self.retry_interval_seconds)
                                 .await
                         }
@@ -77,15 +82,32 @@ impl LauncherArchiveService {
         self.database.refresh_launcher_ready().await
     }
 
-    async fn archive_blob(&self, job: &LauncherBlobJob) -> AppResult<String> {
-        let entry = LauncherEntry {
-            path: job.path.clone(),
-            md5: job.md5.clone(),
-            size: job.size,
-        };
-        let (mut file, hash) = self.client.download(&job.file_path, &entry).await?;
-        self.storage.upload_launcher_blob(&hash, &mut file).await?;
-        Ok(hash)
+    async fn archive_blob(&self, job: &mut LauncherBlobJob) -> AppResult<String> {
+        let mut last_error = anyhow::anyhow!("no sources for launcher blob {}", job.md5);
+        for source in job.sources().await? {
+            let entry = LauncherEntry {
+                path: source.path,
+                md5: job.md5.clone(),
+                size: job.size,
+            };
+            let (mut file, hash) = match self.client.download(&source.file_path, &entry).await {
+                Ok(download) => download,
+                Err(err) => {
+                    warn!(
+                        path = entry.path,
+                        base = source.file_path,
+                        ?err,
+                        "Launcher source failed; trying another source"
+                    );
+                    last_error = err;
+                    continue;
+                }
+            };
+            // Once bytes are verified, a storage failure ends this attempt.
+            self.storage.upload_launcher_blob(&hash, &mut file).await?;
+            return Ok(hash);
+        }
+        Err(last_error.into())
     }
 }
 

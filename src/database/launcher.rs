@@ -56,6 +56,9 @@ pub struct LauncherBlobJob {
     pub transaction: Transaction<'static, Postgres>,
     pub md5: String,
     pub size: i64,
+}
+
+pub struct LauncherBlobSource {
     pub path: String,
     pub file_path: String,
 }
@@ -188,20 +191,15 @@ impl Database {
         // NO KEY UPDATE excludes other archivers, while permitting the FK's
         // KEY SHARE lock when discovery inserts another release's entries.
         let row = sqlx::query!(
-            r#"SELECT b.md5, b.size, source.path, source.file_path FROM launcher_blobs b
-            CROSS JOIN LATERAL (
-                SELECT e.path, r.file_path FROM launcher_entries e JOIN launcher_releases r ON r.id = e.release_id
-                WHERE (e.md5, e.size) = (b.md5, b.size) ORDER BY r.id DESC, e.path LIMIT 1
-            ) source
+            r#"SELECT b.md5, b.size FROM launcher_blobs b
             WHERE b.sha256 IS NULL AND b.retry_at <= now()
+                AND EXISTS (SELECT 1 FROM launcher_entries e WHERE (e.md5, e.size) = (b.md5, b.size))
             ORDER BY b.retry_at, b.md5, b.size LIMIT 1 FOR NO KEY UPDATE OF b SKIP LOCKED"#
         ).fetch_optional(&mut *transaction).await.map_err(db_error)?;
         Ok(row.map(|row| LauncherBlobJob {
             transaction,
             md5: row.md5,
             size: row.size,
-            path: row.path,
-            file_path: row.file_path,
         }))
     }
 
@@ -214,6 +212,16 @@ impl Database {
 }
 
 impl LauncherBlobJob {
+    /// Keep the claim locked while trying each distinct source for this content.
+    pub async fn sources(&mut self) -> AppResult<Vec<LauncherBlobSource>> {
+        sqlx::query_as!(LauncherBlobSource,
+            "SELECT e.path, r.file_path FROM launcher_entries e JOIN launcher_releases r ON r.id = e.release_id
+            WHERE e.md5 = $1 AND e.size = $2
+            GROUP BY e.path, r.file_path ORDER BY max(r.id) DESC, e.path, r.file_path",
+            &self.md5, self.size
+        ).fetch_all(&mut *self.transaction).await.map_err(db_error)
+    }
+
     pub async fn complete(mut self, sha256: &str) -> AppResult<()> {
         sqlx::query!(
             "UPDATE launcher_blobs SET sha256 = $3, attempts = attempts + 1, last_error = NULL WHERE md5 = $1 AND size = $2",
@@ -224,7 +232,7 @@ impl LauncherBlobJob {
 
     pub async fn fail(mut self, error: &str, retry_seconds: i32) -> AppResult<()> {
         sqlx::query!(
-            "UPDATE launcher_blobs SET attempts = attempts + 1, last_error = $3, retry_at = now() + make_interval(secs => $4::double precision) WHERE md5 = $1 AND size = $2",
+            "UPDATE launcher_blobs SET attempts = attempts + 1, last_error = $3, retry_at = clock_timestamp() + make_interval(secs => $4::double precision) WHERE md5 = $1 AND size = $2",
             &self.md5, self.size, error, f64::from(retry_seconds)
         ).execute(&mut *self.transaction).await.map_err(db_error)?;
         self.transaction.commit().await.map_err(db_error)

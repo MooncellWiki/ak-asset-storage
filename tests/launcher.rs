@@ -215,6 +215,35 @@ async fn publications_diffs_reuse_and_interrupted_claims(pool: PgPool) {
     assert!(!db.launcher_release_exists("broken", &md5).await.unwrap());
 }
 
+#[sqlx::test]
+async fn retry_delay_starts_after_a_slow_attempt_fails(pool: PgPool) {
+    let db = database(&pool).await;
+    let entry = parse_manifest(OLD).unwrap().remove(0);
+    let manifest = serde_json::to_string(&entry).unwrap();
+    let release = import(&db, "79.0.0", &manifest).await;
+    let job = db.claim_launcher_blob().await.unwrap().unwrap();
+
+    tokio::time::sleep(std::time::Duration::from_millis(1200)).await;
+    job.fail("slow download failed", 1).await.unwrap();
+    assert!(
+        db.claim_launcher_blob().await.unwrap().is_none(),
+        "the retry interval starts at failure, not when the claim transaction began"
+    );
+    let file = db
+        .launcher_file(release, &entry.path)
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(file.attempts, 1);
+    assert_eq!(file.last_error.as_deref(), Some("slow download failed"));
+    assert!(file.sha256.is_none());
+
+    tokio::time::sleep(std::time::Duration::from_millis(1100)).await;
+    let retry = db.claim_launcher_blob().await.unwrap().unwrap();
+    assert_eq!(retry.md5, entry.md5);
+    retry.transaction.rollback().await.unwrap();
+}
+
 mod archival {
     use super::*;
     use aes::cipher::{BlockModeEncrypt, KeyIvInit, block_padding::Pkcs7};
@@ -310,6 +339,87 @@ mod archival {
         serde_json::json!({"proxy_rsps":[{"kind":"get_latest_game","get_latest_game_rsp":{
             "version":version,"client_version":"2.7.91","pkg":{"file_path":format!("{base}/{directory}"),"game_files_md5":hex::encode(Md5::digest(ciphertext))}
         }}]})
+    }
+
+    fn storage_config() -> S3Config {
+        S3Config {
+            endpoint: "http://127.0.0.1:31000".into(),
+            bucket_name: std::env::var("LAUNCHER_TEST_BUCKET")
+                .unwrap_or_else(|_| "arknights-assets".into()),
+            access_key_id: "torappu".into(),
+            secret_access_key: "torappu123".into(),
+            with_virtual_hosted_style_request: false,
+        }
+    }
+
+    #[sqlx::test]
+    #[ignore = "requires development S3 on localhost:31000 (arknights-assets, torappu/torappu123)"]
+    async fn archives_raw_bytes_from_available_sources_after_backfill(pool: PgPool) {
+        let db = database(&pool).await;
+        let bytes = b"launcher historical source fallback";
+        let upstream = Arc::new(Upstream {
+            latest: Mutex::new(serde_json::Value::Null),
+            files: HashMap::from([
+                ("current/new-name.dll".into(), bytes.to_vec()),
+                ("corrupt/old-name.dll".into(), vec![0; bytes.len()]),
+            ]),
+            requests: Mutex::new(HashMap::new()),
+            corrupt: AtomicBool::new(false),
+            stall: AtomicBool::new(false),
+        });
+        let (base, upstream_task) = serve(
+            Router::new()
+                .route("/{*path}", get(file))
+                .with_state(upstream.clone()),
+        )
+        .await;
+        // Backfill older manifests after discovering the current release.
+        // The two expired releases reuse one URL; the working source renamed it.
+        for (version, directory, path) in [
+            ("79.0.0", "current", "new-name.dll"),
+            ("77.0.0", "corrupt", "old-name.dll"),
+            ("76.0.0", "expired", "old-name.dll"),
+            ("75.0.0", "expired", "old-name.dll"),
+        ] {
+            let entry = LauncherEntry {
+                path: path.into(),
+                md5: hex::encode(Md5::digest(bytes)),
+                size: i64::try_from(bytes.len()).unwrap(),
+            };
+            let ciphertext = encrypt(&serde_json::to_string(&entry).unwrap());
+            db.import_launcher_release(
+                version,
+                "2.7.91",
+                &format!("{base}/{directory}"),
+                &hex::encode(Md5::digest(&ciphertext)),
+                &ciphertext,
+                &[entry],
+            )
+            .await
+            .unwrap();
+        }
+        let service = LauncherArchiveService::new(
+            &LauncherConfig::default(),
+            db.clone(),
+            S3Storage::new(&storage_config()).unwrap(),
+        )
+        .unwrap();
+        service.archive_pending().await.unwrap();
+        let requests = upstream.requests.lock().unwrap().clone();
+        assert_eq!(requests.get("expired/old-name.dll"), Some(&1));
+        assert_eq!(requests.get("corrupt/old-name.dll"), Some(&1));
+        assert_eq!(requests.get("current/new-name.dll"), Some(&1));
+        for release in db.list_launcher_releases(None, 100).await.unwrap() {
+            assert!(release.ready_at.is_some());
+            assert_eq!(release.archived_files, 1);
+        }
+        let stored = service
+            .storage
+            .download_launcher_blob(&sha256::digest(bytes))
+            .await
+            .unwrap();
+        assert_eq!(stored.bytes().await.unwrap().as_ref(), bytes);
+        upstream_task.abort();
     }
 
     #[sqlx::test]
@@ -448,14 +558,7 @@ mod archival {
             retry_interval_seconds: 1,
             ..LauncherConfig::default()
         };
-        let storage_config = S3Config {
-            endpoint: "http://127.0.0.1:31000".into(),
-            bucket_name: std::env::var("LAUNCHER_TEST_BUCKET")
-                .unwrap_or_else(|_| "arknights-assets".into()),
-            access_key_id: "torappu".into(),
-            secret_access_key: "torappu123".into(),
-            with_virtual_hosted_style_request: false,
-        };
+        let storage_config = storage_config();
         let service = LauncherArchiveService {
             database: db.clone(),
             client: LauncherClient::new(&config).unwrap(),

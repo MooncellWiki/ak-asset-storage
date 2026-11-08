@@ -23,10 +23,19 @@ ENV SQLX_OFFLINE=true
 ENV CARGO_PROFILE_RELEASE_DEBUG=line-tables-only
 COPY --from=planner /app/recipe.json recipe.json
 RUN cargo chef cook --release --locked --recipe-path recipe.json
+# Validate the application's queries against a disposable PostgreSQL database,
+# without changing the checked-in SQLx metadata or the runtime image.
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends postgresql postgresql-common \
+    && rm -rf /var/lib/apt/lists/*
 COPY . .
 COPY --from=frontend / /app/dist
 ARG BUILD_SHA=dev
-RUN BUILD_SHA=${BUILD_SHA} cargo build --release --locked --bin ak-asset-storage
+RUN pg_virtualenv sh -ec '\
+    export DATABASE_URL="postgresql://${PGUSER}:${PGPASSWORD}@${PGHOST}:${PGPORT}/${PGDATABASE}"; \
+    bash scripts/migrate-build-database.sh; \
+    SQLX_OFFLINE=false BUILD_SHA="$1" cargo build --release --locked --bin ak-asset-storage \
+    ' sh "${BUILD_SHA}"
 
 # Split the debug info from the binary the runtime image ships. Workflows check
 # the exported file against that binary with .github/scripts/check-sentry-debug-file.sh.

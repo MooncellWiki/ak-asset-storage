@@ -101,7 +101,7 @@
       role="tabpanel"
       aria-labelledby="launcher-files-tab"
     >
-      <form class="launcher-tools" @submit.prevent="loadFiles(false)">
+      <form class="launcher-tools" @submit.prevent="loadFiles()">
         <AkSearch
           v-model="search"
           placeholder="按历史路径搜索（区分大小写）"
@@ -157,7 +157,7 @@
         type="button"
         class="ak-btn ak-btn--sm launcher-more"
         :disabled="loadingFiles"
-        @click="loadFiles(true)"
+        @click="loadFiles('more')"
       >
         更多文件
       </button>
@@ -255,6 +255,8 @@ const changes = ref<Change[]>([]);
 const nextFile = ref<string | null>();
 const nextDiff = ref<string | null>();
 const search = ref("");
+let fileSearch = "";
+let fileRequest = 0;
 const tab = ref("files");
 const error = ref("");
 const loading = ref(false);
@@ -319,31 +321,42 @@ async function loadReleases(more = false) {
   }
 }
 
-async function loadFiles(more = false) {
+async function loadFiles(mode: "replace" | "more" | "refresh" = "replace") {
+  if (mode === "refresh" && loadingFiles.value) return;
   const id = selected.value;
   if (id == null) return;
+  const request = ++fileRequest;
+  const query = mode === "replace" ? search.value : fileSearch;
+  const count = mode === "refresh" ? Math.max(files.value.length, 100) : 100;
+  let after = mode === "more" ? (nextFile.value ?? undefined) : undefined;
+  const updated: File[] = [];
   loadingFiles.value = true;
   try {
-    const { data, response } = await client.GET(
-      "/api/v1/launcher/releases/{id}/files",
-      {
-        params: {
-          path: { id },
-          query: {
-            q: search.value,
-            after: more ? (nextFile.value ?? undefined) : undefined,
+    // Manifests are immutable: reload the same pages to update archive status
+    // without dropping the rows the user has already expanded.
+    do {
+      const { data, response } = await client.GET(
+        "/api/v1/launcher/releases/{id}/files",
+        {
+          params: {
+            path: { id },
+            query: { q: query, after, limit: 100 },
           },
         },
-      },
-    );
-    if (id !== selected.value) return;
-    if (!data) throw new Error(`加载清单失败：${response.status}`);
-    files.value = more ? [...files.value, ...data.files] : data.files;
-    nextFile.value = data.nextAfter;
+      );
+      if (request !== fileRequest || id !== selected.value) return;
+      if (!data) throw new Error(`加载清单失败：${response.status}`);
+      updated.push(...data.files);
+      after = data.nextAfter ?? undefined;
+    } while (after != null && updated.length < count);
+    files.value = mode === "more" ? [...files.value, ...updated] : updated;
+    nextFile.value = after ?? null;
+    fileSearch = query;
   } catch (err) {
-    error.value = String(err);
+    if (request === fileRequest && id === selected.value)
+      error.value = String(err);
   } finally {
-    loadingFiles.value = false;
+    if (request === fileRequest) loadingFiles.value = false;
   }
 }
 
@@ -393,7 +406,7 @@ async function refresh() {
       error.value = String(err);
     }
   }
-  if (tab.value === "files") await loadFiles();
+  if (tab.value === "files") await loadFiles("refresh");
 }
 
 watch(selected, () => {
