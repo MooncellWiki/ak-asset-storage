@@ -169,7 +169,8 @@ gen-rustfs:
           enableServiceLinks: false
           containers:
             - name: rustfs
-              image: rustfs/rustfs:latest
+              # Same pin as the CI e2e service container; Renovate updates both.
+              image: rustfs/rustfs:1.0.3@sha256:9ca9559533b537d10482fe923288b676ad08f92a7069d9a17327fbae3cab688b
               args: [/data]
               env:
                 - name: RUSTFS_ADDRESS

@@ -1141,7 +1141,16 @@ pub fn spawn_worker(
         .arg("--concurrent")
         .arg("1")
         .arg("--poll-interval-seconds")
-        .arg(poll_interval_seconds.to_string());
+        .arg(poll_interval_seconds.to_string())
+        // Fixtures are written in one go, so the production 10 s / 30 s watch
+        // cadence only slows the watcher tests down. The debounce stays above
+        // the interval, as in production.
+        .args([
+            "--watch-interval-seconds",
+            "1",
+            "--watch-debounce-seconds",
+            "2",
+        ]);
     if let Some(kubeconfig) = kubeconfig {
         cmd.env("KUBECONFIG", kubeconfig);
     }

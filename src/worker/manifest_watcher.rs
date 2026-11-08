@@ -1,4 +1,4 @@
-use crate::service::asset_mapping_import::AssetMappingImportService;
+use crate::{service::asset_mapping_import::AssetMappingImportService, worker::WatchTiming};
 use std::{
     collections::{HashMap, HashSet},
     fs,
@@ -12,9 +12,6 @@ use tokio::{
 use tracing::{debug, error, info, warn};
 
 const MANIFEST_NAME: &str = "resource_manifest_idx.json";
-const SCAN_INTERVAL: Duration = Duration::from_secs(10);
-const IMPORT_TICK_INTERVAL: Duration = Duration::from_secs(10);
-const IMPORT_DEBOUNCE: Duration = Duration::from_secs(30);
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 struct ManifestFingerprint {
@@ -57,11 +54,19 @@ impl Drop for ManifestWatcher {
 }
 
 impl ManifestWatcher {
-    pub fn new(service: AssetMappingImportService, gamedata_root: &Path) -> anyhow::Result<Self> {
+    pub fn new(
+        service: AssetMappingImportService,
+        gamedata_root: &Path,
+        timing: WatchTiming,
+    ) -> anyhow::Result<Self> {
         let gamedata_root = fs::canonicalize(gamedata_root)?;
         let (event_tx, event_rx) = unbounded_channel();
-        let scan_handle = Some(spawn_scan_loop(event_tx.clone(), gamedata_root.clone()));
-        let import_handle = Some(spawn_import_loop(event_rx, service));
+        let scan_handle = Some(spawn_scan_loop(
+            event_tx.clone(),
+            gamedata_root.clone(),
+            timing.interval,
+        ));
+        let import_handle = Some(spawn_import_loop(event_rx, service, timing));
 
         info!("polling gamedata root: {}", gamedata_root.display());
 
@@ -77,10 +82,11 @@ impl ManifestWatcher {
 fn spawn_scan_loop(
     event_tx: UnboundedSender<ManifestSignal>,
     gamedata_root: PathBuf,
+    interval: Duration,
 ) -> JoinHandle<()> {
     tokio::spawn(async move {
         let mut known = HashMap::<String, ManifestFingerprint>::new();
-        let mut ticker = tokio::time::interval(SCAN_INTERVAL);
+        let mut ticker = tokio::time::interval(interval);
         ticker.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
 
         loop {
@@ -132,10 +138,11 @@ fn spawn_scan_loop(
 fn spawn_import_loop(
     mut event_rx: UnboundedReceiver<ManifestSignal>,
     service: AssetMappingImportService,
+    timing: WatchTiming,
 ) -> JoinHandle<()> {
     tokio::spawn(async move {
         let mut pending = HashMap::<String, PendingImport>::new();
-        let mut ticker = tokio::time::interval(IMPORT_TICK_INTERVAL);
+        let mut ticker = tokio::time::interval(timing.interval);
         ticker.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
 
         loop {
@@ -148,7 +155,7 @@ fn spawn_import_loop(
                     pending.insert(
                         signal.res_version,
                         PendingImport {
-                            due_at: Instant::now() + IMPORT_DEBOUNCE,
+                            due_at: Instant::now() + timing.debounce,
                             fingerprint: signal.fingerprint,
                             is_new: signal.is_new,
                         },

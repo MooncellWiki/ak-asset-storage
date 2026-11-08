@@ -47,8 +47,14 @@ image by version/digest and verifies the pinned CLI download's SHA-256.
 The job migrates `ak_asset_storage_next` before compilation, sets `DATABASE_URL`
 to that database and `SQLX_OFFLINE=false`, then runs the suite serially. The
 harness resets only `ak_asset_storage_e2e`, leaving compile-time checks isolated
-from test resets. Update image/tool pins in the workflow when upgrading them.
+from test resets. Renovate updates the RustFS image in both the workflow and
+`just gen-rustfs`, so local runs use the same version; bump the CLI pin by hand.
 
-On failure, the job uploads `e2e-logs` with the test output and service logs.
-Tests await normal child-process shutdown and kill child processes on drop if
-an assertion fails.
+Test output and the service container logs (printed by the runner's
+"Stop containers" step) are all in the job log. Tests kill and reap the
+server/worker processes before the next test reuses their ports, and
+`kill_on_drop` stops them when a test panics.
+
+Spawned workers rescan watched files every second with a two-second debounce
+(`--watch-interval-seconds` / `--watch-debounce-seconds`); the production
+defaults (10 s / 30 s) would dominate the watcher tests' runtime.

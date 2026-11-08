@@ -46,6 +46,13 @@ pub enum Commands {
         concurrent: usize,
         #[arg(long, default_value = "120")]
         poll_interval_seconds: u64,
+        /// Seconds between scans of the watched gamedata, manifest and item demand files
+        #[arg(long, default_value = "10", value_parser = clap::value_parser!(u64).range(1..))]
+        watch_interval_seconds: u64,
+        /// Seconds a watched file must stay unchanged before it is imported;
+        /// keep it above --watch-interval-seconds
+        #[arg(long, default_value = "30")]
+        watch_debounce_seconds: u64,
     },
     Seed {
         #[arg(short, long, default_value = "config.toml")]
@@ -99,11 +106,22 @@ pub async fn run(cli: Cli) -> Result<()> {
             config,
             concurrent,
             poll_interval_seconds,
+            watch_interval_seconds,
+            watch_debounce_seconds,
         } => {
             let (settings, _sentry) = init(&config)?;
-            worker::execute(settings.as_ref(), concurrent, poll_interval_seconds)
-                .await
-                .map_err(anyhow::Error::from)
+            let watch_timing = crate::worker::WatchTiming {
+                interval: std::time::Duration::from_secs(watch_interval_seconds),
+                debounce: std::time::Duration::from_secs(watch_debounce_seconds),
+            };
+            worker::execute(
+                settings.as_ref(),
+                concurrent,
+                poll_interval_seconds,
+                watch_timing,
+            )
+            .await
+            .map_err(anyhow::Error::from)
         }
         Commands::Seed {
             config,

@@ -1,7 +1,10 @@
 use crate::{
     external::github::GithubClient,
     service::story_usage::StoryUsageImportService,
-    worker::file_watcher::{PathResolution, PollingFileWatcher},
+    worker::{
+        WatchTiming,
+        file_watcher::{PathResolution, PollingFileWatcher},
+    },
 };
 use std::path::Path;
 use tracing::{error, info};
@@ -16,6 +19,7 @@ impl GameDataReadyWatcher {
         service: StoryUsageImportService,
         github: Option<GithubClient>,
         marker_path: &Path,
+        timing: WatchTiming,
     ) -> Self {
         // Keep the logical path: `latest` may be re-pointed at a new version,
         // so every scan must resolve the symlink again.
@@ -24,6 +28,7 @@ impl GameDataReadyWatcher {
             PathResolution::Canonical,
             "gamedata ready marker",
             "story usages",
+            timing,
             move || {
                 let service = service.clone();
                 let github = github.clone();
