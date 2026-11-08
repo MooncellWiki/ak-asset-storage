@@ -1,6 +1,9 @@
 use crate::{
     service::item_demand_import::ItemDemandImportService,
-    worker::file_watcher::{PathResolution, PollingFileWatcher},
+    worker::{
+        WatchTiming,
+        file_watcher::{PathResolution, PollingFileWatcher},
+    },
 };
 use std::path::Path;
 
@@ -10,12 +13,13 @@ pub struct ItemDemandWatcher {
 
 impl ItemDemandWatcher {
     #[must_use]
-    pub fn new(service: ItemDemandImportService, file_path: &Path) -> Self {
+    pub fn new(service: ItemDemandImportService, file_path: &Path, timing: WatchTiming) -> Self {
         let watcher = PollingFileWatcher::new(
             file_path,
             PathResolution::Direct,
             "item demand file",
             "item demand",
+            timing,
             move || {
                 let service = service.clone();
                 async move { service.import().await }

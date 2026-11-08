@@ -54,3 +54,7 @@ Test output and the service container logs (printed by the runner's
 "Stop containers" step) are all in the job log. Tests kill and reap the
 server/worker processes before the next test reuses their ports, and
 `kill_on_drop` stops them when a test panics.
+
+Spawned workers rescan watched files every second with a two-second debounce
+(`--watch-interval-seconds` / `--watch-debounce-seconds`); the production
+defaults (10 s / 30 s) would dominate the watcher tests' runtime.

@@ -1,4 +1,4 @@
-use crate::AppResult;
+use crate::{AppResult, worker::WatchTiming};
 use std::{
     future::Future,
     path::{Path, PathBuf},
@@ -6,10 +6,6 @@ use std::{
 };
 use tokio::{sync::mpsc::unbounded_channel, task::JoinHandle};
 use tracing::{debug, error, info, warn};
-
-const SCAN_INTERVAL: Duration = Duration::from_secs(10);
-const IMPORT_TICK_INTERVAL: Duration = Duration::from_secs(10);
-const IMPORT_DEBOUNCE: Duration = Duration::from_secs(30);
 
 #[derive(Clone, Copy)]
 pub enum PathResolution {
@@ -53,6 +49,7 @@ impl PollingFileWatcher {
         resolution: PathResolution,
         source_name: &'static str,
         import_name: &'static str,
+        timing: WatchTiming,
         import: Import,
     ) -> Self
     where
@@ -66,8 +63,9 @@ impl PollingFileWatcher {
             path.clone(),
             resolution,
             source_name,
+            timing.interval,
         ));
-        let import_handle = Some(spawn_import_loop(event_rx, import_name, import));
+        let import_handle = Some(spawn_import_loop(event_rx, import_name, timing, import));
 
         info!("polling {source_name}: {}", path.display());
 
@@ -85,10 +83,11 @@ fn spawn_scan_loop(
     path: PathBuf,
     resolution: PathResolution,
     source_name: &'static str,
+    interval: Duration,
 ) -> JoinHandle<()> {
     tokio::spawn(async move {
         let mut known: Option<FileFingerprint> = None;
-        let mut ticker = tokio::time::interval(SCAN_INTERVAL);
+        let mut ticker = tokio::time::interval(interval);
         ticker.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
 
         loop {
@@ -144,6 +143,7 @@ fn spawn_scan_loop(
 fn spawn_import_loop<Import, ImportFuture>(
     mut event_rx: tokio::sync::mpsc::UnboundedReceiver<()>,
     import_name: &'static str,
+    timing: WatchTiming,
     mut import: Import,
 ) -> JoinHandle<()>
 where
@@ -152,7 +152,7 @@ where
 {
     tokio::spawn(async move {
         let mut pending: Option<Instant> = None;
-        let mut ticker = tokio::time::interval(IMPORT_TICK_INTERVAL);
+        let mut ticker = tokio::time::interval(timing.interval);
         ticker.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
 
         loop {
@@ -161,7 +161,7 @@ where
                     if recv.is_none() {
                         break;
                     }
-                    pending = Some(Instant::now() + IMPORT_DEBOUNCE);
+                    pending = Some(Instant::now() + timing.debounce);
                     debug!("scheduled {import_name} import");
                 }
                 _ = ticker.tick() => {

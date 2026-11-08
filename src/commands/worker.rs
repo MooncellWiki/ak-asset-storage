@@ -13,8 +13,9 @@ use crate::{
         version_check::VersionCheckService,
     },
     worker::{
-        gamedata_ready_watcher::GameDataReadyWatcher, item_demand_watcher::ItemDemandWatcher,
-        manifest_watcher::ManifestWatcher, sync::SyncWorker,
+        WatchTiming, gamedata_ready_watcher::GameDataReadyWatcher,
+        item_demand_watcher::ItemDemandWatcher, manifest_watcher::ManifestWatcher,
+        sync::SyncWorker,
     },
 };
 use std::{path::PathBuf, time::Duration};
@@ -24,6 +25,7 @@ pub async fn execute(
     settings: &AppSettings,
     concurrent: usize,
     poll_interval_seconds: u64,
+    watch_timing: WatchTiming,
 ) -> AppResult<()> {
     info!("Starting worker...");
     let database = Database::connect(&settings.database).await?;
@@ -69,7 +71,7 @@ pub async fn execute(
         database: database.clone(),
         gamedata_root: gamedata_root.clone(),
     };
-    let manifest_watcher = ManifestWatcher::new(import_service, &gamedata_root)
+    let manifest_watcher = ManifestWatcher::new(import_service, &gamedata_root, watch_timing)
         .map_err(crate::AppError::Application)?;
 
     let item_demand_path = PathBuf::from(&settings.torappu.asset_base_path)
@@ -79,15 +81,20 @@ pub async fn execute(
         database: database.clone(),
         file_path: item_demand_path.clone(),
     };
-    let item_demand_watcher = ItemDemandWatcher::new(item_demand_service, &item_demand_path);
+    let item_demand_watcher =
+        ItemDemandWatcher::new(item_demand_service, &item_demand_path, watch_timing);
 
     let gamedata_ready_marker = gamedata_root.join("latest").join(".gamedata-ready.json");
     let story_usage_service = StoryUsageImportService {
         database,
         gamedata_root: gamedata_root.clone(),
     };
-    let gamedata_ready_watcher =
-        GameDataReadyWatcher::new(story_usage_service, github, &gamedata_ready_marker);
+    let gamedata_ready_watcher = GameDataReadyWatcher::new(
+        story_usage_service,
+        github,
+        &gamedata_ready_marker,
+        watch_timing,
+    );
 
     info!("Worker is running. Press Ctrl+C to stop.");
     tokio::select! {
