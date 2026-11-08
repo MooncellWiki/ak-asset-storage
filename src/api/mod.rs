@@ -2,6 +2,7 @@ mod cursor;
 mod embed;
 mod error;
 mod handlers;
+mod launcher;
 mod mcp;
 mod middleware;
 mod router;

@@ -59,6 +59,13 @@ declare module 'vue-router/auto-routes' {
       Record<never, never>,
       | never
     >,
+    '/launcher': RouteRecordInfo<
+      '/launcher',
+      '/launcher',
+      Record<never, never>,
+      Record<never, never>,
+      | never
+    >,
     '/manifest': RouteRecordInfo<
       '/manifest',
       '/manifest',
@@ -113,6 +120,14 @@ declare module 'vue-router/auto-routes' {
     'app/pages/diff.vue': {
       routes:
         | '/diff'
+      views:
+        | never
+      pathParamNames:
+        | never
+    }
+    'app/pages/launcher.vue': {
+      routes:
+        | '/launcher'
       views:
         | never
       pathParamNames:

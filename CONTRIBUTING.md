@@ -57,6 +57,22 @@ pnpm lint
 `pnpm build` is required before cargo build/clippy/test — rust-embed embeds the
 frontend build output into the binary.
 
+CI checks SQL macros against a fresh PostgreSQL service after applying the
+migrations. Docker's build stage uses a disposable `pg_virtualenv` for the same
+purpose; PostgreSQL is not included in the runtime image. The checked-in
+`.sqlx/` directory is left unchanged.
+
+Launcher tests cover protocol decoding, publication identity, manifest
+transactions, diffs, content reuse, and interrupted claims:
+
+```bash
+cargo test --locked --test launcher
+# Uses the local development S3 bucket plus an isolated SQLx test database:
+cargo test --locked --test launcher archives_raw_bytes -- --ignored --nocapture
+# Optional: reads only the live official API and game_files, not game binaries:
+cargo test --locked --test launcher validates_live -- --ignored --nocapture
+```
+
 ## Database
 
 Migrations live in `migrations/`:

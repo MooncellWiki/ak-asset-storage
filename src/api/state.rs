@@ -2,7 +2,9 @@ use crate::{
     AppError, AppResult,
     config::AppSettings,
     database::Database,
-    external::{kubernetes::KubernetesClient, plocate::PlocateIndex, torappu::TorappuClient},
+    external::{
+        kubernetes::KubernetesClient, plocate::PlocateIndex, s3::S3Storage, torappu::TorappuClient,
+    },
 };
 use std::{path::PathBuf, sync::Arc};
 use tokio::sync::{OwnedSemaphorePermit, Semaphore};
@@ -11,6 +13,7 @@ use tracing::{info, warn};
 #[derive(Debug, Clone)]
 pub struct AppState {
     pub database: Database,
+    pub storage: S3Storage,
     pub settings: Arc<AppSettings>,
     pub torappu: TorappuClient,
     pub plocate: PlocateIndex,
@@ -67,6 +70,7 @@ impl AppState {
 
         let search_gate = SearchGate::new(settings.torappu.search_concurrency);
         Ok(Self {
+            storage: S3Storage::new(&settings.s3)?,
             database,
             torappu: TorappuClient {
                 asset_base_path: PathBuf::from(&settings.torappu.asset_base_path),

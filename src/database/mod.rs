@@ -2,6 +2,7 @@ pub mod asset_mapping;
 pub mod bundle;
 pub mod file;
 pub mod item_demand;
+pub mod launcher;
 pub mod model;
 pub mod row;
 pub mod story_explorer;

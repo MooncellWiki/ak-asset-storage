@@ -1,7 +1,7 @@
 #![allow(clippy::needless_for_each)]
 
 use crate::api::{
-    AppState, embed, handlers, mcp,
+    AppState, embed, handlers, launcher, mcp,
     middleware::{apply_axum_middleware, serve_dir_with_charset},
     story_explorer,
 };
@@ -26,6 +26,7 @@ use utoipa_scalar::{Scalar, Servable};
         (name = "docker", description = "Docker container management endpoints"),
         (name = "manifest", description = "Manifest browser endpoints"),
         (name = "story", description = "Story resource usage endpoints"),
+        (name = "launcher", description = "PC launcher releases and original installation files"),
     ),
 )]
 pub struct ApiDoc;
@@ -33,6 +34,12 @@ pub struct ApiDoc;
 pub fn build_router(state: AppState) -> Router {
     let (api_routes, mut openapi) = OpenApiRouter::with_openapi(ApiDoc::openapi())
         .routes(routes!(handlers::ping))
+        .routes(routes!(launcher::list_releases))
+        .routes(routes!(launcher::get_release))
+        .routes(routes!(launcher::list_files))
+        .routes(routes!(launcher::diff))
+        .routes(routes!(launcher::download))
+        .routes(routes!(launcher::manifest))
         .routes(routes!(handlers::health))
         .routes(routes!(handlers::list_asset))
         .route("/files/", get(handlers::list_root_asset))

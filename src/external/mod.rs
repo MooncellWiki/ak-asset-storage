@@ -2,6 +2,7 @@ pub mod ak_api;
 pub mod gamedata;
 pub mod github;
 pub mod kubernetes;
+pub mod launcher;
 pub mod notification;
 pub mod plocate;
 pub mod s3;

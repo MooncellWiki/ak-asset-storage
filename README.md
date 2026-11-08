@@ -49,6 +49,7 @@ Main sections:
 - `mailer`
 - `database`
 - `ak`
+- `launcher` (optional PC official-launcher archive)
 - `s3`
 - `sentry`
 - `mcp`
@@ -79,6 +80,65 @@ connection_timeout_seconds = 30
 asset_url = "https://ak.hycdn.cn/assetbundle/official/Android/assets"
 conf_url = "https://ak-conf.hypergryph.com/config/prod/official/Android"
 ```
+
+### PC launcher archive
+
+PC tracking is opt-in. Add the following section to the worker's TOML config
+after applying the database migrations:
+
+```toml
+[launcher]
+poll_interval_seconds = 300
+concurrency = 4
+retry_interval_seconds = 60
+download_timeout_seconds = 900
+```
+
+The defaults target the PC official channel. The worker polls the launcher's
+`batch_proxy` API independently of Android, checks the encrypted `game_files`
+MD5, decrypts AES-256-CBC/PKCS7 JSONL, and atomically saves the publication and
+its entire manifest. A publication is identified by package version and
+manifest MD5, so a same-version reissue is retained. No PC publication starts
+a Torappu extraction Job.
+
+Each `(MD5, size)` content pair is downloaded once across versions and paths.
+Downloads stream into anonymous temporary files while checking size and MD5,
+then upload raw bytes to `launcher/blobs/<SHA-256>` in the existing bucket.
+These records are separate from Android's ZIP-backed content hashes.
+Allow enough temporary disk for concurrent downloads of the largest file;
+`TMPDIR` selects that filesystem. Set a bucket lifecycle rule to expire
+incomplete multipart uploads left by process termination.
+
+Discovery continues while archival is running. Row locks prevent duplicate
+downloads by concurrent workers and release automatically after interruption.
+Failures are recorded per content pair and retried after the configured delay;
+successful objects remain available across restarts. A publication becomes
+ready only when every entry references a verified, uploaded object.
+
+The **PC 归档** page at `/launcher` shows file and byte progress, searches historical
+paths, compares publications, and downloads finished files even while other
+files are pending. Renames appear as a deleted path and an added path sharing
+the same content. Public read-only API endpoints:
+
+| Endpoint                                                | Result                                              |
+| ------------------------------------------------------- | --------------------------------------------------- |
+| `GET /api/v1/launcher/releases`                         | Releases, newest first; `before`, `limit`           |
+| `GET /api/v1/launcher/releases/{id}`                    | Release metadata and progress                       |
+| `GET /api/v1/launcher/releases/{id}/files`              | Full manifest, paginated with `after`, `q`, `limit` |
+| `GET /api/v1/launcher/diff?from=ID&to=ID`               | Added/deleted/modified paths; `after`, `limit`      |
+| `GET /api/v1/launcher/releases/{id}/download?path=PATH` | Original file bytes; 503 until archived             |
+| `GET /api/v1/launcher/releases/{id}/manifest`           | Original encrypted `game_files`                     |
+
+Page sizes default to 100 and are limited to 200. Use `nextBefore` or
+`nextAfter` as the next request's `before` or `after` with the same filters.
+The API streams downloads from the configured bucket; it does not require
+public bucket access. API schemas are included in OpenAPI.
+
+Protocol parameters were cross-checked against the
+[official-channel request](https://github.com/Well2333/ArkSwitcher/blob/main/src/official_source.rs)
+and the live official API/manifest. The upstream response's `version` is the
+package version; `client_version` is the game content version. Endpoint,
+request JSON, and hex AES key/IV can be overridden in the launcher section.
 
 ### S3
 
