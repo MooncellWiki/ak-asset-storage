@@ -5,7 +5,7 @@ use std::time::Duration;
 const RES_VERSION: &str = "26-05-27-13-32-37_d44f28";
 
 #[tokio::test]
-#[ignore = "manual e2e test requiring a local k3s (deploy/k3s/dev), rc, and fixture assets"]
+#[ignore = "e2e: requires PostgreSQL, RustFS, rc and plocate; see e2e/README.md"]
 async fn import_manifest_command_imports_asset_mappings() {
     let env = TestEnv::bootstrap_worker().await;
     let version_id = env
@@ -30,7 +30,9 @@ async fn import_manifest_command_imports_asset_mappings() {
     support::wait_for_ready_version(&database, Duration::from_mins(1))
         .await
         .unwrap();
-    let _ = worker.start_kill();
+    worker.kill().await.unwrap();
 
     support::assert_manifest_fixture_imported(&database, version_id).await;
+
+    env.shutdown().await;
 }

@@ -1,0 +1,18 @@
+name: Setup plocate
+description: Install plocate without starting system-wide indexing
+
+runs:
+  using: composite
+  steps:
+    - name: Install plocate
+      shell: bash
+      run: |
+        # postinst skips its initial scan when plocate.db exists. Tests build
+        # their own indexes, so disable system indexing and remove the placeholder.
+        sudo systemctl mask plocate-updatedb.timer plocate-updatedb.service
+        sudo mkdir -p /var/lib/plocate
+        sudo touch /var/lib/plocate/plocate.db
+        sudo apt-get update
+        sudo apt-get install -y --no-install-recommends plocate
+        sudo systemctl stop plocate-updatedb.timer plocate-updatedb.service
+        sudo rm -f /var/lib/plocate/plocate.db

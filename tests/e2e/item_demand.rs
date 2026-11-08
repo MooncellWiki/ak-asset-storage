@@ -28,7 +28,7 @@ fn load_second_fixture() -> serde_json::Value {
 }
 
 #[tokio::test]
-#[ignore = "manual e2e test requiring a local k3s (deploy/k3s/dev), rc, and fixture assets"]
+#[ignore = "e2e: requires PostgreSQL, RustFS, rc and plocate; see e2e/README.md"]
 async fn import_and_get_success() {
     let env = TestEnv::bootstrap().await;
     env.copy_item_demand_fixture(fixture_path("item_demand.json"));
@@ -41,10 +41,12 @@ async fn import_and_get_success() {
     let fixture = load_fixture();
     let expected = serde_json::to_string(fixture.get(ITEM_NAME).unwrap()).unwrap();
     assert_eq!(body, expected);
+
+    env.shutdown().await;
 }
 
 #[tokio::test]
-#[ignore = "manual e2e test requiring a local k3s (deploy/k3s/dev), rc, and fixture assets"]
+#[ignore = "e2e: requires PostgreSQL, RustFS, rc and plocate; see e2e/README.md"]
 async fn import_replaces_existing_data() {
     let env = TestEnv::bootstrap().await;
 
@@ -72,12 +74,16 @@ async fn import_replaces_existing_data() {
     assert_eq!(status, StatusCode::OK);
     let expected = serde_json::to_string(second.get(SECOND_ITEM_NAME).unwrap()).unwrap();
     assert_eq!(body, expected);
+
+    env.shutdown().await;
 }
 
 #[tokio::test]
-#[ignore = "manual e2e test requiring a local k3s (deploy/k3s/dev), rc, and fixture assets"]
+#[ignore = "e2e: requires PostgreSQL, RustFS, rc and plocate; see e2e/README.md"]
 async fn get_nonexistent_item_returns_404() {
     let env = TestEnv::bootstrap().await;
     let (status, _) = env.get_text("/api/v1/item/不存在的材料/demand").await;
     assert_eq!(status, StatusCode::NOT_FOUND);
+
+    env.shutdown().await;
 }

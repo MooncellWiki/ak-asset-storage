@@ -2,7 +2,7 @@ use crate::support::{BundleDetails, TestEnv, VersionDetails, VersionSummary};
 use std::collections::HashMap;
 
 #[tokio::test]
-#[ignore = "manual e2e test requiring a local k3s (deploy/k3s/dev), rc, and fixture assets"]
+#[ignore = "e2e: requires PostgreSQL, RustFS, rc and plocate; see e2e/README.md"]
 async fn seed_two_versions_then_query_real_server() {
     let env = TestEnv::bootstrap().await;
 
@@ -74,4 +74,6 @@ async fn seed_two_versions_then_query_real_server() {
 
     env.assert_database_state().await;
     env.assert_s3_state().await;
+
+    env.shutdown().await;
 }

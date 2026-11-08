@@ -1,5 +1,5 @@
 # 本地开发依赖：PostgreSQL 跑在本机 k3s 里,替代原先的 docker-compose.yaml。
-# 没有单独的 CI 用途——e2e 是手动跑的(#[ignore]),CI 只编译不执行。
+# 本清单用于本地开发和 e2e;CI 的 e2e 使用独立 service containers。
 #
 #     just k3s-apply
 #

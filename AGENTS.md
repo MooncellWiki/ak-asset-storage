@@ -103,8 +103,10 @@ Workspace uses pedantic + nursery lints with select allows (`missing_errors_doc`
 
 The previous multi-crate test suite was removed during the single-crate refactor. Add new tests under the root crate when rebuilding coverage.
 
-Manual e2e tests (`tests/e2e/`, all `#[ignore]`d) need the local k3s dev dependencies, `rc` (rclone) and `just` (the harness regenerates the RustFS manifest via `just gen-rustfs`). They share one database and bucket, so they must run serially:
+E2E tests (`tests/e2e/`, all `#[ignore]`d) run in CI's dedicated `e2e` job. They need PostgreSQL, RustFS, `rc` from **rustfs-cli**, and `plocate`/`updatedb`. Run serially: they share ports, a runtime directory, and a disposable database and bucket that each test resets.
 
 ```bash
-cargo test --all-features --test e2e -- --ignored --test-threads=1
+cargo test --locked --all-features --test e2e -- --ignored --nocapture --test-threads=1
 ```
+
+Locally, the harness defaults to provisioning the k3s dev dependencies via `kubectl` and `just gen-rustfs`; run `just init-env` once first. Set `AK_E2E_DEPENDENCIES=external` to use already-running services on the same loopback ports without invoking Kubernetes. CI uses this mode with service containers and a separate migrated database for online SQLx compilation. For service credentials, setup, or changes to the harness/CI, read [`e2e/README.md`](e2e/README.md).
