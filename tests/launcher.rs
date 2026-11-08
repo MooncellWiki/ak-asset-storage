@@ -312,6 +312,93 @@ mod archival {
         }}]})
     }
 
+    #[sqlx::test]
+    async fn imports_historical_manifests_in_batch(pool: PgPool) {
+        let db = database(&pool).await;
+        let local_ciphertext = include_bytes!("fixtures/launcher/game_files");
+        let remote_ciphertext = encrypt(NEW);
+        let served_ciphertext = remote_ciphertext.clone();
+        let (base, upstream) = serve(
+            Router::new().route("/game_files", get(move || async move { served_ciphertext })),
+        )
+        .await;
+
+        let temp = tempfile::tempdir().unwrap();
+        let config = temp.path().join("config.toml");
+        let local_metadata = temp.path().join("old.meta.json");
+        let remote_metadata = temp.path().join("new.meta.json");
+        let local_game_files = temp.path().join("game_files");
+        std::fs::write(
+            &config,
+            include_str!("../example.toml").replace(
+                "https://your-sentry-dsn@sentry.io/project-id",
+                "https://test@127.0.0.1:9/1",
+            ),
+        )
+        .unwrap();
+        std::fs::write(&local_game_files, local_ciphertext).unwrap();
+        let metadata = |version: &str, md5: &str| {
+            serde_json::json!({
+                "version": version,
+                "client_version": "2.7.91",
+                "file_path": base,
+                "game_files_md5": md5,
+            })
+        };
+        let mut local = metadata("78.0.0", &hex::encode_upper(Md5::digest(local_ciphertext)));
+        local["game_files_path"] = "game_files".into();
+        std::fs::write(&local_metadata, local.to_string()).unwrap();
+        let run = || {
+            let mut command = tokio::process::Command::new(env!("CARGO_BIN_EXE_ak-asset-storage"));
+            command
+                .env(
+                    "DATABASE_URI",
+                    db.pool().connect_options().to_url_lossy().as_str(),
+                )
+                .args(["import-launcher-manifest", "-c"])
+                .args([&config, &local_metadata, &remote_metadata]);
+            command
+        };
+
+        std::fs::write(
+            &remote_metadata,
+            metadata("79.0.0", &"0".repeat(32)).to_string(),
+        )
+        .unwrap();
+        let failed = run().output().await.unwrap();
+        assert!(!failed.status.success());
+        assert!(String::from_utf8_lossy(&failed.stderr).contains("launcher manifest MD5 mismatch"));
+        let releases = db.list_launcher_releases(None, 100).await.unwrap();
+        assert_eq!(releases.len(), 1);
+        let old = &releases[0];
+        assert_eq!(old.package_version, "78.0.0");
+        assert_eq!(
+            db.launcher_manifest(old.id).await.unwrap().unwrap(),
+            local_ciphertext
+        );
+
+        std::fs::remove_file(local_game_files).unwrap();
+        let remote = metadata("79.0.0", &hex::encode(Md5::digest(&remote_ciphertext)));
+        std::fs::write(&remote_metadata, remote.to_string()).unwrap();
+        let resumed = run().output().await.unwrap();
+        assert!(
+            resumed.status.success(),
+            "{}",
+            String::from_utf8_lossy(&resumed.stderr)
+        );
+        let releases = db.list_launcher_releases(None, 100).await.unwrap();
+        assert_eq!(releases.len(), 2);
+        let new = &releases[0];
+        assert_eq!(new.package_version, "79.0.0");
+        assert_eq!(new.total_files, 4);
+        assert_eq!(new.archived_files, 0);
+        assert_eq!(
+            db.launcher_manifest(new.id).await.unwrap().unwrap(),
+            remote_ciphertext
+        );
+        upstream.abort();
+    }
+
     /// This test uses a disposable SQLx database, a fake launcher, and the
     /// existing local development S3 bucket; no real game files are downloaded.
     #[sqlx::test]
@@ -475,6 +562,30 @@ mod archival {
             ..service
         };
         restarted.archive_pending().await.unwrap();
+        let hash = sha256::digest(b"before");
+        let key = format!(
+            "launcher/blobs/{}/{}/{}",
+            &hash[..2],
+            &hash[2..4],
+            &hash[4..]
+        );
+        let stored = restarted.storage.download(&key).await.unwrap();
+        assert_eq!(stored.bytes().await.unwrap().as_ref(), b"before");
+
+        let legacy_bytes = b"legacy launcher blob fixture";
+        let legacy_hash = sha256::digest(legacy_bytes);
+        restarted
+            .storage
+            .upload(&format!("launcher/blobs/{legacy_hash}"), legacy_bytes)
+            .await
+            .unwrap();
+        let legacy = restarted
+            .storage
+            .download_launcher_blob(&legacy_hash)
+            .await
+            .unwrap();
+        assert_eq!(legacy.bytes().await.unwrap().as_ref(), legacy_bytes);
+
         for release in db.list_launcher_releases(None, 100).await.unwrap() {
             assert!(release.ready_at.is_some());
         }

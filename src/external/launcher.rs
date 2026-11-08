@@ -5,8 +5,10 @@ use md5::{Digest, Md5};
 use reqwest::{Client, Url};
 use serde::{Deserialize, Serialize};
 use sha2::Sha256;
-use std::{collections::HashSet, time::Duration};
-use tokio::io::{AsyncSeekExt, AsyncWriteExt};
+use std::{collections::HashSet, path::Path, time::Duration};
+use tokio::io::{AsyncReadExt, AsyncSeekExt, AsyncWriteExt};
+
+const MAX_MANIFEST_BYTES: usize = 64 * 1024 * 1024;
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct LauncherPublication {
@@ -73,18 +75,47 @@ impl LauncherClient {
             .map_err(|err| AppError::ExternalService(err.into()))?
         {
             ensure!(
-                ciphertext.len() + chunk.len() <= 64 * 1024 * 1024,
+                ciphertext.len() + chunk.len() <= MAX_MANIFEST_BYTES,
                 "launcher manifest exceeds 64 MiB"
             );
             ciphertext.extend_from_slice(&chunk);
         }
-        let entries = decrypt_manifest(
-            &ciphertext,
+        let entries = self.manifest_entries(publication, &ciphertext)?;
+        Ok((ciphertext, entries))
+    }
+
+    pub(crate) async fn local_manifest(
+        &self,
+        publication: &LauncherPublication,
+        path: &Path,
+    ) -> anyhow::Result<(Vec<u8>, Vec<LauncherEntry>)> {
+        let mut ciphertext = Vec::new();
+        tokio::fs::File::open(path)
+            .await
+            .with_context(|| format!("open encrypted game_files {}", path.display()))?
+            .take((MAX_MANIFEST_BYTES + 1) as u64)
+            .read_to_end(&mut ciphertext)
+            .await
+            .with_context(|| format!("read encrypted game_files {}", path.display()))?;
+        ensure!(
+            ciphertext.len() <= MAX_MANIFEST_BYTES,
+            "launcher manifest exceeds 64 MiB"
+        );
+        let entries = self.manifest_entries(publication, &ciphertext)?;
+        Ok((ciphertext, entries))
+    }
+
+    fn manifest_entries(
+        &self,
+        publication: &LauncherPublication,
+        ciphertext: &[u8],
+    ) -> anyhow::Result<Vec<LauncherEntry>> {
+        decrypt_manifest(
+            ciphertext,
             &publication.manifest_md5,
             &self.config.aes_key,
             &self.config.aes_iv,
-        )?;
-        Ok((ciphertext, entries))
+        )
     }
 
     /// Download to an anonymous temporary file; only verified bytes reach S3.

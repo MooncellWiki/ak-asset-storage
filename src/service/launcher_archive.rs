@@ -5,9 +5,13 @@ use crate::{
         Database,
         launcher::{LauncherBlobJob, LauncherEntry},
     },
-    external::{launcher::LauncherClient, s3::S3Storage},
+    external::{
+        launcher::{LauncherClient, LauncherPublication},
+        s3::S3Storage,
+    },
 };
 use futures::{StreamExt, stream};
+use std::path::Path;
 use tracing::{error, info};
 
 #[derive(Clone)]
@@ -32,26 +36,7 @@ impl LauncherArchiveService {
     /// No extraction jobs or Android version records are created here.
     pub async fn discover(&self) -> AppResult<()> {
         let publication = self.client.latest().await?;
-        if self
-            .database
-            .launcher_release_exists(&publication.package_version, &publication.manifest_md5)
-            .await?
-        {
-            return Ok(());
-        }
-        let (ciphertext, entries) = self.client.manifest(&publication).await?;
-        let id = self
-            .database
-            .import_launcher_release(
-                &publication.package_version,
-                &publication.game_version,
-                &publication.file_path,
-                &publication.manifest_md5,
-                &ciphertext,
-                &entries,
-            )
-            .await?;
-        info!(id, files = entries.len(), "Discovered PC launcher release");
+        import_publication(&self.database, &self.client, &publication, None).await?;
         Ok(())
     }
 
@@ -99,9 +84,42 @@ impl LauncherArchiveService {
             size: job.size,
         };
         let (mut file, hash) = self.client.download(&job.file_path, &entry).await?;
-        self.storage
-            .upload_file(&format!("launcher/blobs/{hash}"), &mut file)
-            .await?;
+        self.storage.upload_launcher_blob(&hash, &mut file).await?;
         Ok(hash)
     }
+}
+
+pub(crate) async fn import_publication(
+    database: &Database,
+    client: &LauncherClient,
+    publication: &LauncherPublication,
+    game_files_path: Option<&Path>,
+) -> AppResult<bool> {
+    if database
+        .launcher_release_exists(&publication.package_version, &publication.manifest_md5)
+        .await?
+    {
+        return Ok(false);
+    }
+    let (ciphertext, entries) = match game_files_path {
+        Some(path) => client.local_manifest(publication, path).await?,
+        None => client.manifest(publication).await?,
+    };
+    let id = database
+        .import_launcher_release(
+            &publication.package_version,
+            &publication.game_version,
+            &publication.file_path,
+            &publication.manifest_md5,
+            &ciphertext,
+            &entries,
+        )
+        .await?;
+    info!(
+        id,
+        package_version = publication.package_version,
+        files = entries.len(),
+        "Imported PC launcher release"
+    );
+    Ok(true)
 }

@@ -12,7 +12,34 @@ pub struct S3Storage {
     store: AmazonS3,
 }
 
+fn launcher_blob_path(hash: &str) -> String {
+    format!(
+        "launcher/blobs/{}/{}/{}",
+        &hash[..2],
+        &hash[2..4],
+        &hash[4..]
+    )
+}
+
 impl S3Storage {
+    pub async fn upload_launcher_blob(
+        &self,
+        hash: &str,
+        file: &mut tokio::fs::File,
+    ) -> AppResult<()> {
+        self.upload_file(&launcher_blob_path(hash), file).await
+    }
+
+    pub async fn download_launcher_blob(&self, hash: &str) -> AppResult<object_store::GetResult> {
+        let path = object_store::path::Path::from(launcher_blob_path(hash));
+        match self.store.get(&path).await {
+            Err(object_store::Error::NotFound { .. }) => {
+                self.download(&format!("launcher/blobs/{hash}")).await
+            }
+            result => result.map_err(|err| AppError::ExternalService(err.into())),
+        }
+    }
+
     /// Upload a verified raw file with bounded memory and multipart backpressure.
     pub async fn upload_file(&self, path: &str, file: &mut tokio::fs::File) -> AppResult<()> {
         if file.metadata().await?.len() == 0 {
@@ -50,7 +77,7 @@ impl S3Storage {
         Ok(())
     }
 
-    /// Streams raw launcher objects directly from the configured private bucket.
+    /// Streams objects directly from the configured private bucket.
     pub async fn download(&self, path: &str) -> AppResult<object_store::GetResult> {
         self.store
             .get(&object_store::path::Path::from(path))

@@ -17,7 +17,7 @@ Rust backend is a single crate organized by module:
 - `src/external/` - concrete integrations for AK API, S3, SMTP, Kubernetes Jobs, GitHub, and torappu assets
 - `src/service/` - shared workflows reused by server and worker
 - `src/worker/` - polling loop and manifest watcher
-- `src/commands/` - CLI entrypoints for `server`, `worker`, `seed`, and `import-manifest`
+- `src/commands/` - CLI entrypoints for `server`, `worker`, `seed`, and manifest imports
 
 The frontend lives in `app/` (Vue 3 + TypeScript + [PRTS Design](https://mooncellwiki.github.io/prts-design/), file-based routing).
 
@@ -103,7 +103,9 @@ a Torappu extraction Job.
 
 Each `(MD5, size)` content pair is downloaded once across versions and paths.
 Downloads stream into anonymous temporary files while checking size and MD5,
-then upload raw bytes to `launcher/blobs/<SHA-256>` in the existing bucket.
+then upload raw bytes to `launcher/blobs/<first 2>/<next 2>/<remaining 60>`
+in the existing bucket, using the file's hex SHA-256. Downloads also support
+objects previously written at `launcher/blobs/<SHA-256>`.
 These records are separate from Android's ZIP-backed content hashes.
 Allow enough temporary disk for concurrent downloads of the largest file;
 `TMPDIR` selects that filesystem. Set a bucket lifecycle rule to expire
@@ -114,6 +116,29 @@ downloads by concurrent workers and release automatically after interruption.
 Failures are recorded per content pair and retried after the configured delay;
 successful objects remain available across restarts. A publication becomes
 ready only when every entry references a verified, uploaded object.
+
+#### Import historical manifests
+
+After applying migrations, pass one or more launcher metadata files in import
+order.
+
+```sh
+ak-asset-storage import-launcher-manifest -c config.toml \
+  76.0.0.meta.json 77.0.0.meta.json 78.0.0.meta.json
+```
+
+The command accepts the `.meta.json` format written by
+`launcher-rev/scripts/fetch_manifest.py`. It reads `version`,
+`client_version`, `file_path` (the release CDN base), and `game_files_md5`.
+By default it fetches `<file_path>/game_files`. To use saved ciphertext, add
+`"game_files_path": "game_files.encrypted"` to the metadata. Relative paths
+are resolved from the metadata file's directory.
+
+Each release is verified and committed separately. If an import fails, correct
+the input and rerun the same command. Previously imported releases are skipped.
+The command uses the configured launcher AES settings or the official defaults.
+The worker with `[launcher]` enabled archives missing file contents in the
+background.
 
 The **PC 归档** page at `/launcher` shows file and byte progress, searches historical
 paths, compares publications, and downloads finished files even while other

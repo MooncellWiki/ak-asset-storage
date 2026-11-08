@@ -169,10 +169,7 @@ pub async fn download(
     let hash = file.sha256.ok_or_else(|| {
         WebError::Unavailable("file is still being archived; retry shortly".into())
     })?;
-    let object = state
-        .storage
-        .download(&format!("launcher/blobs/{hash}"))
-        .await?;
+    let object = state.storage.download_launcher_blob(&hash).await?;
     Ok((
         [
             (header::CONTENT_TYPE, "application/octet-stream".to_string()),

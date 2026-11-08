@@ -1,4 +1,5 @@
 mod import_item_demand;
+mod import_launcher_manifest;
 mod import_manifest;
 mod import_story_usage;
 mod seed;
@@ -67,6 +68,14 @@ pub enum Commands {
         config: String,
         #[arg(long)]
         res_version: String,
+    },
+    /// Import one or more historical PC launcher manifests.
+    ImportLauncherManifest {
+        #[arg(short, long, default_value = "config.toml")]
+        config: String,
+        /// Release metadata JSON files, in import order
+        #[arg(required = true, num_args = 1.., value_name = "META_JSON")]
+        metadata: Vec<PathBuf>,
     },
     ImportItemDemand {
         #[arg(short, long, default_value = "config.toml")]
@@ -141,6 +150,10 @@ pub async fn run(cli: Cli) -> Result<()> {
             import_manifest::execute(settings.as_ref(), &res_version)
                 .await
                 .map_err(anyhow::Error::from)
+        }
+        Commands::ImportLauncherManifest { config, metadata } => {
+            let (settings, _sentry) = init(&config)?;
+            import_launcher_manifest::execute(settings.as_ref(), &metadata).await
         }
         Commands::ImportItemDemand { config } => {
             let (settings, _sentry) = init(&config)?;
