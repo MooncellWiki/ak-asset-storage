@@ -1,0 +1,23 @@
+name: Setup ossutil
+description: Install the pinned ossutil 2 binary
+
+runs:
+  using: composite
+  steps:
+    - name: Install ossutil
+      shell: bash
+      env:
+        # When bumping, take the linux-amd64 digest from the ossutil 2 install
+        # page: https://help.aliyun.com/zh/oss/developer-reference/install-ossutil2
+        VERSION: 2.4.1
+        SHA256: 57ee4c56796a40144acd6b0b96b53b4ba75e5cec09c01d8d0313c09a5524022f
+      run: |
+        bin="$RUNNER_TEMP/ossutil"
+        mkdir -p "$bin"
+        curl -fsSL --retry 3 -o "$bin/ossutil.zip" \
+          "https://gosspublic.alicdn.com/ossutil/v2/$VERSION/ossutil-$VERSION-linux-amd64.zip"
+        echo "$SHA256  $bin/ossutil.zip" | sha256sum --check --strict
+        unzip -jq "$bin/ossutil.zip" "ossutil-$VERSION-linux-amd64/ossutil" -d "$bin"
+        rm "$bin/ossutil.zip"
+        chmod +x "$bin/ossutil"
+        echo "$bin" >> "$GITHUB_PATH"

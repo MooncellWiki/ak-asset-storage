@@ -10,7 +10,15 @@ RUN npm install --global "$(node -p 'require("./package.json").packageManager')"
 
 FROM frontend-deps AS frontend-build-stage
 COPY . .
+# Release builds load the build assets from the CDN (see vite.config.ts).
+ARG AK_FE_CDN=
 RUN pnpm run build
+
+# The release workflow exports this stage, uploads its assets to OSS, and
+# passes the exported files back as the `frontend` build context, so the image
+# embeds exactly the files that were uploaded.
+FROM scratch AS frontend
+COPY --from=frontend-build-stage /app/dist /
 
 FROM lukemathwalker/cargo-chef:0.1.78-rust-1.99.1-trixie@sha256:cccf15fc75944521a3aa230fe72a101ee0edc65cd1d4b50b5914ce25317c1805 AS chef
 ENV RUSTUP_AUTO_INSTALL=0
@@ -28,7 +36,7 @@ ENV CARGO_PROFILE_RELEASE_DEBUG=line-tables-only
 COPY --from=planner /app/recipe.json recipe.json
 RUN cargo chef cook --release --locked --recipe-path recipe.json
 COPY . .
-COPY --from=frontend-build-stage /app/dist /app/dist
+COPY --from=frontend / /app/dist
 ARG BUILD_SHA=dev
 RUN BUILD_SHA=${BUILD_SHA} cargo build --release --locked --bin ak-asset-storage
 

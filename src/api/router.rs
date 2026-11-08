@@ -5,12 +5,11 @@ use crate::api::{
     middleware::{apply_axum_middleware, serve_dir_with_charset},
     story_explorer,
 };
-use axum::{Json, Router, handler::HandlerWithoutStateExt, routing::get};
+use axum::{Json, Router, routing::get};
 use rmcp::transport::streamable_http_server::{
     StreamableHttpServerConfig, StreamableHttpService, session::never::NeverSessionManager,
 };
 use std::{path::PathBuf, sync::Arc};
-use tower_http::services::ServeDir;
 use tracing::info;
 use utoipa::OpenApi;
 use utoipa_axum::{router::OpenApiRouter, routes};
@@ -91,12 +90,7 @@ pub fn build_router(state: AppState) -> Router {
         router
     };
 
-    let router = router
-        .fallback_service(
-            ServeDir::with_backend("", embed::EmbedBackend)
-                .fallback(embed::spa_index.into_service()),
-        )
-        .with_state(state);
+    let router = router.merge(embed::router()).with_state(state);
 
     apply_axum_middleware(router)
 }

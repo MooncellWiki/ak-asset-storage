@@ -4,6 +4,12 @@ on:
     tags:
       - "*"
 
+env:
+  # The CDN serves this bucket prefix. Asset names hash content but not this
+  # URL, so moving FE_CDN needs a fresh prefix: existing objects are skipped.
+  FE_CDN: https://static.prts.wiki/torappu-fe/
+  FE_OSS_PREFIX: torappu-fe/
+
 jobs:
   build:
     name: Release
@@ -33,6 +39,36 @@ jobs:
         run: |
           echo "name=ghcr.io/${REPOSITORY,,}" >> "$GITHUB_OUTPUT"
           echo "cache=ghcr.io/${REPOSITORY,,}-cache:buildcache" >> "$GITHUB_OUTPUT"
+          echo "frontend-cache=ghcr.io/${REPOSITORY,,}-cache:frontend" >> "$GITHUB_OUTPUT"
+
+      # The assets go to OSS before the image is pushed, so the chunks its
+      # index.html names are on the CDN by the time it is deployed.
+      - name: Build frontend
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          target: frontend
+          outputs: type=local,dest=${{ runner.temp }}/frontend
+          build-args: AK_FE_CDN=${{ env.FE_CDN }}
+          # Its own cache: the image build below takes this output instead of
+          # building these stages, so the image's cache no longer holds them.
+          cache-from: type=registry,ref=${{ steps.image.outputs.frontend-cache }}
+          cache-to: type=registry,ref=${{ steps.image.outputs.frontend-cache }},mode=max,ignore-error=true
+
+      - name: Setup ossutil
+        uses: ./.github/actions/setup-oss
+
+      - name: Upload frontend assets
+        env:
+          OSS_ACCESS_KEY_ID: ${{ secrets.OSS_ACCESS_KEY_ID }}
+          OSS_ACCESS_KEY_SECRET: ${{ secrets.OSS_ACCESS_KEY_SECRET }}
+          OSS_REGION: ${{ secrets.OSS_REGION }}
+          # GitHub runners are overseas; use OSS transfer acceleration.
+          OSS_ENDPOINT: oss-accelerate.aliyuncs.com
+          OSS_BUCKET: ${{ secrets.OSS_BUCKET }}
+        run: |
+          : "${OSS_BUCKET:?Set the OSS_BUCKET repository secret}"
+          .github/scripts/upload-frontend.sh "$RUNNER_TEMP/frontend" "$FE_CDN" "oss://$OSS_BUCKET/$FE_OSS_PREFIX"
 
       - name: Extract Docker Metadata
         id: meta
@@ -52,6 +88,8 @@ jobs:
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
+          # The uploaded files, not a rebuild that could differ from them.
+          build-contexts: frontend=${{ runner.temp }}/frontend
           build-args: BUILD_SHA=${{ github.sha }}
           cache-from: type=registry,ref=${{ steps.image.outputs.cache }}
           cache-to: type=registry,ref=${{ steps.image.outputs.cache }},mode=max,ignore-error=true
@@ -65,6 +103,7 @@ jobs:
           context: .
           target: debug-files
           outputs: type=local,dest=${{ runner.temp }}/sentry-debug
+          build-contexts: frontend=${{ runner.temp }}/frontend
           build-args: BUILD_SHA=${{ github.sha }}
           cache-from: type=registry,ref=${{ steps.image.outputs.cache }}
 

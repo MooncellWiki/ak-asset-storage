@@ -56,6 +56,8 @@ Vue 3 + TypeScript on the PRTS Design system. Lives in `app/` at repo root (not 
 
 Docker builds frontend first (`pnpm build` → `dist/`), then Rust binary with `SQLX_OFFLINE=true`. Release is tag-triggered → Docker image to GHCR.
 
+Release builds the frontend with `AK_FE_CDN=https://static.prts.wiki/torappu-fe/` (only built asset URLs change; `base` stays `/`), uploads `dist/fe` to OSS with ossutil (`.github/scripts/upload-frontend.sh`: skips existing objects, never deletes, so open tabs from older releases keep loading their chunks), and passes the same files to the image build as the `frontend` build context. Without `AK_FE_CDN` the server serves `/fe` from the embedded build (immutable caching, 404 for missing chunks) and the frontend reloads once when a chunk fails to load.
+
 CI builds and checks the runtime image without pushing. Docker base images are digest-pinned and updated by Renovate; keep the cargo-chef image's Rust version in sync with `rust-toolchain.toml`. Release build caches live in the separate `ak-asset-storage-cache` GHCR package, and cache export failures do not fail releases.
 
 ## Database
