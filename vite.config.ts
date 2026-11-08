@@ -28,7 +28,7 @@ function proxy(target: string): ProxyOptions {
 // load their chunks after a deploy replaces the embedded copy. Only asset URLs
 // move: `base` stays "/" since the router uses it as the history base.
 const ASSETS_DIR = "fe";
-// Docker passes an unset build arg as an empty string.
+// An empty AK_FE_CDN means no CDN.
 const feCdn = process.env.AK_FE_CDN
   ? process.env.AK_FE_CDN.replace(/\/?$/, "/")
   : undefined;

@@ -50,15 +50,15 @@ Vue 3 + TypeScript on the PRTS Design system. Lives in `app/` at repo root (not 
 - Path alias: `~/` → `app/`
 - Dev server on port 25173, proxies `/api` → `localhost:5150`; `AK_DEV_BACKEND=https://torappu.prts.wiki pnpm dev` proxies everything to a deployed instance instead
 - `pnpm api` regenerates `app/common/schema.d.ts` from OpenAPI endpoint (requires running backend)
-- Node.js uses `.node-version` (managed locally with `vp`); keep the Docker Node version in sync
+- Node.js uses `.node-version` (managed locally with `vp`); CI and release set up pnpm (from `packageManager`) and Node.js with `pnpm/setup`
 
 ## Build & Deploy
 
-Docker builds frontend first (`pnpm build` → `dist/`), then Rust binary with `SQLX_OFFLINE=true`. Release is tag-triggered → Docker image to GHCR.
+The Docker image does not build the frontend: run `pnpm build` first and pass `dist/` as the `frontend` build context (`docker buildx build --build-context frontend=dist .`); without it the build stops with a hint. The Rust binary builds with `SQLX_OFFLINE=true`. Release is tag-triggered → Docker image to GHCR.
 
-Release builds the frontend with `AK_FE_CDN=https://static.prts.wiki/torappu-fe/` (only built asset URLs change; `base` stays `/`), uploads `dist/fe` to OSS with ossutil (`.github/scripts/upload-frontend.sh`: skips existing objects, never deletes, so open tabs from older releases keep loading their chunks), and passes the same files to the image build as the `frontend` build context. Without `AK_FE_CDN` the server serves `/fe` from the embedded build (immutable caching, 404 for missing chunks) and the frontend reloads once when a chunk fails to load.
+Release builds the frontend with `AK_FE_CDN=https://static.prts.wiki/torappu-fe/` (only built asset URLs change; `base` stays `/`), uploads `dist/fe` to OSS with ossutil (`.github/scripts/upload-frontend.sh`: skips existing objects, never deletes, so open tabs from older releases keep loading their chunks), and passes the same `dist/` to the image build. Without `AK_FE_CDN` the server serves `/fe` from the embedded build (immutable caching, 404 for missing chunks) and the frontend reloads once when a chunk fails to load.
 
-CI builds and checks the runtime image without pushing. Docker base images are digest-pinned and updated by Renovate; keep the cargo-chef image's Rust version in sync with `rust-toolchain.toml`. Release build caches live in the separate `ak-asset-storage-cache` GHCR package, and cache export failures do not fail releases.
+CI builds and checks the runtime image without pushing, using the `frontend-dist` artifact from the eslint job. Docker base images are digest-pinned and updated by Renovate; keep the cargo-chef image's Rust version in sync with `rust-toolchain.toml`. Release build caches live in the separate `ak-asset-storage-cache` GHCR package, and cache export failures do not fail releases.
 
 ## Database
 

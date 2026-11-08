@@ -1,4 +1,7 @@
-"""Keep Docker's toolchains aligned with local development and CI."""
+"""Keep Docker's toolchains aligned with local development and CI.
+
+The frontend is built outside Docker, so only Rust is checked.
+"""
 
 import re
 import tomllib
@@ -6,10 +9,6 @@ from pathlib import Path
 
 dockerfile = Path("Dockerfile").read_text()
 versions = {
-    "Node.js": (
-        Path(".node-version").read_text().strip(),
-        r"^FROM node:([\d.]+)-",
-    ),
     "Rust": (
         tomllib.loads(Path("rust-toolchain.toml").read_text())["toolchain"]["channel"],
         r"^FROM lukemathwalker/cargo-chef:[\d.]+-rust-([\d.]+)-",
