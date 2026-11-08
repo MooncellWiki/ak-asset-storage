@@ -21,6 +21,8 @@ import SearchPalette from "./components/SearchPalette.vue";
 // The only global rules: the page canvas behind the .ak-scope body.
 html {
   background: var(--ak-bg-canvas);
+  // Keep the layout width stable when async content makes the page scroll.
+  scrollbar-gutter: stable;
 }
 
 body {
