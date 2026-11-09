@@ -6,7 +6,7 @@ on:
   pull_request:
 
 env:
-  SQLX_OFFLINE: "false"
+  SQLX_OFFLINE: "true"
 
 permissions:
   contents: read
@@ -30,20 +30,6 @@ jobs:
     name: Run Clippy
     runs-on: ubuntu-latest
     needs: eslint
-    env:
-      DATABASE_URL: postgres://postgres:postgres@localhost:5432/postgres
-    services:
-      postgres:
-        image: postgres:17.6
-        env:
-          POSTGRES_PASSWORD: postgres
-        ports:
-          - 5432:5432
-        options: >-
-          --health-cmd "pg_isready -U postgres"
-          --health-interval 5s
-          --health-timeout 5s
-          --health-retries 10
 
     steps:
       - name: Checkout the code
@@ -56,8 +42,6 @@ jobs:
         with:
           name: frontend-dist
           path: dist
-      - name: Migrate compile-time database
-        run: bash scripts/migrate-build-database.sh
       - name: Run cargo clippy
         shell: bash
         run: cargo clippy --locked --all-features -- -D warnings
@@ -124,8 +108,6 @@ jobs:
       # (instead of skipping) when CI is set and they are missing.
       - name: Install plocate
         uses: ./.github/actions/plocate
-      - name: Migrate compile-time database
-        run: bash scripts/migrate-build-database.sh
       - name: Run cargo test
         shell: bash
         run: cargo test --locked --all-features -- --nocapture
