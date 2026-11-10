@@ -53,9 +53,9 @@ export function parentPath(path: string): string {
   return i < 0 ? "" : path.slice(0, i);
 }
 
-/** Bundle objects are stored by content hash. */
-export function storageUrl(hash: string): string {
-  return `/storage/${hash.slice(0, 2)}/${hash.slice(2, 4)}/${hash.slice(4)}`;
+/** Stored objects are sharded by content hash. */
+export function storageUrl(hash: string, basePath = "/storage"): string {
+  return `${basePath}/${hash.slice(0, 2)}/${hash.slice(2, 4)}/${hash.slice(4)}`;
 }
 
 /**

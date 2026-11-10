@@ -163,8 +163,11 @@ the same content. Public read-only API endpoints:
 
 Page sizes default to 100 and are limited to 200. Use `nextBefore` or
 `nextAfter` as the next request's `before` or `after` with the same filters.
-The API streams downloads from the configured bucket; it does not require
-public bucket access. API schemas are included in OpenAPI.
+The page downloads sharded objects through the same `/storage/` route as
+Android bundles. Route `/storage/launcher/blobs/...` to `launcher/blobs/...`
+in the archive bucket. If the object is unavailable through that route, the
+page uses the download API, which streams from the configured bucket and also
+supports legacy unsharded objects. API schemas are included in OpenAPI.
 
 Protocol parameters were cross-checked against the
 [official-channel request](https://github.com/Well2333/ArkSwitcher/blob/main/src/official_source.rs)
