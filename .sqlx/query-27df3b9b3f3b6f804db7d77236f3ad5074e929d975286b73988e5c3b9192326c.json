@@ -1,0 +1,16 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE launcher_blobs SET retry_at = now() + make_interval(secs => $3::double precision) WHERE md5 = $1 AND size = $2 AND sha256 IS NULL",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Text",
+        "Int8",
+        "Float8"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "27df3b9b3f3b6f804db7d77236f3ad5074e929d975286b73988e5c3b9192326c"
+}

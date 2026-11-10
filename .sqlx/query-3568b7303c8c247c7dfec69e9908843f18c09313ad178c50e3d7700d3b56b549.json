@@ -1,0 +1,16 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE launcher_blobs SET sha256 = $3, attempts = attempts + 1, last_error = NULL WHERE md5 = $1 AND size = $2 AND sha256 IS NULL",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Text",
+        "Int8",
+        "Text"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "3568b7303c8c247c7dfec69e9908843f18c09313ad178c50e3d7700d3b56b549"
+}

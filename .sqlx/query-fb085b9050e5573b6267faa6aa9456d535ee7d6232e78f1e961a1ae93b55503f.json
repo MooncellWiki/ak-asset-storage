@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "SELECT id AS \"id!\", package_version AS \"package_version!\", game_version AS \"game_version!\",\n            file_path AS \"file_path!\", manifest_md5 AS \"manifest_md5!\", discovered_at AS \"discovered_at!\", ready_at,\n            total_files AS \"total_files!\", archived_files AS \"archived_files!\", total_bytes AS \"total_bytes!\", archived_bytes AS \"archived_bytes!\"\n            FROM launcher_release_progress WHERE ($1::bigint IS NULL OR id < $1) ORDER BY id DESC LIMIT $2",
+  "query": "SELECT id AS \"id!\", package_version AS \"package_version!\", game_version AS \"game_version!\",\n            file_path AS \"file_path!\", manifest_md5 AS \"manifest_md5!\", discovered_at AS \"discovered_at!\", ready_at,\n            total_files AS \"total_files!\", archived_files AS \"archived_files!\", total_bytes AS \"total_bytes!\", archived_bytes AS \"archived_bytes!\"\n            FROM launcher_release_progress p\n            WHERE $1::bigint IS NULL OR (launcher_version_key(p.package_version), p.id) <\n                (SELECT launcher_version_key(c.package_version), c.id FROM launcher_releases c WHERE c.id = $1)\n            ORDER BY launcher_version_key(p.package_version) DESC, p.id DESC LIMIT $2",
   "describe": {
     "columns": [
       {
@@ -145,5 +145,5 @@
       true
     ]
   },
-  "hash": "3adc4de77615fd323644467a1b435d3701acdac190d34d6910c9ba9227f9c70b"
+  "hash": "fb085b9050e5573b6267faa6aa9456d535ee7d6232e78f1e961a1ae93b55503f"
 }

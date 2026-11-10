@@ -57,10 +57,15 @@ pnpm lint
 `pnpm build` is required before cargo build/clippy/test — rust-embed embeds the
 frontend build output into the binary.
 
-CI checks SQL macros against a fresh PostgreSQL service after applying the
-migrations. Docker's build stage uses a disposable `pg_virtualenv` for the same
-purpose; PostgreSQL is not included in the runtime image. The checked-in
-`.sqlx/` directory is left unchanged.
+The e2e job checks SQL macros against a fresh PostgreSQL service after applying
+the migrations. The other CI jobs and the Docker build compile with
+`SQLX_OFFLINE=true` against the checked-in `.sqlx/` cache, so regenerate and
+commit it whenever queries or the schema change:
+
+```bash
+sqlx migrate run
+cargo sqlx prepare -- --locked --all-targets --all-features
+```
 
 Launcher tests cover protocol decoding, publication identity, manifest
 transactions, diffs, content reuse, and interrupted claims:

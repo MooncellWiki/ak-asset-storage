@@ -48,7 +48,7 @@ conf_url = "https://ak-conf.hypergryph.com/config/prod/official/Android"
 # [launcher]
 # poll_interval_seconds = 300
 # concurrency = 4             # leave at least two database connections free
-# retry_interval_seconds = 60
+# retry_interval_seconds = 60 # first retry; doubles per failure, up to one day
 # download_timeout_seconds = 900
 # Files are streamed into anonymous temp files before upload. Ensure TMPDIR
 # has room for concurrency * the largest installation file, and configure S3

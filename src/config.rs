@@ -93,6 +93,13 @@ const fn default_launcher_timeout() -> u64 {
 }
 
 impl LauncherConfig {
+    /// Covers one download plus its upload; a claim outliving it is only
+    /// repeated work, since blobs are content-addressed.
+    #[must_use]
+    pub fn claim_lease_seconds(&self) -> i32 {
+        i32::try_from(self.download_timeout_seconds.saturating_mul(2)).unwrap_or(i32::MAX)
+    }
+
     fn validate(&self) -> anyhow::Result<()> {
         let url = reqwest::Url::parse(&self.latest_url)
             .map_err(|err| AppError::Application(err.into()))?;

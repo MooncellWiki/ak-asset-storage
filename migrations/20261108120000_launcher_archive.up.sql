@@ -32,6 +32,16 @@ CREATE TABLE launcher_entries (
 CREATE INDEX launcher_entries_content_idx ON launcher_entries (md5, size, release_id DESC);
 CREATE INDEX launcher_blobs_pending_idx ON launcher_blobs (retry_at) WHERE sha256 IS NULL;
 
+-- Numeric parts of a package version, so releases order by version (79.0.0
+-- after 9.1.0) instead of by insertion: historical imports get higher ids.
+CREATE FUNCTION launcher_version_key(version text) RETURNS bigint[]
+LANGUAGE sql IMMUTABLE PARALLEL SAFE
+RETURN ARRAY(
+    SELECT part[1]::bigint
+    FROM regexp_matches(version, '\d{1,18}', 'g') WITH ORDINALITY AS m(part, position)
+    ORDER BY position
+);
+
 CREATE VIEW launcher_release_progress AS
 SELECT r.id, r.package_version, r.game_version, r.file_path, r.manifest_md5,
        r.discovered_at, r.ready_at,

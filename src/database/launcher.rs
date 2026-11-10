@@ -1,7 +1,6 @@
 use crate::{AppError, AppResult, database::Database};
 use chrono::{DateTime, Utc};
 use serde::Serialize;
-use sqlx::{Postgres, Transaction};
 use utoipa::ToSchema;
 
 #[derive(Debug, Clone, Serialize, ToSchema)]
@@ -50,10 +49,13 @@ pub struct LauncherDiff {
     pub new_size: Option<i64>,
 }
 
-/// A row lock prevents concurrent workers from fetching the same content.
-/// Dropping this transaction on shutdown releases it without marking success.
+/// A lease on one pending blob.
+///
+/// Claiming pushes `retry_at` into the future, so no transaction or connection
+/// is held while the content is transferred. An interrupted claim becomes
+/// claimable again once its lease expires.
 pub struct LauncherBlobJob {
-    pub transaction: Transaction<'static, Postgres>,
+    database: Database,
     pub md5: String,
     pub size: i64,
 }
@@ -112,6 +114,8 @@ impl Database {
         Ok(id)
     }
 
+    /// Newest package version first; imports of older releases do not jump the
+    /// queue. `before` is the id of the last release on the previous page.
     pub async fn list_launcher_releases(
         &self,
         before: Option<i64>,
@@ -121,9 +125,22 @@ impl Database {
             r#"SELECT id AS "id!", package_version AS "package_version!", game_version AS "game_version!",
             file_path AS "file_path!", manifest_md5 AS "manifest_md5!", discovered_at AS "discovered_at!", ready_at,
             total_files AS "total_files!", archived_files AS "archived_files!", total_bytes AS "total_bytes!", archived_bytes AS "archived_bytes!"
-            FROM launcher_release_progress WHERE ($1::bigint IS NULL OR id < $1) ORDER BY id DESC LIMIT $2"#,
+            FROM launcher_release_progress p
+            WHERE $1::bigint IS NULL OR (launcher_version_key(p.package_version), p.id) <
+                (SELECT launcher_version_key(c.package_version), c.id FROM launcher_releases c WHERE c.id = $1)
+            ORDER BY launcher_version_key(p.package_version) DESC, p.id DESC LIMIT $2"#,
             before, limit
         ).fetch_all(self.pool()).await.map_err(db_error)
+    }
+
+    pub async fn launcher_release_id_exists(&self, id: i64) -> AppResult<bool> {
+        sqlx::query_scalar!(
+            "SELECT EXISTS(SELECT 1 FROM launcher_releases WHERE id = $1) AS \"exists!\"",
+            id
+        )
+        .fetch_one(self.pool())
+        .await
+        .map_err(db_error)
     }
 
     pub async fn get_launcher_release(&self, id: i64) -> AppResult<Option<LauncherRelease>> {
@@ -186,18 +203,28 @@ impl Database {
         .map_err(db_error)
     }
 
-    pub async fn claim_launcher_blob(&self) -> AppResult<Option<LauncherBlobJob>> {
-        let mut transaction = self.pool().begin().await.map_err(db_error)?;
-        // NO KEY UPDATE excludes other archivers, while permitting the FK's
-        // KEY SHARE lock when discovery inserts another release's entries.
+    /// Lease the pending blob that has waited longest. The row lock only
+    /// lasts for this statement; `FOR NO KEY UPDATE` still permits the FK's
+    /// KEY SHARE lock when discovery inserts another release's entries.
+    pub async fn claim_launcher_blob(
+        &self,
+        lease_seconds: i32,
+    ) -> AppResult<Option<LauncherBlobJob>> {
         let row = sqlx::query!(
-            r#"SELECT b.md5, b.size FROM launcher_blobs b
-            WHERE b.sha256 IS NULL AND b.retry_at <= now()
-                AND EXISTS (SELECT 1 FROM launcher_entries e WHERE (e.md5, e.size) = (b.md5, b.size))
-            ORDER BY b.retry_at, b.md5, b.size LIMIT 1 FOR NO KEY UPDATE OF b SKIP LOCKED"#
-        ).fetch_optional(&mut *transaction).await.map_err(db_error)?;
+            r#"UPDATE launcher_blobs SET retry_at = now() + make_interval(secs => $1::double precision)
+            WHERE (md5, size) = (
+                SELECT b.md5, b.size FROM launcher_blobs b
+                WHERE b.sha256 IS NULL AND b.retry_at <= now()
+                    AND EXISTS (SELECT 1 FROM launcher_entries e WHERE (e.md5, e.size) = (b.md5, b.size))
+                ORDER BY b.retry_at, b.md5, b.size LIMIT 1 FOR NO KEY UPDATE OF b SKIP LOCKED)
+            RETURNING md5, size"#,
+            f64::from(lease_seconds)
+        )
+        .fetch_optional(self.pool())
+        .await
+        .map_err(db_error)?;
         Ok(row.map(|row| LauncherBlobJob {
-            transaction,
+            database: self.clone(),
             md5: row.md5,
             size: row.size,
         }))
@@ -212,30 +239,45 @@ impl Database {
 }
 
 impl LauncherBlobJob {
-    /// Keep the claim locked while trying each distinct source for this content.
-    pub async fn sources(&mut self) -> AppResult<Vec<LauncherBlobSource>> {
+    /// Distinct sources for this content, newest package version first: the
+    /// current release's CDN directory is the one most likely to still exist.
+    pub async fn sources(&self) -> AppResult<Vec<LauncherBlobSource>> {
         sqlx::query_as!(LauncherBlobSource,
             "SELECT e.path, r.file_path FROM launcher_entries e JOIN launcher_releases r ON r.id = e.release_id
             WHERE e.md5 = $1 AND e.size = $2
-            GROUP BY e.path, r.file_path ORDER BY max(r.id) DESC, e.path, r.file_path",
+            GROUP BY e.path, r.file_path
+            ORDER BY max(launcher_version_key(r.package_version)) DESC, max(r.id) DESC, e.path, r.file_path",
             &self.md5, self.size
-        ).fetch_all(&mut *self.transaction).await.map_err(db_error)
+        ).fetch_all(self.database.pool()).await.map_err(db_error)
     }
 
-    pub async fn complete(mut self, sha256: &str) -> AppResult<()> {
+    /// Extend the lease before another long step, e.g. the next source.
+    pub async fn renew(&self, lease_seconds: i32) -> AppResult<()> {
         sqlx::query!(
-            "UPDATE launcher_blobs SET sha256 = $3, attempts = attempts + 1, last_error = NULL WHERE md5 = $1 AND size = $2",
+            "UPDATE launcher_blobs SET retry_at = now() + make_interval(secs => $3::double precision) WHERE md5 = $1 AND size = $2 AND sha256 IS NULL",
+            &self.md5, self.size, f64::from(lease_seconds)
+        ).execute(self.database.pool()).await.map_err(db_error)?;
+        Ok(())
+    }
+
+    pub async fn complete(self, sha256: &str) -> AppResult<()> {
+        sqlx::query!(
+            "UPDATE launcher_blobs SET sha256 = $3, attempts = attempts + 1, last_error = NULL WHERE md5 = $1 AND size = $2 AND sha256 IS NULL",
             &self.md5, self.size, sha256
-        ).execute(&mut *self.transaction).await.map_err(db_error)?;
-        self.transaction.commit().await.map_err(db_error)
+        ).execute(self.database.pool()).await.map_err(db_error)?;
+        Ok(())
     }
 
-    pub async fn fail(mut self, error: &str, retry_seconds: i32) -> AppResult<()> {
+    /// Back off exponentially from `retry_seconds`, capped at one day, so
+    /// content whose sources are gone for good is not requested every minute.
+    pub async fn fail(self, error: &str, retry_seconds: i32) -> AppResult<()> {
         sqlx::query!(
-            "UPDATE launcher_blobs SET attempts = attempts + 1, last_error = $3, retry_at = clock_timestamp() + make_interval(secs => $4::double precision) WHERE md5 = $1 AND size = $2",
+            "UPDATE launcher_blobs SET attempts = attempts + 1, last_error = $3,
+                retry_at = now() + make_interval(secs => least($4::double precision * power(2::double precision, least(attempts, 16)), 86400))
+            WHERE md5 = $1 AND size = $2 AND sha256 IS NULL",
             &self.md5, self.size, error, f64::from(retry_seconds)
-        ).execute(&mut *self.transaction).await.map_err(db_error)?;
-        self.transaction.commit().await.map_err(db_error)
+        ).execute(self.database.pool()).await.map_err(db_error)?;
+        Ok(())
     }
 }
 

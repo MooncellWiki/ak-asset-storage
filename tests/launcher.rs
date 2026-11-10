@@ -124,6 +124,10 @@ async fn publications_diffs_reuse_and_interrupted_claims(pool: PgPool) {
     let reissue = import(&db, "79.0.0", OLD).await;
     assert_ne!(reissue, new);
     assert_eq!(db.list_launcher_releases(None, 100).await.unwrap().len(), 3);
+    assert_eq!(
+        db.list_launcher_releases(None, 100).await.unwrap()[0].id,
+        reissue
+    );
     let changes = db.launcher_diff(old, new, "", 100).await.unwrap();
     assert_eq!(
         changes
@@ -154,18 +158,39 @@ async fn publications_diffs_reuse_and_interrupted_claims(pool: PgPool) {
             .ready_at
             .is_none()
     );
-    // An interrupted claim keeps its blob pending and immediately reusable.
-    let interrupted = db.claim_launcher_blob().await.unwrap().unwrap();
-    let interrupted_md5 = interrupted.md5.clone();
-    interrupted.transaction.rollback().await.unwrap();
-    let reclaimed = db.claim_launcher_blob().await.unwrap().unwrap();
-    assert_eq!(reclaimed.md5, interrupted_md5);
-    let parallel = db.claim_launcher_blob().await.unwrap().unwrap();
-    assert_ne!(parallel.md5, reclaimed.md5);
-    parallel.transaction.rollback().await.unwrap();
-    reclaimed.transaction.rollback().await.unwrap();
-    let mut count = 0;
-    while let Some(job) = db.claim_launcher_blob().await.unwrap() {
+    // Historical imports list by package version, not by insertion order.
+    let backfilled = import(&db, "9.1.0", OLD.lines().next().unwrap()).await;
+    let listed = db.list_launcher_releases(None, 100).await.unwrap();
+    assert_eq!(
+        listed.iter().map(|r| r.id).collect::<Vec<_>>(),
+        [reissue, new, old, backfilled]
+    );
+    let page = db.list_launcher_releases(Some(new), 100).await.unwrap();
+    assert_eq!(
+        page.iter().map(|r| r.id).collect::<Vec<_>>(),
+        [old, backfilled]
+    );
+    assert!(db.launcher_release_id_exists(old).await.unwrap());
+    assert!(!db.launcher_release_id_exists(i64::MAX).await.unwrap());
+    // A claim is a lease, not an open transaction: parallel claims receive
+    // different blobs, and an interrupted one is reusable once it expires.
+    let interrupted = db.claim_launcher_blob(1).await.unwrap().unwrap();
+    let parallel = db.claim_launcher_blob(60).await.unwrap().unwrap();
+    assert_ne!(parallel.md5, interrupted.md5);
+    let renewed = db.claim_launcher_blob(60).await.unwrap().unwrap();
+    renewed.renew(1).await.unwrap();
+    tokio::time::sleep(std::time::Duration::from_millis(1100)).await;
+    let mut reclaimed = Vec::new();
+    while let Some(job) = db.claim_launcher_blob(60).await.unwrap() {
+        reclaimed.push(job.md5.clone());
+        job.complete(&"a".repeat(64)).await.unwrap();
+    }
+    assert!(reclaimed.contains(&interrupted.md5) && reclaimed.contains(&renewed.md5));
+    assert!(!reclaimed.contains(&parallel.md5));
+    let mut count = reclaimed.len();
+    parallel.complete(&"a".repeat(64)).await.unwrap();
+    count += 1;
+    while let Some(job) = db.claim_launcher_blob(60).await.unwrap() {
         job.complete(&"a".repeat(64)).await.unwrap();
         count += 1;
     }
@@ -174,7 +199,7 @@ async fn publications_diffs_reuse_and_interrupted_claims(pool: PgPool) {
         "unchanged and renamed content have one blob across all releases"
     );
     db.refresh_launcher_ready().await.unwrap();
-    for id in [old, new, reissue] {
+    for id in [old, new, reissue, backfilled] {
         let release = db.get_launcher_release(id).await.unwrap().unwrap();
         assert!(release.ready_at.is_some());
         assert_eq!(release.total_files, release.archived_files);
@@ -221,13 +246,13 @@ async fn retry_delay_starts_after_a_slow_attempt_fails(pool: PgPool) {
     let entry = parse_manifest(OLD).unwrap().remove(0);
     let manifest = serde_json::to_string(&entry).unwrap();
     let release = import(&db, "79.0.0", &manifest).await;
-    let job = db.claim_launcher_blob().await.unwrap().unwrap();
+    let job = db.claim_launcher_blob(60).await.unwrap().unwrap();
 
     tokio::time::sleep(std::time::Duration::from_millis(1200)).await;
     job.fail("slow download failed", 1).await.unwrap();
     assert!(
-        db.claim_launcher_blob().await.unwrap().is_none(),
-        "the retry interval starts at failure, not when the claim transaction began"
+        db.claim_launcher_blob(60).await.unwrap().is_none(),
+        "the retry interval starts at failure, not when the blob was claimed"
     );
     let file = db
         .launcher_file(release, &entry.path)
@@ -239,9 +264,14 @@ async fn retry_delay_starts_after_a_slow_attempt_fails(pool: PgPool) {
     assert!(file.sha256.is_none());
 
     tokio::time::sleep(std::time::Duration::from_millis(1100)).await;
-    let retry = db.claim_launcher_blob().await.unwrap().unwrap();
+    let retry = db.claim_launcher_blob(60).await.unwrap().unwrap();
     assert_eq!(retry.md5, entry.md5);
-    retry.transaction.rollback().await.unwrap();
+    // Each further failure doubles the delay.
+    retry.fail("still failing", 1).await.unwrap();
+    tokio::time::sleep(std::time::Duration::from_millis(1100)).await;
+    assert!(db.claim_launcher_blob(60).await.unwrap().is_none());
+    tokio::time::sleep(std::time::Duration::from_millis(1000)).await;
+    assert!(db.claim_launcher_blob(60).await.unwrap().is_some());
 }
 
 mod archival {
@@ -373,13 +403,14 @@ mod archival {
                 .with_state(upstream.clone()),
         )
         .await;
-        // Backfill older manifests after discovering the current release.
-        // The two expired releases reuse one URL; the working source renamed it.
+        // Sources are tried newest package version first, whatever the import
+        // order. The two expired releases reuse one URL; the only working
+        // source is the oldest release, imported last under another name.
         for (version, directory, path) in [
-            ("79.0.0", "current", "new-name.dll"),
-            ("77.0.0", "corrupt", "old-name.dll"),
+            ("79.0.0", "corrupt", "old-name.dll"),
+            ("77.0.0", "expired", "old-name.dll"),
             ("76.0.0", "expired", "old-name.dll"),
-            ("75.0.0", "expired", "old-name.dll"),
+            ("75.0.0", "current", "new-name.dll"),
         ] {
             let entry = LauncherEntry {
                 path: path.into(),
@@ -565,6 +596,7 @@ mod archival {
             storage: S3Storage::new(&storage_config).unwrap(),
             concurrency: 2,
             retry_interval_seconds: 1,
+            claim_lease_seconds: 2,
         };
         service.discover().await.unwrap();
         service.discover().await.unwrap();
@@ -658,8 +690,10 @@ mod archival {
             .unwrap();
         assert_eq!(renamed.bytes().await.unwrap().as_ref(), b"renamed");
 
-        // Reconstruct service state after cancellation; only uncommitted
-        // contents are fetched, including the single file in the next release.
+        // Reconstruct service state after cancellation; once the interrupted
+        // claim's lease expires, only uncommitted contents are fetched,
+        // including the single file in the next release.
+        tokio::time::sleep(Duration::from_millis(2100)).await;
         let restarted = LauncherArchiveService {
             client: LauncherClient::new(&config).unwrap(),
             ..service

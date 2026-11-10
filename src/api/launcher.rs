@@ -13,6 +13,7 @@ use axum::{
     response::{IntoResponse, Response},
 };
 use serde::{Deserialize, Serialize};
+use std::fmt::Write as _;
 use utoipa::{IntoParams, ToSchema};
 
 #[derive(Debug, Deserialize, IntoParams)]
@@ -74,12 +75,28 @@ fn page_limit(limit: Option<u32>) -> WebResult<usize> {
     Ok(limit as usize)
 }
 
-async fn require_release(state: &AppState, id: i64) -> WebResult<LauncherRelease> {
-    state
-        .database
-        .get_launcher_release(id)
-        .await?
-        .ok_or(WebError::NotFound)
+/// Existence only: the progress view aggregates every entry of a release.
+async fn require_release(state: &AppState, id: i64) -> WebResult<()> {
+    if state.database.launcher_release_id_exists(id).await? {
+        Ok(())
+    } else {
+        Err(WebError::NotFound)
+    }
+}
+
+/// `attachment` with the original file name, RFC 5987-encoded so any path
+/// character is safe in the header.
+fn attachment(path: &str) -> String {
+    let name = path.rsplit('/').next().unwrap_or(path);
+    let mut value = String::from("attachment; filename*=UTF-8''");
+    for byte in name.bytes() {
+        if byte.is_ascii_alphanumeric() || matches!(byte, b'-' | b'.' | b'_' | b'~') {
+            value.push(char::from(byte));
+        } else {
+            let _ = write!(value, "%{byte:02X}");
+        }
+    }
+    value
 }
 
 #[utoipa::path(get, path = "/launcher/releases", tag = "launcher", params(ReleaseQuery), responses((status = 200, body = ReleasePage), (status = 400)))]
@@ -105,7 +122,12 @@ pub async fn get_release(
     State(state): State<AppState>,
     Path(id): Path<i64>,
 ) -> WebResult<Json<LauncherRelease>> {
-    Ok(Json(require_release(&state, id).await?))
+    state
+        .database
+        .get_launcher_release(id)
+        .await?
+        .map(Json)
+        .ok_or(WebError::NotFound)
 }
 
 #[utoipa::path(get, path = "/launcher/releases/{id}/files", tag = "launcher", params(FileQuery), responses((status = 200, body = FilePage), (status = 400), (status = 404)))]
@@ -174,7 +196,7 @@ pub async fn download(
         [
             (header::CONTENT_TYPE, "application/octet-stream".to_string()),
             (header::CONTENT_LENGTH, file.size.to_string()),
-            (header::CONTENT_DISPOSITION, "attachment".to_string()),
+            (header::CONTENT_DISPOSITION, attachment(&file.path)),
             (header::ETAG, format!("\"{hash}\"")),
         ],
         Body::from_stream(object.into_stream()),
@@ -200,4 +222,21 @@ pub async fn manifest(State(state): State<AppState>, Path(id): Path<i64>) -> Web
         bytes,
     )
         .into_response())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::attachment;
+
+    #[test]
+    fn attachment_keeps_the_file_name_and_escapes_header_syntax() {
+        assert_eq!(
+            attachment("Arknights_Data/raw/video/ss01.usm"),
+            "attachment; filename*=UTF-8''ss01.usm"
+        );
+        assert_eq!(
+            attachment("a/b \"c\";é.ab"),
+            "attachment; filename*=UTF-8''b%20%22c%22%3B%C3%A9.ab"
+        );
+    }
 }

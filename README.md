@@ -111,12 +111,16 @@ Allow enough temporary disk for concurrent downloads of the largest file;
 `TMPDIR` selects that filesystem. Set a bucket lifecycle rule to expire
 incomplete multipart uploads left by process termination.
 
-Discovery continues while archival is running. Row locks prevent duplicate
-downloads by concurrent workers and release automatically after interruption.
-Failures are recorded per content pair and retried after the configured delay,
-starting when the attempt fails. If a source is unavailable or fails
+Discovery continues while archival is running. A worker claims a content pair
+with a short lease instead of an open transaction, so no database connection
+is held during transfers; concurrent workers skip leased content, and a claim
+interrupted by a restart is retried once its lease (twice
+`download_timeout_seconds`) expires. Failures are recorded per content pair
+and retried with exponential backoff: `retry_interval_seconds` after the first
+failure, doubling each time up to one day, so content whose CDN directory has
+been purged is not requested every minute. If a source is unavailable or fails
 verification, the worker tries the other known paths for that same content,
-including current releases discovered before a historical manifest was imported.
+newest package version first, whatever order the manifests were imported in.
 Successful objects remain available across restarts. A publication becomes
 ready only when every entry references a verified, uploaded object.
 
@@ -150,7 +154,7 @@ the same content. Public read-only API endpoints:
 
 | Endpoint                                                | Result                                              |
 | ------------------------------------------------------- | --------------------------------------------------- |
-| `GET /api/v1/launcher/releases`                         | Releases, newest first; `before`, `limit`           |
+| `GET /api/v1/launcher/releases`                         | Releases, newest version first; `before`, `limit`   |
 | `GET /api/v1/launcher/releases/{id}`                    | Release metadata and progress                       |
 | `GET /api/v1/launcher/releases/{id}/files`              | Full manifest, paginated with `after`, `q`, `limit` |
 | `GET /api/v1/launcher/diff?from=ID&to=ID`               | Added/deleted/modified paths; `after`, `limit`      |

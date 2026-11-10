@@ -14,19 +14,12 @@
     暂无 PC 发布。启用 launcher 配置后，worker 会独立追踪并归档。
   </p>
   <div class="launcher-tools">
-    <label for="launcher-release">PC 发布</label>
-    <select id="launcher-release" v-model="selected" class="launcher-select">
-      <option :value="undefined" disabled>
-        选择 PC 发布（同包版本重发按清单区分）
-      </option>
-      <option
-        v-for="option in options"
-        :key="option.value"
-        :value="option.value"
-      >
-        {{ option.label }}
-      </option>
-    </select>
+    <VersionSelect
+      v-model="selectedModel"
+      :options="options"
+      label="PC 发布"
+      placeholder="选择 PC 发布（同包版本重发按清单区分）"
+    />
     <button
       v-if="nextBefore"
       type="button"
@@ -169,23 +162,12 @@
       aria-labelledby="launcher-diff-tab"
     >
       <div class="launcher-tools">
-        <label for="launcher-compare">与旧发布比较</label>
-        <select
-          id="launcher-compare"
-          v-model="compareFrom"
-          class="launcher-select"
-        >
-          <option :value="undefined" disabled>
-            选择旧发布，与当前发布比较
-          </option>
-          <option
-            v-for="option in options"
-            :key="option.value"
-            :value="option.value"
-          >
-            {{ option.label }}
-          </option>
-        </select>
+        <VersionSelect
+          v-model="compareModel"
+          :options="options"
+          label="与旧发布比较"
+          placeholder="选择旧发布，与当前发布比较"
+        />
       </div>
       <p class="launcher-dim">
         清单入库即可比较。改名显示为删除旧路径和新增路径，内容按 MD5
@@ -239,6 +221,8 @@ import { AkSearch } from "@mooncellwiki/prts-design-vue";
 import { useIntervalFn } from "@vueuse/core";
 import { computed, onMounted, ref, watch } from "vue";
 import { client } from "~/common/client";
+import { formatSize } from "~/common/utils";
+import VersionSelect from "~/components/layout/VersionSelect.vue";
 import PageHeader from "~/components/PageHeader.vue";
 import type { components } from "~/common/schema";
 
@@ -249,6 +233,17 @@ type Change = components["schemas"]["LauncherDiff"];
 const releases = ref<Release[]>([]);
 const selected = ref<number>();
 const compareFrom = ref<number>();
+/** AkSelect models are `string | number | null`; release ids stay numbers. */
+function idModel(id: typeof selected) {
+  return computed({
+    get: () => id.value ?? null,
+    set: (value) => {
+      id.value = value == null ? undefined : Number(value);
+    },
+  });
+}
+const selectedModel = idModel(selected);
+const compareModel = idModel(compareFrom);
 const nextBefore = ref<number | null>();
 const files = ref<File[]>([]);
 const changes = ref<Change[]>([]);
@@ -257,6 +252,7 @@ const nextDiff = ref<string | null>();
 const search = ref("");
 let fileSearch = "";
 let fileRequest = 0;
+let diffRequest = 0;
 const tab = ref("files");
 const error = ref("");
 const loading = ref(false);
@@ -289,11 +285,16 @@ function downloadUrl(path: string) {
   );
 }
 
-function formatSize(bytes: number) {
-  if (bytes < 1024) return `${bytes} B`;
-  if (bytes < 1024 ** 2) return `${(bytes / 1024).toFixed(2)} KiB`;
-  if (bytes < 1024 ** 3) return `${(bytes / 1024 ** 2).toFixed(2)} MiB`;
-  return `${(bytes / 1024 ** 3).toFixed(2)} GiB`;
+/** Mirrors the API's order: newest package version first, then newest id. */
+function versionKey(version: string) {
+  return (version.match(/\d+/g) ?? []).map(Number);
+}
+function compareReleases(a: Release, b: Release) {
+  const x = versionKey(a.packageVersion);
+  const y = versionKey(b.packageVersion);
+  for (let i = 0; i < Math.min(x.length, y.length); i++)
+    if (x[i] !== y[i]) return y[i]! - x[i]!;
+  return y.length - x.length || b.id - a.id;
 }
 
 async function loadReleases(more = false) {
@@ -311,7 +312,7 @@ async function loadReleases(more = false) {
     const hadReleases = releases.value.length > 0;
     const combined = new Map(releases.value.map((r) => [r.id, r]));
     for (const item of data.releases) combined.set(item.id, item);
-    releases.value = [...combined.values()].sort((a, b) => b.id - a.id);
+    releases.value = [...combined.values()].sort(compareReleases);
     if (more || !hadReleases) nextBefore.value = data.nextBefore;
     selected.value ??= data.releases[0]?.id;
   } catch (err) {
@@ -363,8 +364,9 @@ async function loadFiles(mode: "replace" | "more" | "refresh" = "replace") {
 async function loadDiff(more = false) {
   const from = compareFrom.value;
   const to = selected.value;
+  const request = ++diffRequest;
+  loadingDiff.value = from != null && to != null;
   if (from == null || to == null) return;
-  loadingDiff.value = true;
   try {
     const { data, response } = await client.GET("/api/v1/launcher/diff", {
       params: {
@@ -375,14 +377,14 @@ async function loadDiff(more = false) {
         },
       },
     });
-    if (to !== selected.value || from !== compareFrom.value) return;
+    if (request !== diffRequest) return;
     if (!data) throw new Error(`比较发布失败：${response.status}`);
     changes.value = more ? [...changes.value, ...data.changes] : data.changes;
     nextDiff.value = data.nextAfter;
   } catch (err) {
-    error.value = String(err);
+    if (request === diffRequest) error.value = String(err);
   } finally {
-    loadingDiff.value = false;
+    if (request === diffRequest) loadingDiff.value = false;
   }
 }
 
@@ -448,16 +450,6 @@ useIntervalFn(() => {
     flex: 1;
     min-width: 200px;
   }
-}
-.launcher-select {
-  @include mono;
-  flex: 1;
-  min-width: 200px;
-  max-width: 100%;
-  padding: var(--ak-space-2) var(--ak-space-3);
-  border: 1px solid var(--ak-border);
-  background: var(--ak-bg-surface);
-  color: var(--ak-fg);
 }
 .launcher-summary {
   padding: var(--ak-space-4);
