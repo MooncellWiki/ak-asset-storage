@@ -104,8 +104,7 @@ a Torappu extraction Job.
 Each `(MD5, size)` content pair is downloaded once across versions and paths.
 Downloads stream into anonymous temporary files while checking size and MD5,
 then upload raw bytes to `launcher/blobs/<first 2>/<next 2>/<remaining 60>`
-in the existing bucket, using the file's hex SHA-256. Downloads also support
-objects previously written at `launcher/blobs/<SHA-256>`.
+in the existing bucket, using the file's hex SHA-256.
 These records are separate from Android's ZIP-backed content hashes.
 Allow enough temporary disk for concurrent downloads of the largest file;
 `TMPDIR` selects that filesystem. Set a bucket lifecycle rule to expire
@@ -152,19 +151,21 @@ paths, compares publications, and downloads finished files even while other
 files are pending. Renames appear as a deleted path and an added path sharing
 the same content. Public read-only API endpoints:
 
-| Endpoint                                                | Result                                              |
-| ------------------------------------------------------- | --------------------------------------------------- |
-| `GET /api/v1/launcher/releases`                         | Releases, newest version first; `before`, `limit`   |
-| `GET /api/v1/launcher/releases/{id}`                    | Release metadata and progress                       |
-| `GET /api/v1/launcher/releases/{id}/files`              | Full manifest, paginated with `after`, `q`, `limit` |
-| `GET /api/v1/launcher/diff?from=ID&to=ID`               | Added/deleted/modified paths; `after`, `limit`      |
-| `GET /api/v1/launcher/releases/{id}/download?path=PATH` | Original file bytes; 503 until archived             |
-| `GET /api/v1/launcher/releases/{id}/manifest`           | Original encrypted `game_files`                     |
+| Endpoint                                      | Result                                              |
+| --------------------------------------------- | --------------------------------------------------- |
+| `GET /api/v1/launcher/releases`               | Releases, newest version first; `before`, `limit`   |
+| `GET /api/v1/launcher/releases/{id}`          | Release metadata and progress                       |
+| `GET /api/v1/launcher/releases/{id}/files`    | Full manifest, paginated with `after`, `q`, `limit` |
+| `GET /api/v1/launcher/diff?from=ID&to=ID`     | Added/deleted/modified paths; `after`, `limit`      |
+| `GET /api/v1/launcher/releases/{id}/manifest` | Original encrypted `game_files`                     |
 
 Page sizes default to 100 and are limited to 200. Use `nextBefore` or
 `nextAfter` as the next request's `before` or `after` with the same filters.
-The API streams downloads from the configured bucket; it does not require
-public bucket access. API schemas are included in OpenAPI.
+The page downloads sharded objects through the same `/storage/` route as
+Android bundles. Route `/storage/launcher/blobs/...` to `launcher/blobs/...`
+in the archive bucket. The original encrypted `game_files` is stored in the
+PostgreSQL `launcher_releases.encrypted_manifest` column. API schemas are
+included in OpenAPI.
 
 Protocol parameters were cross-checked against the
 [official-channel request](https://github.com/Well2333/ArkSwitcher/blob/main/src/official_source.rs)

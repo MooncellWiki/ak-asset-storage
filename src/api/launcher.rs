@@ -7,13 +7,11 @@ use crate::{
 };
 use axum::{
     Json,
-    body::Body,
     extract::{Path, Query, State},
     http::header,
     response::{IntoResponse, Response},
 };
 use serde::{Deserialize, Serialize};
-use std::fmt::Write as _;
 use utoipa::{IntoParams, ToSchema};
 
 #[derive(Debug, Deserialize, IntoParams)]
@@ -29,11 +27,6 @@ pub struct FileQuery {
     /// Literal, case-sensitive path substring.
     pub q: Option<String>,
     pub limit: Option<u32>,
-}
-
-#[derive(Debug, Deserialize, IntoParams)]
-pub struct DownloadQuery {
-    pub path: String,
 }
 
 #[derive(Debug, Deserialize, IntoParams)]
@@ -82,21 +75,6 @@ async fn require_release(state: &AppState, id: i64) -> WebResult<()> {
     } else {
         Err(WebError::NotFound)
     }
-}
-
-/// `attachment` with the original file name, RFC 5987-encoded so any path
-/// character is safe in the header.
-fn attachment(path: &str) -> String {
-    let name = path.rsplit('/').next().unwrap_or(path);
-    let mut value = String::from("attachment; filename*=UTF-8''");
-    for byte in name.bytes() {
-        if byte.is_ascii_alphanumeric() || matches!(byte, b'-' | b'.' | b'_' | b'~') {
-            value.push(char::from(byte));
-        } else {
-            let _ = write!(value, "%{byte:02X}");
-        }
-    }
-    value
 }
 
 #[utoipa::path(get, path = "/launcher/releases", tag = "launcher", params(ReleaseQuery), responses((status = 200, body = ReleasePage), (status = 400)))]
@@ -177,33 +155,6 @@ pub async fn diff(
     }))
 }
 
-#[utoipa::path(get, path = "/launcher/releases/{id}/download", tag = "launcher", params(DownloadQuery), responses((status = 200, description = "Verified original bytes"), (status = 404), (status = 503, description = "File not archived yet")))]
-pub async fn download(
-    State(state): State<AppState>,
-    Path(id): Path<i64>,
-    Query(query): Query<DownloadQuery>,
-) -> WebResult<Response> {
-    let file = state
-        .database
-        .launcher_file(id, &query.path)
-        .await?
-        .ok_or(WebError::NotFound)?;
-    let hash = file.sha256.ok_or_else(|| {
-        WebError::Unavailable("file is still being archived; retry shortly".into())
-    })?;
-    let object = state.storage.download_launcher_blob(&hash).await?;
-    Ok((
-        [
-            (header::CONTENT_TYPE, "application/octet-stream".to_string()),
-            (header::CONTENT_LENGTH, file.size.to_string()),
-            (header::CONTENT_DISPOSITION, attachment(&file.path)),
-            (header::ETAG, format!("\"{hash}\"")),
-        ],
-        Body::from_stream(object.into_stream()),
-    )
-        .into_response())
-}
-
 #[utoipa::path(get, path = "/launcher/releases/{id}/manifest", tag = "launcher", responses((status = 200, description = "Original encrypted game_files"), (status = 404)))]
 pub async fn manifest(State(state): State<AppState>, Path(id): Path<i64>) -> WebResult<Response> {
     let bytes = state
@@ -222,21 +173,4 @@ pub async fn manifest(State(state): State<AppState>, Path(id): Path<i64>) -> Web
         bytes,
     )
         .into_response())
-}
-
-#[cfg(test)]
-mod tests {
-    use super::attachment;
-
-    #[test]
-    fn attachment_keeps_the_file_name_and_escapes_header_syntax() {
-        assert_eq!(
-            attachment("Arknights_Data/raw/video/ss01.usm"),
-            "attachment; filename*=UTF-8''ss01.usm"
-        );
-        assert_eq!(
-            attachment("a/b \"c\";é.ab"),
-            "attachment; filename*=UTF-8''b%20%22c%22%3B%C3%A9.ab"
-        );
-    }
 }

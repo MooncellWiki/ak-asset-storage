@@ -128,7 +128,8 @@
                 <a
                   v-if="file.sha256"
                   class="ak-btn ak-btn--ghost ak-btn--sm"
-                  :href="downloadUrl(file.path)"
+                  :href="storageUrl(file.sha256, '/storage/launcher/blobs')"
+                  :download="splitPath(file.path).name"
                   >下载原始文件</a
                 >
                 <span
@@ -221,7 +222,7 @@ import { AkSearch } from "@mooncellwiki/prts-design-vue";
 import { useIntervalFn } from "@vueuse/core";
 import { computed, onMounted, ref, watch } from "vue";
 import { client } from "~/common/client";
-import { formatSize } from "~/common/utils";
+import { formatSize, splitPath, storageUrl } from "~/common/utils";
 import VersionSelect from "~/components/layout/VersionSelect.vue";
 import PageHeader from "~/components/PageHeader.vue";
 import type { components } from "~/common/schema";
@@ -277,12 +278,6 @@ const options = computed(() =>
 
 function apiUrl(path: string) {
   return `${(import.meta.env.VITE_API_PATH ?? "").replace(/\/$/, "")}${path}`;
-}
-
-function downloadUrl(path: string) {
-  return apiUrl(
-    `/api/v1/launcher/releases/${selected.value}/download?${new URLSearchParams({ path })}`,
-  );
 }
 
 /** Mirrors the API's order: newest package version first, then newest id. */

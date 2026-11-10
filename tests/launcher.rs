@@ -1,6 +1,9 @@
 use ak_asset_storage::{
     config::{DatabaseConfig, LauncherConfig},
-    database::{Database, launcher::LauncherEntry},
+    database::{
+        Database,
+        launcher::{LauncherEntry, LauncherFile},
+    },
     external::launcher::{decrypt_manifest, file_url, parse_latest, parse_manifest},
 };
 use md5::{Digest, Md5};
@@ -99,6 +102,16 @@ async fn database(pool: &PgPool) -> Database {
     })
     .await
     .unwrap()
+}
+
+async fn listed_file(database: &Database, release: i64, path: &str) -> LauncherFile {
+    database
+        .launcher_files(release, "", path, 100)
+        .await
+        .unwrap()
+        .into_iter()
+        .find(|file| file.path == path)
+        .unwrap()
 }
 
 async fn import(database: &Database, version: &str, manifest: &str) -> i64 {
@@ -206,16 +219,8 @@ async fn publications_diffs_reuse_and_interrupted_claims(pool: PgPool) {
         assert_eq!(release.total_bytes, release.archived_bytes);
     }
     assert_eq!(
-        db.launcher_file(old, "old-name.dll")
-            .await
-            .unwrap()
-            .unwrap()
-            .md5,
-        db.launcher_file(new, "new-name.dll")
-            .await
-            .unwrap()
-            .unwrap()
-            .md5
+        listed_file(&db, old, "old-name.dll").await.md5,
+        listed_file(&db, new, "new-name.dll").await.md5
     );
     assert_eq!(
         db.launcher_manifest(old).await.unwrap().unwrap(),
@@ -254,11 +259,7 @@ async fn retry_delay_starts_after_a_slow_attempt_fails(pool: PgPool) {
         db.claim_launcher_blob(60).await.unwrap().is_none(),
         "the retry interval starts at failure, not when the blob was claimed"
     );
-    let file = db
-        .launcher_file(release, &entry.path)
-        .await
-        .unwrap()
-        .unwrap();
+    let file = listed_file(&db, release, &entry.path).await;
     assert_eq!(file.attempts, 1);
     assert_eq!(file.last_error.as_deref(), Some("slow download failed"));
     assert!(file.sha256.is_none());
@@ -286,7 +287,10 @@ mod archival {
     use axum::{
         Json, Router,
         extract::{Path, State},
-        http::StatusCode,
+        http::{
+            StatusCode,
+            header::{ACCEPT_ENCODING, CONTENT_ENCODING},
+        },
         response::{IntoResponse, Response},
         routing::{get, post},
     };
@@ -382,6 +386,15 @@ mod archival {
         }
     }
 
+    fn blob_key(hash: &str) -> String {
+        format!(
+            "launcher/blobs/{}/{}/{}",
+            &hash[..2],
+            &hash[2..4],
+            &hash[4..]
+        )
+    }
+
     #[sqlx::test]
     #[ignore = "requires development S3 on localhost:31000 (arknights-assets, torappu/torappu123)"]
     async fn archives_raw_bytes_from_available_sources_after_backfill(pool: PgPool) {
@@ -446,7 +459,7 @@ mod archival {
         }
         let stored = service
             .storage
-            .download_launcher_blob(&sha256::digest(bytes))
+            .download(&blob_key(&sha256::digest(bytes)))
             .await
             .unwrap();
         assert_eq!(stored.bytes().await.unwrap().as_ref(), bytes);
@@ -589,11 +602,10 @@ mod archival {
             retry_interval_seconds: 1,
             ..LauncherConfig::default()
         };
-        let storage_config = storage_config();
         let service = LauncherArchiveService {
             database: db.clone(),
             client: LauncherClient::new(&config).unwrap(),
-            storage: S3Storage::new(&storage_config).unwrap(),
+            storage: S3Storage::new(&storage_config()).unwrap(),
             concurrency: 2,
             retry_interval_seconds: 1,
             claim_lease_seconds: 2,
@@ -624,14 +636,6 @@ mod archival {
         let progress = db.get_launcher_release(new).await.unwrap().unwrap();
         assert_eq!(progress.archived_files, 3);
         assert!(progress.ready_at.is_none());
-        assert!(
-            db.launcher_file(new, "changed.ab")
-                .await
-                .unwrap()
-                .unwrap()
-                .sha256
-                .is_none()
-        );
         // An in-flight download cannot block discovery of another release.
         tokio::time::sleep(Duration::from_millis(1100)).await;
         upstream.stall.store(true, Ordering::SeqCst);
@@ -662,7 +666,6 @@ mod archival {
 
         let mut settings: AppSettings = toml::from_str(include_str!("../example.toml")).unwrap();
         settings.database.uri = db.pool().connect_options().to_url_lossy().to_string();
-        settings.s3 = storage_config;
         settings.torappu.kubernetes = None;
         let temp = tempfile::tempdir().unwrap();
         settings.torappu.asset_base_path = temp.path().to_str().unwrap().into();
@@ -671,24 +674,23 @@ mod archival {
         let state = AppState::from_settings(Arc::new(settings)).await.unwrap();
         let (api, api_task) = serve(build_router(state)).await;
         let http = reqwest::Client::new();
-        assert_eq!(
-            http.get(format!(
-                "{api}/api/v1/launcher/releases/{new}/download?path=changed.ab"
-            ))
+        let page: serde_json::Value = http
+            .get(format!("{api}/api/v1/launcher/releases/{new}/files"))
             .send()
             .await
             .unwrap()
-            .status(),
-            StatusCode::SERVICE_UNAVAILABLE
-        );
-        let renamed = http
-            .get(format!(
-                "{api}/api/v1/launcher/releases/{new}/download?path=new-name.dll"
-            ))
-            .send()
+            .error_for_status()
+            .unwrap()
+            .json()
             .await
             .unwrap();
-        assert_eq!(renamed.bytes().await.unwrap().as_ref(), b"renamed");
+        let files = page["files"].as_array().unwrap();
+        assert!(files.iter().any(|file| {
+            file["path"] == "changed.ab" && file.get("sha256") == Some(&serde_json::Value::Null)
+        }));
+        assert!(files.iter().any(|file| {
+            file["path"] == "new-name.dll" && file["sha256"] == sha256::digest(b"renamed")
+        }));
 
         // Reconstruct service state after cancellation; once the interrupted
         // claim's lease expires, only uncommitted contents are fetched,
@@ -699,30 +701,6 @@ mod archival {
             ..service
         };
         restarted.archive_pending().await.unwrap();
-        let hash = sha256::digest(b"before");
-        let key = format!(
-            "launcher/blobs/{}/{}/{}",
-            &hash[..2],
-            &hash[2..4],
-            &hash[4..]
-        );
-        let stored = restarted.storage.download(&key).await.unwrap();
-        assert_eq!(stored.bytes().await.unwrap().as_ref(), b"before");
-
-        let legacy_bytes = b"legacy launcher blob fixture";
-        let legacy_hash = sha256::digest(legacy_bytes);
-        restarted
-            .storage
-            .upload(&format!("launcher/blobs/{legacy_hash}"), legacy_bytes)
-            .await
-            .unwrap();
-        let legacy = restarted
-            .storage
-            .download_launcher_blob(&legacy_hash)
-            .await
-            .unwrap();
-        assert_eq!(legacy.bytes().await.unwrap().as_ref(), legacy_bytes);
-
         for release in db.list_launcher_releases(None, 100).await.unwrap() {
             assert!(release.ready_at.is_some());
         }
@@ -737,31 +715,24 @@ mod archival {
             (new, "changed.ab", b"after".as_slice()),
             (old, "old-name.dll", b"renamed".as_slice()),
         ] {
-            let mut url =
-                reqwest::Url::parse(&format!("{api}/api/v1/launcher/releases/{id}/download"))
-                    .unwrap();
-            url.query_pairs_mut().append_pair("path", path);
-            let response = http.get(url).send().await.unwrap();
-            assert_eq!(response.status(), StatusCode::OK);
-            assert_eq!(response.content_length(), Some(expected.len() as u64));
-            let bytes = response.bytes().await.unwrap();
+            let file = listed_file(&db, id, path).await;
+            let hash = file.sha256.unwrap();
+            assert_eq!(hash, sha256::digest(expected));
+            let object = restarted.storage.download(&blob_key(&hash)).await.unwrap();
+            let bytes = object.bytes().await.unwrap();
             assert_eq!(bytes.as_ref(), expected);
-            assert_eq!(
-                hex::encode(Md5::digest(&bytes)),
-                db.launcher_file(id, path).await.unwrap().unwrap().md5
-            );
+            assert_eq!(hex::encode(Md5::digest(&bytes)), file.md5);
         }
-        assert_eq!(
-            http.get(format!("{api}/api/v1/launcher/releases/{old}/manifest"))
-                .send()
-                .await
-                .unwrap()
-                .bytes()
-                .await
-                .unwrap()
-                .as_ref(),
-            old_ciphertext
-        );
+        let manifest = http
+            .get(format!("{api}/api/v1/launcher/releases/{old}/manifest"))
+            .header(ACCEPT_ENCODING, "gzip")
+            .send()
+            .await
+            .unwrap();
+        assert_eq!(manifest.status(), StatusCode::OK);
+        assert!(!manifest.headers().contains_key(CONTENT_ENCODING));
+        assert_eq!(manifest.content_length(), Some(old_ciphertext.len() as u64));
+        assert_eq!(manifest.bytes().await.unwrap().as_ref(), old_ciphertext);
         assert_eq!(
             http.get(format!(
                 "{api}/api/v1/launcher/diff?from={old}&to={new}&limit=0"

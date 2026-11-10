@@ -166,13 +166,6 @@ impl Database {
         ).fetch_all(self.pool()).await.map_err(db_error)
     }
 
-    pub async fn launcher_file(&self, id: i64, path: &str) -> AppResult<Option<LauncherFile>> {
-        sqlx::query_as!(LauncherFile,
-            "SELECT e.path, e.md5, e.size, b.sha256, b.attempts, b.last_error FROM launcher_entries e JOIN launcher_blobs b USING (md5, size) WHERE e.release_id = $1 AND e.path = $2",
-            id, path
-        ).fetch_optional(self.pool()).await.map_err(db_error)
-    }
-
     /// A rename appears as an addition and a deletion, with the same content hash.
     pub async fn launcher_diff(
         &self,
