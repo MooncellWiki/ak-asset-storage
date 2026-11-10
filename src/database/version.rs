@@ -163,6 +163,20 @@ impl Database {
         }))
     }
 
+    pub(crate) async fn get_download_baseline(
+        &self,
+        version_id: i32,
+    ) -> AppResult<Option<(i32, String)>> {
+        let baseline = sqlx::query!(
+            "SELECT id, hot_update_list FROM versions WHERE id < $1 AND is_ready = true ORDER BY id DESC LIMIT 1",
+            version_id
+        )
+        .fetch_optional(self.pool())
+        .await
+        .map_err(|err| AppError::ExternalService(err.into()))?;
+        Ok(baseline.map(|row| (row.id, row.hot_update_list)))
+    }
+
     pub async fn mark_version_ready(&self, id: i32) -> AppResult<()> {
         sqlx::query!("UPDATE versions SET is_ready = true WHERE id = $1", id)
             .execute(self.pool())

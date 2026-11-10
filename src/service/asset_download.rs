@@ -10,8 +10,11 @@ use crate::{
 use anyhow::Context;
 use futures::{StreamExt, TryStreamExt, stream};
 use sha256::digest;
-use std::io::{Cursor, Read};
-use tracing::{debug, error, info, instrument};
+use std::{
+    collections::HashMap,
+    io::{Cursor, Read},
+};
+use tracing::{debug, error, info, instrument, warn};
 use zip::ZipArchive;
 
 #[derive(Clone)]
@@ -74,11 +77,17 @@ impl AssetDownloadService {
             .id
             .ok_or_else(|| anyhow::anyhow!("Version ID is missing"))?;
         let hot_update_list = HotUpdateList::new(&version.hot_update_list)?;
+        let baseline = self.load_download_baseline(version_id).await?;
 
         stream::iter(hot_update_list.ab_infos())
             .map(Ok)
             .try_for_each_concurrent(self.concurrent, |info| {
-                self.skip_or_download(info.clone(), version_id, version.res.as_str())
+                let reusable_file_id = baseline
+                    .get(&info.name)
+                    .and_then(Option::as_ref)
+                    .filter(|(previous, _)| info.matches_archived_content(previous))
+                    .map(|(_, file_id)| *file_id);
+                self.skip_or_download(info, version_id, &version.res, reusable_file_id)
             })
             .await?;
 
@@ -91,11 +100,52 @@ impl AssetDownloadService {
         Ok(())
     }
 
+    async fn load_download_baseline(
+        &self,
+        version_id: i32,
+    ) -> AppResult<HashMap<String, Option<(ABInfo, i32)>>> {
+        let Some((baseline_id, raw_list)) = self.database.get_download_baseline(version_id).await?
+        else {
+            return Ok(HashMap::new());
+        };
+        let hot_update_list = match HotUpdateList::new(&raw_list) {
+            Ok(list) => list,
+            Err(error) => {
+                warn!(baseline_id, %error, "ignoring invalid download baseline");
+                return Ok(HashMap::new());
+            }
+        };
+
+        // A repeated path in either source makes its archive identity ambiguous.
+        let mut infos = HashMap::new();
+        for info in hot_update_list.ab_infos() {
+            infos
+                .entry(info.name.as_str())
+                .and_modify(|entry| *entry = None)
+                .or_insert(Some(info));
+        }
+        let mut baseline = HashMap::new();
+        for bundle in self
+            .database
+            .query_bundles_by_version_id(baseline_id)
+            .await?
+        {
+            if let Some(&Some(info)) = infos.get(bundle.path.as_str()) {
+                baseline
+                    .entry(bundle.path)
+                    .and_modify(|entry| *entry = None)
+                    .or_insert_with(|| Some((info.clone(), bundle.file_id)));
+            }
+        }
+        Ok(baseline)
+    }
+
     async fn skip_or_download(
         &self,
-        info: ABInfo,
+        info: &ABInfo,
         version_id: i32,
         res_version: &str,
+        reusable_file_id: Option<i32>,
     ) -> AppResult<()> {
         if self
             .database
@@ -107,17 +157,21 @@ impl AssetDownloadService {
             return Ok(());
         }
 
-        let file_id = self.sync_file(res_version, &info.url()).await?;
-        let bundle_path = info.name.clone();
+        let file_id = if let Some(file_id) = reusable_file_id {
+            debug!(path = %info.name, file_id, "reusing archived bundle");
+            file_id
+        } else {
+            self.sync_file(res_version, &info.url()).await?
+        };
         let bundle = BundleRow {
             id: None,
-            path: bundle_path.clone(),
+            path: info.name.clone(),
             version_id,
             file_id,
         };
 
         self.database.create_bundle(bundle).await?;
-        info!("{} sync finished", bundle_path);
+        info!("{} sync finished", info.name);
         Ok(())
     }
 
