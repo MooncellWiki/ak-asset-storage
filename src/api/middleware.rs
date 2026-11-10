@@ -1,19 +1,30 @@
 use axum::{
     Router,
-    http::{HeaderValue, Response, header::CONTENT_TYPE},
+    http::{Extensions, HeaderMap, HeaderValue, Response, header::CONTENT_TYPE},
     routing::{MethodRouter, get_service},
 };
 use std::{path::PathBuf, time::Duration};
 use tower::ServiceBuilder;
 use tower_http::{
-    compression::CompressionLayer, services::ServeDir, set_header::SetResponseHeaderLayer,
+    compression::{CompressionLayer, DefaultPredicate, Predicate},
+    services::ServeDir,
+    set_header::SetResponseHeaderLayer,
     timeout::RequestBodyTimeoutLayer,
 };
+
+#[derive(Clone)]
+pub(super) struct SkipCompression;
 
 pub fn apply_axum_middleware(router: Router) -> Router {
     router
         .layer(RequestBodyTimeoutLayer::new(Duration::from_secs(10)))
-        .layer(CompressionLayer::new())
+        .layer(
+            CompressionLayer::new().compress_when(DefaultPredicate::new().and(
+                |_, _, _: &HeaderMap, extensions: &Extensions| {
+                    extensions.get::<SkipCompression>().is_none()
+                },
+            )),
+        )
 }
 
 fn set_text_plain_charset<B>(response: &Response<B>) -> Option<HeaderValue> {

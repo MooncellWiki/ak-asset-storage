@@ -287,7 +287,10 @@ mod archival {
     use axum::{
         Json, Router,
         extract::{Path, State},
-        http::StatusCode,
+        http::{
+            StatusCode,
+            header::{ACCEPT_ENCODING, CONTENT_ENCODING},
+        },
         response::{IntoResponse, Response},
         routing::{get, post},
     };
@@ -720,17 +723,16 @@ mod archival {
             assert_eq!(bytes.as_ref(), expected);
             assert_eq!(hex::encode(Md5::digest(&bytes)), file.md5);
         }
-        assert_eq!(
-            http.get(format!("{api}/api/v1/launcher/releases/{old}/manifest"))
-                .send()
-                .await
-                .unwrap()
-                .bytes()
-                .await
-                .unwrap()
-                .as_ref(),
-            old_ciphertext
-        );
+        let manifest = http
+            .get(format!("{api}/api/v1/launcher/releases/{old}/manifest"))
+            .header(ACCEPT_ENCODING, "gzip")
+            .send()
+            .await
+            .unwrap();
+        assert_eq!(manifest.status(), StatusCode::OK);
+        assert!(!manifest.headers().contains_key(CONTENT_ENCODING));
+        assert_eq!(manifest.content_length(), Some(old_ciphertext.len() as u64));
+        assert_eq!(manifest.bytes().await.unwrap().as_ref(), old_ciphertext);
         assert_eq!(
             http.get(format!(
                 "{api}/api/v1/launcher/diff?from={old}&to={new}&limit=0"

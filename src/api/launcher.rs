@@ -2,11 +2,12 @@ use crate::{
     api::{
         AppState,
         error::{WebError, WebResult},
+        middleware::SkipCompression,
     },
     database::launcher::{LauncherDiff, LauncherFile, LauncherRelease},
 };
 use axum::{
-    Json,
+    Extension, Json,
     extract::{Path, Query, State},
     http::header,
     response::{IntoResponse, Response},
@@ -162,7 +163,9 @@ pub async fn manifest(State(state): State<AppState>, Path(id): Path<i64>) -> Web
         .launcher_manifest(id)
         .await?
         .ok_or(WebError::NotFound)?;
+    // Preserve the ciphertext length for download progress.
     Ok((
+        Extension(SkipCompression),
         [
             (header::CONTENT_TYPE, "application/octet-stream"),
             (
