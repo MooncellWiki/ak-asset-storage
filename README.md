@@ -151,20 +151,21 @@ paths, compares publications, and downloads finished files even while other
 files are pending. Renames appear as a deleted path and an added path sharing
 the same content. Public read-only API endpoints:
 
-| Endpoint                                                | Result                                              |
-| ------------------------------------------------------- | --------------------------------------------------- |
-| `GET /api/v1/launcher/releases`                         | Releases, newest version first; `before`, `limit`   |
-| `GET /api/v1/launcher/releases/{id}`                    | Release metadata and progress                       |
-| `GET /api/v1/launcher/releases/{id}/files`              | Full manifest, paginated with `after`, `q`, `limit` |
-| `GET /api/v1/launcher/diff?from=ID&to=ID`               | Added/deleted/modified paths; `after`, `limit`      |
-| `GET /api/v1/launcher/releases/{id}/download?path=PATH` | Original file bytes; 503 until archived             |
-| `GET /api/v1/launcher/releases/{id}/manifest`           | Original encrypted `game_files`                     |
+| Endpoint                                      | Result                                              |
+| --------------------------------------------- | --------------------------------------------------- |
+| `GET /api/v1/launcher/releases`               | Releases, newest version first; `before`, `limit`   |
+| `GET /api/v1/launcher/releases/{id}`          | Release metadata and progress                       |
+| `GET /api/v1/launcher/releases/{id}/files`    | Full manifest, paginated with `after`, `q`, `limit` |
+| `GET /api/v1/launcher/diff?from=ID&to=ID`     | Added/deleted/modified paths; `after`, `limit`      |
+| `GET /api/v1/launcher/releases/{id}/manifest` | Original encrypted `game_files`                     |
 
 Page sizes default to 100 and are limited to 200. Use `nextBefore` or
 `nextAfter` as the next request's `before` or `after` with the same filters.
 The page downloads sharded objects through the same `/storage/` route as
 Android bundles. Route `/storage/launcher/blobs/...` to `launcher/blobs/...`
-in the archive bucket. API schemas are included in OpenAPI.
+in the archive bucket. The original encrypted `game_files` is stored in the
+PostgreSQL `launcher_releases.encrypted_manifest` column. API schemas are
+included in OpenAPI.
 
 Protocol parameters were cross-checked against the
 [official-channel request](https://github.com/Well2333/ArkSwitcher/blob/main/src/official_source.rs)

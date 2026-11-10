@@ -38,7 +38,6 @@ pub fn build_router(state: AppState) -> Router {
         .routes(routes!(launcher::get_release))
         .routes(routes!(launcher::list_files))
         .routes(routes!(launcher::diff))
-        .routes(routes!(launcher::download))
         .routes(routes!(launcher::manifest))
         .routes(routes!(handlers::health))
         .routes(routes!(handlers::list_asset))

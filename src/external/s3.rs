@@ -30,10 +30,6 @@ impl S3Storage {
         self.upload_file(&launcher_blob_path(hash), file).await
     }
 
-    pub async fn download_launcher_blob(&self, hash: &str) -> AppResult<object_store::GetResult> {
-        self.download(&launcher_blob_path(hash)).await
-    }
-
     /// Upload a verified raw file with bounded memory and multipart backpressure.
     pub async fn upload_file(&self, path: &str, file: &mut tokio::fs::File) -> AppResult<()> {
         if file.metadata().await?.len() == 0 {
