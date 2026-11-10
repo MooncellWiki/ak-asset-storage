@@ -31,13 +31,7 @@ impl S3Storage {
     }
 
     pub async fn download_launcher_blob(&self, hash: &str) -> AppResult<object_store::GetResult> {
-        let path = object_store::path::Path::from(launcher_blob_path(hash));
-        match self.store.get(&path).await {
-            Err(object_store::Error::NotFound { .. }) => {
-                self.download(&format!("launcher/blobs/{hash}")).await
-            }
-            result => result.map_err(|err| AppError::ExternalService(err.into())),
-        }
+        self.download(&launcher_blob_path(hash)).await
     }
 
     /// Upload a verified raw file with bounded memory and multipart backpressure.

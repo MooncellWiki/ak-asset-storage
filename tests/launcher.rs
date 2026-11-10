@@ -709,20 +709,6 @@ mod archival {
         let stored = restarted.storage.download(&key).await.unwrap();
         assert_eq!(stored.bytes().await.unwrap().as_ref(), b"before");
 
-        let legacy_bytes = b"legacy launcher blob fixture";
-        let legacy_hash = sha256::digest(legacy_bytes);
-        restarted
-            .storage
-            .upload(&format!("launcher/blobs/{legacy_hash}"), legacy_bytes)
-            .await
-            .unwrap();
-        let legacy = restarted
-            .storage
-            .download_launcher_blob(&legacy_hash)
-            .await
-            .unwrap();
-        assert_eq!(legacy.bytes().await.unwrap().as_ref(), legacy_bytes);
-
         for release in db.list_launcher_releases(None, 100).await.unwrap() {
             assert!(release.ready_at.is_some());
         }

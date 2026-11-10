@@ -128,9 +128,8 @@
                 <a
                   v-if="file.sha256"
                   class="ak-btn ak-btn--ghost ak-btn--sm"
-                  :href="launcherBlobUrl(file.sha256)"
+                  :href="storageUrl(file.sha256, '/storage/launcher/blobs')"
                   :download="splitPath(file.path).name"
-                  @click.prevent="downloadFile(file.sha256, file.path)"
                   >下载原始文件</a
                 >
                 <span
@@ -223,7 +222,7 @@ import { AkSearch } from "@mooncellwiki/prts-design-vue";
 import { useIntervalFn } from "@vueuse/core";
 import { computed, onMounted, ref, watch } from "vue";
 import { client } from "~/common/client";
-import { download, formatSize, splitPath, storageUrl } from "~/common/utils";
+import { formatSize, splitPath, storageUrl } from "~/common/utils";
 import VersionSelect from "~/components/layout/VersionSelect.vue";
 import PageHeader from "~/components/PageHeader.vue";
 import type { components } from "~/common/schema";
@@ -279,30 +278,6 @@ const options = computed(() =>
 
 function apiUrl(path: string) {
   return `${(import.meta.env.VITE_API_PATH ?? "").replace(/\/$/, "")}${path}`;
-}
-
-function launcherBlobUrl(sha256: string) {
-  return storageUrl(sha256, "/storage/launcher/blobs");
-}
-
-async function downloadFile(sha256: string, path: string) {
-  const url = launcherBlobUrl(sha256);
-  const fallback = apiUrl(
-    `/api/v1/launcher/releases/${selected.value}/download?${new URLSearchParams({ path })}`,
-  );
-  // Keep legacy flat keys and deployments without a storage route downloadable.
-  const response = await fetch(url, {
-    method: "HEAD",
-    signal: AbortSignal.timeout(5000),
-  }).catch(() => null);
-  if (
-    response?.ok &&
-    !response.headers.get("content-type")?.startsWith("text/html")
-  ) {
-    download(url, splitPath(path).name);
-  } else {
-    download(fallback);
-  }
 }
 
 /** Mirrors the API's order: newest package version first, then newest id. */

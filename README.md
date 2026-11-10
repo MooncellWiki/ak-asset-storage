@@ -104,8 +104,7 @@ a Torappu extraction Job.
 Each `(MD5, size)` content pair is downloaded once across versions and paths.
 Downloads stream into anonymous temporary files while checking size and MD5,
 then upload raw bytes to `launcher/blobs/<first 2>/<next 2>/<remaining 60>`
-in the existing bucket, using the file's hex SHA-256. Downloads also support
-objects previously written at `launcher/blobs/<SHA-256>`.
+in the existing bucket, using the file's hex SHA-256.
 These records are separate from Android's ZIP-backed content hashes.
 Allow enough temporary disk for concurrent downloads of the largest file;
 `TMPDIR` selects that filesystem. Set a bucket lifecycle rule to expire
@@ -165,9 +164,7 @@ Page sizes default to 100 and are limited to 200. Use `nextBefore` or
 `nextAfter` as the next request's `before` or `after` with the same filters.
 The page downloads sharded objects through the same `/storage/` route as
 Android bundles. Route `/storage/launcher/blobs/...` to `launcher/blobs/...`
-in the archive bucket. If the object is unavailable through that route, the
-page uses the download API, which streams from the configured bucket and also
-supports legacy unsharded objects. API schemas are included in OpenAPI.
+in the archive bucket. API schemas are included in OpenAPI.
 
 Protocol parameters were cross-checked against the
 [official-channel request](https://github.com/Well2333/ArkSwitcher/blob/main/src/official_source.rs)
