@@ -93,8 +93,8 @@ kubectl -n ak-dev exec deploy/postgres -- psql -U ak -d ak_asset_storage_next -c
 **Important rules:**
 
 - **Always use `sqlx::query!` / `query_as!` / `query_scalar!` macros**, never the non-macro `sqlx::query` / `query_as` functions. The macros provide compile-time query verification.
-- **Never edit the `.sqlx/` directory.** Leave it as-is.
-- **Do not use `SQLX_OFFLINE=true`** when running `cargo check` or `cargo build`. Instead, run `sqlx migrate run` first to ensure migrations are applied to the running database, then run `cargo check` or `cargo build` directly so sqlx can verify queries against the live database.
+- **Update `.sqlx/` through SQLx tooling only; never edit its files manually.** Run `sqlx migrate run` to apply database migrations. When queries or schema change, run `cargo sqlx prepare -- --locked --all-targets --all-features` against the migrated database and commit the generated `.sqlx/` changes. `migrate run` updates the database; `prepare` regenerates the offline query cache.
+- **Keep local `cargo check` and `cargo build` online:** run `sqlx migrate run` first, then check/build without `SQLX_OFFLINE=true` so SQLx verifies queries against the live database. CI and Docker builds may use `SQLX_OFFLINE=true` with the generated cache.
 - If `cargo check` or `cargo build` fails with a database connection error, **stop and ask the user to resolve it** — do not fall back to `SQLX_OFFLINE=true`.
 
 ## Clippy

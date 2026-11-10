@@ -65,6 +65,11 @@ import type { ThemeMode } from "~/common/theme";
 const route = useRoute();
 
 const NAV = [
+  {
+    to: "/launcher",
+    label: "PC 归档",
+    match: (p: string) => p.startsWith("/launcher"),
+  },
   { to: "/", label: "版本", match: (p: string) => p === "/" },
   { to: "/diff", label: "变更", match: (p: string) => p.startsWith("/diff") },
   {

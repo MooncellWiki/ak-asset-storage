@@ -1,0 +1,12 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE launcher_releases r SET ready_at = now() WHERE ready_at IS NULL AND NOT EXISTS (SELECT 1 FROM launcher_entries e JOIN launcher_blobs b USING (md5, size) WHERE e.release_id = r.id AND b.sha256 IS NULL)",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": []
+    },
+    "nullable": []
+  },
+  "hash": "96c208af02c1941e29b07483547a7bd4905d88dc14f86577f75b573b456827c2"
+}

@@ -9,8 +9,8 @@ use crate::{
     runtime,
     service::{
         asset_download::AssetDownloadService, asset_mapping_import::AssetMappingImportService,
-        item_demand_import::ItemDemandImportService, story_usage::StoryUsageImportService,
-        version_check::VersionCheckService,
+        item_demand_import::ItemDemandImportService, launcher_archive::LauncherArchiveService,
+        story_usage::StoryUsageImportService, version_check::VersionCheckService,
     },
     worker::{
         WatchTiming, gamedata_ready_watcher::GameDataReadyWatcher,
@@ -32,6 +32,11 @@ pub async fn execute(
     let ak_api = AkApi::new(&settings.ak)?;
     let notification = NotificationClient::new(&settings.mailer)?;
     let s3 = S3Storage::new(&settings.s3)?;
+    let launcher = settings
+        .launcher
+        .as_ref()
+        .map(|config| LauncherArchiveService::new(config, database.clone(), s3.clone()))
+        .transpose()?;
 
     let kubernetes = if let Some(kubernetes_config) = &settings.torappu.kubernetes {
         info!("Kubernetes configuration found, creating Job launcher");
@@ -97,7 +102,21 @@ pub async fn execute(
     );
 
     info!("Worker is running. Press Ctrl+C to stop.");
+    let launcher_loop = async {
+        if let (Some(service), Some(config)) = (&launcher, &settings.launcher) {
+            crate::worker::launcher::run(
+                service,
+                Duration::from_secs(config.poll_interval_seconds),
+            )
+            .await;
+        } else {
+            std::future::pending::<()>().await;
+        }
+    };
     tokio::select! {
+        () = launcher_loop => {
+            sync_worker.stop();
+        }
         () = sync_worker.run() => {
             info!("Worker loop exited.");
         }

@@ -57,6 +57,27 @@ pnpm lint
 `pnpm build` is required before cargo build/clippy/test — rust-embed embeds the
 frontend build output into the binary.
 
+The e2e job checks SQL macros against a fresh PostgreSQL service after applying
+the migrations. The other CI jobs and the Docker build compile with
+`SQLX_OFFLINE=true` against the checked-in `.sqlx/` cache, so regenerate and
+commit it whenever queries or the schema change:
+
+```bash
+sqlx migrate run
+cargo sqlx prepare -- --locked --all-targets --all-features
+```
+
+Launcher tests cover protocol decoding, publication identity, manifest
+transactions, diffs, content reuse, and interrupted claims:
+
+```bash
+cargo test --locked --test launcher
+# Uses the local development S3 bucket plus an isolated SQLx test database:
+cargo test --locked --test launcher archives_raw_bytes -- --ignored --nocapture
+# Optional: reads only the live official API and game_files, not game binaries:
+cargo test --locked --test launcher validates_live -- --ignored --nocapture
+```
+
 ## Database
 
 Migrations live in `migrations/`:

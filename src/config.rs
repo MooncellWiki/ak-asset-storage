@@ -36,6 +36,97 @@ pub struct AkApiConfig {
     pub asset_url: String,
 }
 
+/// Opt-in PC launcher tracking. Omitting this section leaves Android unchanged.
+#[derive(Debug, Clone, Deserialize, Serialize)]
+#[serde(default, deny_unknown_fields)]
+pub struct LauncherConfig {
+    pub latest_url: String,
+    pub request: serde_json::Value,
+    /// Hex-encoded AES-256 key and CBC IV used by `game_files`.
+    pub aes_key: String,
+    pub aes_iv: String,
+    #[serde(default = "default_launcher_poll")]
+    pub poll_interval_seconds: u64,
+    #[serde(default = "default_launcher_concurrency")]
+    pub concurrency: usize,
+    #[serde(default = "default_launcher_retry")]
+    pub retry_interval_seconds: i32,
+    #[serde(default = "default_launcher_timeout")]
+    pub download_timeout_seconds: u64,
+}
+
+impl Default for LauncherConfig {
+    fn default() -> Self {
+        Self {
+            latest_url: "https://launcher.hypergryph.com/api/proxy/batch_proxy".into(),
+            request: serde_json::json!({
+                "seq": "5",
+                "proxy_reqs": [{
+                    "kind": "get_latest_game",
+                    "get_latest_game_req": {
+                        "appcode": "GzD1CpaWgmSq1wew", "launcher_appcode": "abYeZZ16BPluCFyT",
+                        "channel": "1", "sub_channel": "1", "version": ""
+                    }
+                }]
+            }),
+            aes_key: "c0f30e1ce763bbc21cc355a34303ac50399444bff68c4a22af398c0a166ee143".into(),
+            aes_iv: "33467861192750649501937264608400".into(),
+            poll_interval_seconds: default_launcher_poll(),
+            concurrency: default_launcher_concurrency(),
+            retry_interval_seconds: default_launcher_retry(),
+            download_timeout_seconds: default_launcher_timeout(),
+        }
+    }
+}
+
+const fn default_launcher_poll() -> u64 {
+    300
+}
+const fn default_launcher_concurrency() -> usize {
+    4
+}
+const fn default_launcher_retry() -> i32 {
+    60
+}
+const fn default_launcher_timeout() -> u64 {
+    900
+}
+
+impl LauncherConfig {
+    /// Covers one download plus its upload; a claim outliving it is only
+    /// repeated work, since blobs are content-addressed.
+    #[must_use]
+    pub fn claim_lease_seconds(&self) -> i32 {
+        i32::try_from(self.download_timeout_seconds.saturating_mul(2)).unwrap_or(i32::MAX)
+    }
+
+    fn validate(&self) -> anyhow::Result<()> {
+        let url = reqwest::Url::parse(&self.latest_url)
+            .map_err(|err| AppError::Application(err.into()))?;
+        anyhow::ensure!(
+            matches!(url.scheme(), "https" | "http") && url.host_str().is_some(),
+            "invalid launcher.latest_url"
+        );
+        anyhow::ensure!(
+            hex::decode(&self.aes_key).is_ok_and(|key| key.len() == 32),
+            "launcher.aes_key must contain 32 hex-encoded bytes"
+        );
+        anyhow::ensure!(
+            hex::decode(&self.aes_iv).is_ok_and(|iv| iv.len() == 16),
+            "launcher.aes_iv must contain 16 hex-encoded bytes"
+        );
+        anyhow::ensure!(
+            self.poll_interval_seconds > 0
+                && self.concurrency > 0
+                && self.concurrency <= 32
+                && self.retry_interval_seconds > 0
+                && self.download_timeout_seconds > 0,
+            "invalid launcher intervals or concurrency (1-32)"
+        );
+        Ok(())
+    }
+}
+
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct S3Config {
     pub endpoint: String,
@@ -303,6 +394,7 @@ pub struct AppSettings {
     pub database: DatabaseConfig,
     pub mailer: Option<SmtpConfig>,
     pub ak: AkApiConfig,
+    pub launcher: Option<LauncherConfig>,
     pub s3: S3Config,
     pub sentry: SentryConfig,
     pub torappu: TorappuConfig,
@@ -375,6 +467,14 @@ impl AppSettings {
 
     /// Rejects configurations that would silently weaken security at runtime.
     fn validate(&self) -> AppResult<()> {
+        if let Some(launcher) = &self.launcher {
+            launcher.validate()?;
+            if launcher.concurrency + 1 >= self.database.max_connections.unwrap_or(10) as usize {
+                return Err(AppError::Application(anyhow::anyhow!(
+                    "launcher.concurrency must leave at least two database connections for discovery and API queries"
+                )));
+            }
+        }
         if self.torappu.token.trim().is_empty() {
             return Err(AppError::Application(anyhow::anyhow!(
                 "torappu.token must not be empty: it guards the container launch endpoint"
@@ -416,6 +516,34 @@ impl AppSettings {
 mod tests {
     use super::*;
 
+    #[test]
+    fn launcher_tracking_is_optional_and_validates_configuration() {
+        let content = include_str!("../example.toml");
+        let settings = AppSettings::from_toml(content, |_| None).unwrap();
+        assert!(settings.launcher.is_none());
+        let enabled =
+            AppSettings::from_toml(&format!("{content}\n[launcher]\nconcurrency = 2\n"), |_| {
+                None
+            })
+            .unwrap();
+        assert_eq!(enabled.launcher.unwrap().poll_interval_seconds, 300);
+        for field in [
+            "concurrency = 0",
+            "concurrency = 9",
+            "retry_interval_seconds = 0",
+            "poll_interval_seconds = 0",
+            "aes_key = 'bad'",
+            "aes_iv = 'bad'",
+            "latest_url = 'file:///tmp/latest'",
+        ] {
+            assert!(
+                AppSettings::from_toml(&format!("{content}\n[launcher]\n{field}\n"), |_| None)
+                    .is_err(),
+                "accepted {field}"
+            );
+        }
+    }
+
     fn settings_with_token(token: &str) -> AppSettings {
         AppSettings {
             logger: LoggerConfig::default(),
@@ -430,6 +558,7 @@ mod tests {
                 connection_timeout_seconds: None,
             },
             mailer: None,
+            launcher: None,
             ak: AkApiConfig {
                 conf_url: String::new(),
                 asset_url: String::new(),

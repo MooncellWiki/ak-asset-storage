@@ -17,7 +17,7 @@ Rust backend is a single crate organized by module:
 - `src/external/` - concrete integrations for AK API, S3, SMTP, Kubernetes Jobs, GitHub, and torappu assets
 - `src/service/` - shared workflows reused by server and worker
 - `src/worker/` - polling loop and manifest watcher
-- `src/commands/` - CLI entrypoints for `server`, `worker`, `seed`, and `import-manifest`
+- `src/commands/` - CLI entrypoints for `server`, `worker`, `seed`, and manifest imports
 
 The frontend lives in `app/` (Vue 3 + TypeScript + [PRTS Design](https://mooncellwiki.github.io/prts-design/), file-based routing).
 
@@ -49,6 +49,7 @@ Main sections:
 - `mailer`
 - `database`
 - `ak`
+- `launcher` (optional PC official-launcher archive)
 - `s3`
 - `sentry`
 - `mcp`
@@ -79,6 +80,97 @@ connection_timeout_seconds = 30
 asset_url = "https://ak.hycdn.cn/assetbundle/official/Android/assets"
 conf_url = "https://ak-conf.hypergryph.com/config/prod/official/Android"
 ```
+
+### PC launcher archive
+
+PC tracking is opt-in. Add the following section to the worker's TOML config
+after applying the database migrations:
+
+```toml
+[launcher]
+poll_interval_seconds = 300
+concurrency = 4
+retry_interval_seconds = 60
+download_timeout_seconds = 900
+```
+
+The defaults target the PC official channel. The worker polls the launcher's
+`batch_proxy` API independently of Android, checks the encrypted `game_files`
+MD5, decrypts AES-256-CBC/PKCS7 JSONL, and atomically saves the publication and
+its entire manifest. A publication is identified by package version and
+manifest MD5, so a same-version reissue is retained. No PC publication starts
+a Torappu extraction Job.
+
+Each `(MD5, size)` content pair is downloaded once across versions and paths.
+Downloads stream into anonymous temporary files while checking size and MD5,
+then upload raw bytes to `launcher/blobs/<first 2>/<next 2>/<remaining 60>`
+in the existing bucket, using the file's hex SHA-256. Downloads also support
+objects previously written at `launcher/blobs/<SHA-256>`.
+These records are separate from Android's ZIP-backed content hashes.
+Allow enough temporary disk for concurrent downloads of the largest file;
+`TMPDIR` selects that filesystem. Set a bucket lifecycle rule to expire
+incomplete multipart uploads left by process termination.
+
+Discovery continues while archival is running. A worker claims a content pair
+with a short lease instead of an open transaction, so no database connection
+is held during transfers; concurrent workers skip leased content, and a claim
+interrupted by a restart is retried once its lease (twice
+`download_timeout_seconds`) expires. Failures are recorded per content pair
+and retried with exponential backoff: `retry_interval_seconds` after the first
+failure, doubling each time up to one day, so content whose CDN directory has
+been purged is not requested every minute. If a source is unavailable or fails
+verification, the worker tries the other known paths for that same content,
+newest package version first, whatever order the manifests were imported in.
+Successful objects remain available across restarts. A publication becomes
+ready only when every entry references a verified, uploaded object.
+
+#### Import historical manifests
+
+After applying migrations, pass one or more launcher metadata files in import
+order.
+
+```sh
+ak-asset-storage import-launcher-manifest -c config.toml \
+  76.0.0.meta.json 77.0.0.meta.json 78.0.0.meta.json
+```
+
+The command accepts the `.meta.json` format written by
+`launcher-rev/scripts/fetch_manifest.py`. It reads `version`,
+`client_version`, `file_path` (the release CDN base), and `game_files_md5`.
+By default it fetches `<file_path>/game_files`. To use saved ciphertext, add
+`"game_files_path": "game_files.encrypted"` to the metadata. Relative paths
+are resolved from the metadata file's directory.
+
+Each release is verified and committed separately. If an import fails, correct
+the input and rerun the same command. Previously imported releases are skipped.
+The command uses the configured launcher AES settings or the official defaults.
+The worker with `[launcher]` enabled archives missing file contents in the
+background.
+
+The **PC 归档** page at `/launcher` shows file and byte progress, searches historical
+paths, compares publications, and downloads finished files even while other
+files are pending. Renames appear as a deleted path and an added path sharing
+the same content. Public read-only API endpoints:
+
+| Endpoint                                                | Result                                              |
+| ------------------------------------------------------- | --------------------------------------------------- |
+| `GET /api/v1/launcher/releases`                         | Releases, newest version first; `before`, `limit`   |
+| `GET /api/v1/launcher/releases/{id}`                    | Release metadata and progress                       |
+| `GET /api/v1/launcher/releases/{id}/files`              | Full manifest, paginated with `after`, `q`, `limit` |
+| `GET /api/v1/launcher/diff?from=ID&to=ID`               | Added/deleted/modified paths; `after`, `limit`      |
+| `GET /api/v1/launcher/releases/{id}/download?path=PATH` | Original file bytes; 503 until archived             |
+| `GET /api/v1/launcher/releases/{id}/manifest`           | Original encrypted `game_files`                     |
+
+Page sizes default to 100 and are limited to 200. Use `nextBefore` or
+`nextAfter` as the next request's `before` or `after` with the same filters.
+The API streams downloads from the configured bucket; it does not require
+public bucket access. API schemas are included in OpenAPI.
+
+Protocol parameters were cross-checked against the
+[official-channel request](https://github.com/Well2333/ArkSwitcher/blob/main/src/official_source.rs)
+and the live official API/manifest. The upstream response's `version` is the
+package version; `client_version` is the game content version. Endpoint,
+request JSON, and hex AES key/IV can be overridden in the launcher section.
 
 ### S3
 

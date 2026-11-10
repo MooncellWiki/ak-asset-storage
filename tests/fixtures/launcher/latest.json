@@ -1,0 +1,15 @@
+{
+  "proxy_rsps": [
+    {
+      "kind": "get_latest_game",
+      "get_latest_game_rsp": {
+        "version": "79.0.0",
+        "client_version": "2.7.91",
+        "pkg": {
+          "file_path": "https://ak.hycdn.cn/GzD1CpaWgmSq1wew/79.0/update/1/1/Windows/79.0.0_R4C8v7EmosKsRK1Q/files",
+          "game_files_md5": "eac1ac45b50ac95a740290c4daf4b93e"
+        }
+      }
+    }
+  ]
+}

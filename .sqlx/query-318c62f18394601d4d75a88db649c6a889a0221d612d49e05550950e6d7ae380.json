@@ -1,0 +1,28 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT encrypted_manifest FROM launcher_releases WHERE id = $1",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "encrypted_manifest",
+        "type_info": "Bytea",
+        "origin": {
+          "Table": {
+            "table": "launcher_releases",
+            "name": "encrypted_manifest"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int8"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "318c62f18394601d4d75a88db649c6a889a0221d612d49e05550950e6d7ae380"
+}

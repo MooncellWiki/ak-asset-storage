@@ -1,0 +1,41 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT e.path, r.file_path FROM launcher_entries e JOIN launcher_releases r ON r.id = e.release_id\n            WHERE e.md5 = $1 AND e.size = $2\n            GROUP BY e.path, r.file_path\n            ORDER BY max(launcher_version_key(r.package_version)) DESC, max(r.id) DESC, e.path, r.file_path",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "path",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "launcher_entries",
+            "name": "path"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "file_path",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "launcher_releases",
+            "name": "file_path"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Text",
+        "Int8"
+      ]
+    },
+    "nullable": [
+      false,
+      false
+    ]
+  },
+  "hash": "01477a3dd9da09be62c55bea270d9e9470723c02e3228d3abd6440b2edf3b8b1"
+}

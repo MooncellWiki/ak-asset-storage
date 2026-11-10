@@ -1,0 +1,149 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT id AS \"id!\", package_version AS \"package_version!\", game_version AS \"game_version!\",\n            file_path AS \"file_path!\", manifest_md5 AS \"manifest_md5!\", discovered_at AS \"discovered_at!\", ready_at,\n            total_files AS \"total_files!\", archived_files AS \"archived_files!\", total_bytes AS \"total_bytes!\", archived_bytes AS \"archived_bytes!\"\n            FROM launcher_release_progress p\n            WHERE $1::bigint IS NULL OR (launcher_version_key(p.package_version), p.id) <\n                (SELECT launcher_version_key(c.package_version), c.id FROM launcher_releases c WHERE c.id = $1)\n            ORDER BY launcher_version_key(p.package_version) DESC, p.id DESC LIMIT $2",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id!",
+        "type_info": "Int8",
+        "origin": {
+          "Table": {
+            "table": "launcher_release_progress",
+            "name": "id"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "package_version!",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "launcher_release_progress",
+            "name": "package_version"
+          }
+        }
+      },
+      {
+        "ordinal": 2,
+        "name": "game_version!",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "launcher_release_progress",
+            "name": "game_version"
+          }
+        }
+      },
+      {
+        "ordinal": 3,
+        "name": "file_path!",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "launcher_release_progress",
+            "name": "file_path"
+          }
+        }
+      },
+      {
+        "ordinal": 4,
+        "name": "manifest_md5!",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "launcher_release_progress",
+            "name": "manifest_md5"
+          }
+        }
+      },
+      {
+        "ordinal": 5,
+        "name": "discovered_at!",
+        "type_info": "Timestamptz",
+        "origin": {
+          "Table": {
+            "table": "launcher_release_progress",
+            "name": "discovered_at"
+          }
+        }
+      },
+      {
+        "ordinal": 6,
+        "name": "ready_at",
+        "type_info": "Timestamptz",
+        "origin": {
+          "Table": {
+            "table": "launcher_release_progress",
+            "name": "ready_at"
+          }
+        }
+      },
+      {
+        "ordinal": 7,
+        "name": "total_files!",
+        "type_info": "Int8",
+        "origin": {
+          "Table": {
+            "table": "launcher_release_progress",
+            "name": "total_files"
+          }
+        }
+      },
+      {
+        "ordinal": 8,
+        "name": "archived_files!",
+        "type_info": "Int8",
+        "origin": {
+          "Table": {
+            "table": "launcher_release_progress",
+            "name": "archived_files"
+          }
+        }
+      },
+      {
+        "ordinal": 9,
+        "name": "total_bytes!",
+        "type_info": "Int8",
+        "origin": {
+          "Table": {
+            "table": "launcher_release_progress",
+            "name": "total_bytes"
+          }
+        }
+      },
+      {
+        "ordinal": 10,
+        "name": "archived_bytes!",
+        "type_info": "Int8",
+        "origin": {
+          "Table": {
+            "table": "launcher_release_progress",
+            "name": "archived_bytes"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int8",
+        "Int8"
+      ]
+    },
+    "nullable": [
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true
+    ]
+  },
+  "hash": "fb085b9050e5573b6267faa6aa9456d535ee7d6232e78f1e961a1ae93b55503f"
+}

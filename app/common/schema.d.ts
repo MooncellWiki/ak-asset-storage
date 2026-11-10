@@ -132,6 +132,102 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/launcher/diff": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["diff"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/launcher/releases": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["list_releases"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/launcher/releases/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["get_release"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/launcher/releases/{id}/download": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["download"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/launcher/releases/{id}/files": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["list_files"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/launcher/releases/{id}/manifest": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["manifest"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/manifest/{version_id}/children": {
         parameters: {
             query?: never;
@@ -343,6 +439,10 @@ export interface components {
         };
         /** @enum {string} */
         CharacterCategory: "operator" | "npc" | "other";
+        DiffPage: {
+            changes: components["schemas"]["LauncherDiff"][];
+            nextAfter?: string | null;
+        };
         DockerLaunchRequest: {
             client_version: string;
             exclude?: string | null;
@@ -403,13 +503,62 @@ export interface components {
             total: number;
             updatedAt?: string | null;
         };
+        FilePage: {
+            files: components["schemas"]["LauncherFile"][];
+            nextAfter?: string | null;
+        };
         Health: {
             ok: boolean;
+        };
+        LauncherDiff: {
+            change: string;
+            newMd5?: string | null;
+            /** Format: int64 */
+            newSize?: number | null;
+            oldMd5?: string | null;
+            /** Format: int64 */
+            oldSize?: number | null;
+            path: string;
+        };
+        LauncherFile: {
+            /** Format: int32 */
+            attempts: number;
+            lastError?: string | null;
+            md5: string;
+            path: string;
+            sha256?: string | null;
+            /** Format: int64 */
+            size: number;
+        };
+        LauncherRelease: {
+            /** Format: int64 */
+            archivedBytes: number;
+            /** Format: int64 */
+            archivedFiles: number;
+            /** Format: date-time */
+            discoveredAt: string;
+            filePath: string;
+            gameVersion: string;
+            /** Format: int64 */
+            id: number;
+            manifestMd5: string;
+            packageVersion: string;
+            /** Format: date-time */
+            readyAt?: string | null;
+            /** Format: int64 */
+            totalBytes: number;
+            /** Format: int64 */
+            totalFiles: number;
         };
         ManifestNode: {
             name: string;
             nodeType: string;
             path: string;
+        };
+        ReleasePage: {
+            /** Format: int64 */
+            nextBefore?: number | null;
+            releases: components["schemas"]["LauncherRelease"][];
         };
         StoryResourceListResponse: {
             nextCursor?: string | null;
@@ -707,6 +856,197 @@ export interface operations {
                 };
             };
             /** @description Item demand not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    diff: {
+        parameters: {
+            query: {
+                from: number;
+                to: number;
+                after?: string | null;
+                limit?: number | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DiffPage"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    list_releases: {
+        parameters: {
+            query?: {
+                before?: number | null;
+                limit?: number | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReleasePage"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    get_release: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LauncherRelease"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    download: {
+        parameters: {
+            query: {
+                path: string;
+            };
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Verified original bytes */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description File not archived yet */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    list_files: {
+        parameters: {
+            query?: {
+                /** @description Return paths strictly after this path (the previous nextAfter). */
+                after?: string | null;
+                /** @description Literal, case-sensitive path substring. */
+                q?: string | null;
+                limit?: number | null;
+            };
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FilePage"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    manifest: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Original encrypted game_files */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
             404: {
                 headers: {
                     [name: string]: unknown;

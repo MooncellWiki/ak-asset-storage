@@ -42,6 +42,18 @@ uri = "postgres://ak:ak@localhost:32432/ak_asset_storage_next"  # or set DATABAS
 asset_url = "https://ak.hycdn.cn/assetbundle/official/Android/assets"
 conf_url = "https://ak-conf.hypergryph.com/config/prod/official/Android"
 
+# Optional PC official-launcher archive. Omit this section to disable tracking.
+# Defaults include the official batch_proxy request and game_files AES key/IV.
+# Discovery and archival run independently; this never launches Torappu Jobs.
+# [launcher]
+# poll_interval_seconds = 300
+# concurrency = 4             # leave at least two database connections free
+# retry_interval_seconds = 60 # first retry; doubles per failure, up to one day
+# download_timeout_seconds = 900
+# Files are streamed into anonymous temp files before upload. Ensure TMPDIR
+# has room for concurrency * the largest installation file, and configure S3
+# to expire incomplete multipart uploads after interrupted processes.
+
 [s3]
 endpoint = "http://127.0.0.1:31000"
 bucket_name = "arknights-assets"
