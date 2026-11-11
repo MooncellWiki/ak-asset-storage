@@ -255,6 +255,13 @@ pub struct McpConfig {
     pub enable: bool,
 }
 
+/// Enables metrics collection and the Prometheus scrape endpoint.
+#[derive(Debug, Clone, Default, Deserialize, Serialize)]
+pub struct MetricsConfig {
+    #[serde(default)]
+    pub enable: bool,
+}
+
 /// Kubernetes Job launcher configuration.
 ///
 /// The process talks to the cluster API (credentials resolved like kube-rs
@@ -400,6 +407,8 @@ pub struct AppSettings {
     pub torappu: TorappuConfig,
     #[serde(default)]
     pub mcp: McpConfig,
+    #[serde(default)]
+    pub metrics: MetricsConfig,
 }
 
 impl AppSettings {
@@ -584,6 +593,7 @@ mod tests {
                 search_concurrency: default_search_concurrency(),
             },
             mcp: McpConfig::default(),
+            metrics: MetricsConfig::default(),
         }
     }
 

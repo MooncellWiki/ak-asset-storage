@@ -171,6 +171,7 @@ rmcp = { workspace = true }
 # Direct dependency: the JsonSchema derive emits `schemars::` paths that
 # don't resolve through rmcp's re-export.
 schemars = { workspace = true }
+prometheus = { version = "0.14.0", default-features = false }
 
 [dev-dependencies]
 serde = { workspace = true }

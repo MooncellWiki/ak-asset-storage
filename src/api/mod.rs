@@ -4,6 +4,7 @@ mod error;
 mod handlers;
 mod launcher;
 mod mcp;
+mod metrics;
 mod middleware;
 mod router;
 mod state;
