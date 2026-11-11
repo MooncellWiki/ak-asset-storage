@@ -214,42 +214,6 @@ returns a valid empty scrape. Restrict `/metrics` to Prometheus at the gateway
 or network layer. When running multiple replicas, scrape each replica directly
 so Prometheus can track each process's counters.
 
-```yaml
-scrape_configs:
-  - job_name: ak-asset-storage
-    metrics_path: /metrics
-    static_configs:
-      - targets: ["ak-asset-storage:5150"]
-```
-
-`ak_asset_storage_mcp_tool_call_duration_seconds` is a histogram of completed
-`tools/call` dispatches. It measures tool processing in seconds, including
-argument validation and I/O within the tool. The `tool` label is the registered
-name or `unknown`. The `result` label is `success` or `error`, with JSON-RPC
-dispatch errors and `isError: true` both counted as errors. A tool that runs to
-completion after a client disconnects is recorded with its actual result.
-
-Calls by tool and result over five minutes
-
-```promql
-sum by (tool, result) (increase(ak_asset_storage_mcp_tool_call_duration_seconds_count{job="ak-asset-storage"}[5m]))
-```
-
-Success percentage by tool
-
-```promql
-100 * sum by (tool) (rate(ak_asset_storage_mcp_tool_call_duration_seconds_count{job="ak-asset-storage",result="success"}[5m]))
-    / sum by (tool) (rate(ak_asset_storage_mcp_tool_call_duration_seconds_count{job="ak-asset-storage"}[5m]))
-```
-
-95th percentile processing time by tool, in seconds
-
-```promql
-histogram_quantile(0.95,
-  sum by (tool, le) (rate(ak_asset_storage_mcp_tool_call_duration_seconds_bucket{job="ak-asset-storage"}[5m]))
-)
-```
-
 ### Story resource explorer
 
 `GET /api/v1/story-resources/explore?type=character&page=1&pageSize=60`
