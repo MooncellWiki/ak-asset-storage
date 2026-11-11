@@ -1,11 +1,11 @@
 use crate::{
-    AppResult,
+    AppError, AppResult,
     database::{
         Database,
         row::{BundleRow, FileRow, VersionRow},
     },
     external::{ak_api::AkApi, notification::NotificationClient, s3::S3Storage},
-    service::types::{ABInfo, HotUpdateList},
+    service::types::{ABInfo, ABMeta, HotUpdateList},
 };
 use anyhow::Context;
 use futures::{StreamExt, TryStreamExt, stream};
@@ -77,6 +77,18 @@ impl AssetDownloadService {
             .id
             .ok_or_else(|| anyhow::anyhow!("Version ID is missing"))?;
         let hot_update_list = HotUpdateList::new(&version.hot_update_list)?;
+        let unrecognized_meta = hot_update_list
+            .ab_infos()
+            .iter()
+            .filter(|info| info.meta == ABMeta::Unrecognized)
+            .count();
+        if unrecognized_meta > 0 {
+            warn!(
+                res = version.res,
+                unrecognized_meta,
+                "downloading bundles whose meta is not an integer without trusting their MD5"
+            );
+        }
         let baseline = self.load_download_baseline(version_id).await?;
 
         stream::iter(hot_update_list.ab_infos())
@@ -161,7 +173,7 @@ impl AssetDownloadService {
             debug!(path = %info.name, file_id, "reusing archived bundle");
             file_id
         } else {
-            self.sync_file(res_version, &info.url()).await?
+            self.sync_file(res_version, info).await?
         };
         let bundle = BundleRow {
             id: None,
@@ -175,7 +187,9 @@ impl AssetDownloadService {
         Ok(())
     }
 
-    fn calc_sha256(bytes: &[u8]) -> AppResult<String> {
+    /// The bundle content a `.dat` archive holds: its entries' bytes, ordered
+    /// by entry name. Files are identified by the SHA-256 of this content.
+    fn bundle_content(bytes: &[u8]) -> AppResult<Vec<u8>> {
         let mut zip =
             ZipArchive::new(Cursor::new(bytes)).context("Failed to create zip archive")?;
         let mut buffer = Vec::new();
@@ -195,12 +209,16 @@ impl AssetDownloadService {
                 .context("Failed to push zip file content to buffer")?;
         }
 
-        Ok(digest(&buffer))
+        Ok(buffer)
     }
 
-    async fn sync_file(&self, res_version: &str, path: &str) -> AppResult<i32> {
-        let bytes = self.ak_api.download_file(res_version, path).await?;
-        let sha = Self::calc_sha256(&bytes)?;
+    async fn sync_file(&self, res_version: &str, info: &ABInfo) -> AppResult<i32> {
+        let path = info.url();
+        let bytes = self.ak_api.download_file(res_version, &path).await?;
+        let content = Self::bundle_content(&bytes)?;
+        info.verify_content(&content)
+            .map_err(AppError::ExternalService)?;
+        let sha = digest(&content);
 
         if let Some(file) = self.database.get_file_by_hash(&sha).await? {
             debug!("file {} already exists, skip", path);
@@ -228,8 +246,18 @@ impl AssetDownloadService {
 #[cfg(test)]
 mod tests {
     use super::AssetDownloadService;
-    use std::io::{Cursor, Write};
+    use crate::service::types::HotUpdateList;
+    use sha256::digest;
+    use std::{
+        fs,
+        io::{Cursor, Write},
+        path::Path,
+    };
     use zip::{CompressionMethod, ZipWriter, write::SimpleFileOptions};
+
+    fn content_hash(bytes: &[u8]) -> String {
+        digest(AssetDownloadService::bundle_content(bytes).expect("read bundle"))
+    }
 
     fn archive(entries: &[(&str, &[u8])], compression: CompressionMethod) -> Vec<u8> {
         let mut writer = ZipWriter::new(Cursor::new(Vec::new()));
@@ -254,10 +282,7 @@ mod tests {
         );
 
         for bytes in [stored, deflated] {
-            assert_eq!(
-                AssetDownloadService::calc_sha256(&bytes).expect("hash bundle"),
-                expected
-            );
+            assert_eq!(content_hash(&bytes), expected);
         }
     }
 
@@ -276,9 +301,33 @@ mod tests {
         }
 
         assert_eq!(
-            AssetDownloadService::calc_sha256(&bytes).expect("hash legacy filename"),
+            content_hash(&bytes),
             "239f59ed55e737c77147cf55ad0c1b030b6d7ee748a7426952f9b852d5a935e5"
         );
+    }
+
+    #[test]
+    fn game_fixtures_pass_client_verification() {
+        let dir = Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("e2e/fixtures/upstream/26-05-27-13-32-37_d44f28");
+        let list = HotUpdateList::new(
+            &fs::read_to_string(dir.join("hot_update_list.json")).expect("read manifest"),
+        )
+        .expect("parse manifest");
+        let mut contents = Vec::new();
+        for info in list.ab_infos() {
+            let bytes = fs::read(dir.join(info.url())).expect("read fixture");
+            let content = AssetDownloadService::bundle_content(&bytes).expect("read bundle");
+            info.verify_content(&content)
+                .expect("fixture matches its MD5");
+            contents.push(content);
+        }
+        assert_eq!(contents.len(), 5);
+        // The check is not vacuous: each bundle fails against another's entry.
+        contents.rotate_left(1);
+        for (info, content) in list.ab_infos().iter().zip(contents) {
+            assert!(info.verify_content(&content).is_err(), "{}", info.name);
+        }
     }
 
     #[test]
@@ -305,10 +354,7 @@ mod tests {
         ];
 
         for (bytes, expected) in fixtures {
-            assert_eq!(
-                AssetDownloadService::calc_sha256(bytes).expect("hash game fixture"),
-                *expected
-            );
+            assert_eq!(content_hash(bytes), *expected);
         }
     }
 }
