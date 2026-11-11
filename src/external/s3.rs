@@ -67,14 +67,6 @@ impl S3Storage {
         Ok(())
     }
 
-    /// Streams objects directly from the configured private bucket.
-    pub async fn download(&self, path: &str) -> AppResult<object_store::GetResult> {
-        self.store
-            .get(&object_store::path::Path::from(path))
-            .await
-            .map_err(|err| AppError::ExternalService(err.into()))
-    }
-
     pub fn new(config: &S3Config) -> AppResult<Self> {
         let store = AmazonS3Builder::new()
             .with_allow_http(true)

@@ -36,6 +36,8 @@ pub struct LauncherFile {
     pub sha256: Option<String>,
     pub attempts: i32,
     pub last_error: Option<String>,
+    /// Failed every retry; waits for a publication that lists it again.
+    pub retries_exhausted: bool,
 }
 
 #[derive(Debug, Serialize, ToSchema)]
@@ -54,10 +56,16 @@ pub struct LauncherDiff {
 /// Claiming pushes `retry_at` into the future, so no transaction or connection
 /// is held while the content is transferred. An interrupted claim becomes
 /// claimable again once its lease expires.
+///
+/// That `retry_at` also identifies the lease. Renewing or failing only applies
+/// while the row still holds it, so an attempt whose blob was reset for a new
+/// source, or claimed again after its lease expired, cannot overwrite the
+/// newer state.
 pub struct LauncherBlobJob {
     database: Database,
     pub md5: String,
     pub size: i64,
+    lease: DateTime<Utc>,
 }
 
 pub struct LauncherBlobSource {
@@ -109,6 +117,21 @@ impl Database {
             "INSERT INTO launcher_entries (release_id, path, md5, size) SELECT $1, * FROM UNNEST($2::text[], $3::text[], $4::bigint[])",
             id, &paths, &md5s, &sizes
         ).execute(&mut *tx).await.map_err(db_error)?;
+        // This release is a new source for content that is waiting out the
+        // backoff of earlier failures or has exhausted its retries: retry it
+        // now, with fresh retries. A retry in flight loses its lease, so its
+        // failure is not recorded; its download may still finish and complete
+        // the blob, which is content-addressed.
+        sqlx::query!(
+            "UPDATE launcher_blobs b SET retry_at = now(), attempts = 0, last_error = NULL
+            FROM launcher_entries e
+            WHERE e.release_id = $1 AND (b.md5, b.size) = (e.md5, e.size)
+                AND b.sha256 IS NULL AND b.last_error IS NOT NULL AND b.retry_at > now()",
+            id
+        )
+        .execute(&mut *tx)
+        .await
+        .map_err(db_error)?;
         tx.commit().await.map_err(db_error)?;
         self.refresh_launcher_ready().await?;
         Ok(id)
@@ -116,19 +139,27 @@ impl Database {
 
     /// Newest package version first; imports of older releases do not jump the
     /// queue. `before` is the id of the last release on the previous page.
+    ///
+    /// The page is chosen from `launcher_releases` first, and the progress
+    /// view is evaluated per listed id. `OFFSET 0` stops the planner from
+    /// merging it back into one aggregate over every release's entries.
     pub async fn list_launcher_releases(
         &self,
         before: Option<i64>,
         limit: i64,
     ) -> AppResult<Vec<LauncherRelease>> {
         sqlx::query_as!(LauncherRelease,
-            r#"SELECT id AS "id!", package_version AS "package_version!", game_version AS "game_version!",
-            file_path AS "file_path!", manifest_md5 AS "manifest_md5!", discovered_at AS "discovered_at!", ready_at,
-            total_files AS "total_files!", archived_files AS "archived_files!", total_bytes AS "total_bytes!", archived_bytes AS "archived_bytes!"
-            FROM launcher_release_progress p
-            WHERE $1::bigint IS NULL OR (launcher_version_key(p.package_version), p.id) <
-                (SELECT launcher_version_key(c.package_version), c.id FROM launcher_releases c WHERE c.id = $1)
-            ORDER BY launcher_version_key(p.package_version) DESC, p.id DESC LIMIT $2"#,
+            r#"SELECT p.id AS "id!", p.package_version AS "package_version!", p.game_version AS "game_version!",
+            p.file_path AS "file_path!", p.manifest_md5 AS "manifest_md5!", p.discovered_at AS "discovered_at!", p.ready_at,
+            p.total_files AS "total_files!", p.archived_files AS "archived_files!", p.total_bytes AS "total_bytes!", p.archived_bytes AS "archived_bytes!"
+            FROM (
+                SELECT r.id FROM launcher_releases r
+                WHERE $1::bigint IS NULL OR (launcher_version_key(r.package_version), r.id) <
+                    (SELECT launcher_version_key(c.package_version), c.id FROM launcher_releases c WHERE c.id = $1)
+                ORDER BY launcher_version_key(r.package_version) DESC, r.id DESC LIMIT $2
+            ) page
+            CROSS JOIN LATERAL (SELECT * FROM launcher_release_progress v WHERE v.id = page.id OFFSET 0) p
+            ORDER BY launcher_version_key(p.package_version) DESC, p.id DESC"#,
             before, limit
         ).fetch_all(self.pool()).await.map_err(db_error)
     }
@@ -161,7 +192,10 @@ impl Database {
         limit: i64,
     ) -> AppResult<Vec<LauncherFile>> {
         sqlx::query_as!(LauncherFile,
-            "SELECT e.path, e.md5, e.size, b.sha256, b.attempts, b.last_error FROM launcher_entries e JOIN launcher_blobs b USING (md5, size) WHERE e.release_id = $1 AND e.path > $2 AND strpos(e.path, $3) > 0 ORDER BY e.path LIMIT $4",
+            r#"SELECT e.path, e.md5, e.size, b.sha256, b.attempts, b.last_error,
+            b.sha256 IS NULL AND b.retry_at = 'infinity' AS "retries_exhausted!"
+            FROM launcher_entries e JOIN launcher_blobs b USING (md5, size)
+            WHERE e.release_id = $1 AND e.path > $2 AND strpos(e.path, $3) > 0 ORDER BY e.path LIMIT $4"#,
             id, after, search, limit
         ).fetch_all(self.pool()).await.map_err(db_error)
     }
@@ -210,7 +244,7 @@ impl Database {
                 WHERE b.sha256 IS NULL AND b.retry_at <= now()
                     AND EXISTS (SELECT 1 FROM launcher_entries e WHERE (e.md5, e.size) = (b.md5, b.size))
                 ORDER BY b.retry_at, b.md5, b.size LIMIT 1 FOR NO KEY UPDATE OF b SKIP LOCKED)
-            RETURNING md5, size"#,
+            RETURNING md5, size, retry_at"#,
             f64::from(lease_seconds)
         )
         .fetch_optional(self.pool())
@@ -220,6 +254,7 @@ impl Database {
             database: self.clone(),
             md5: row.md5,
             size: row.size,
+            lease: row.retry_at,
         }))
     }
 
@@ -245,11 +280,19 @@ impl LauncherBlobJob {
     }
 
     /// Extend the lease before another long step, e.g. the next source.
-    pub async fn renew(&self, lease_seconds: i32) -> AppResult<()> {
-        sqlx::query!(
-            "UPDATE launcher_blobs SET retry_at = now() + make_interval(secs => $3::double precision) WHERE md5 = $1 AND size = $2 AND sha256 IS NULL",
-            &self.md5, self.size, f64::from(lease_seconds)
-        ).execute(self.database.pool()).await.map_err(db_error)?;
+    /// Fails once the lease has passed to another attempt.
+    pub async fn renew(&mut self, lease_seconds: i32) -> AppResult<()> {
+        let renewed = sqlx::query_scalar!(
+            "UPDATE launcher_blobs SET retry_at = now() + make_interval(secs => $3::double precision)
+            WHERE md5 = $1 AND size = $2 AND sha256 IS NULL AND retry_at = $4 RETURNING retry_at",
+            &self.md5, self.size, f64::from(lease_seconds), self.lease
+        ).fetch_optional(self.database.pool()).await.map_err(db_error)?;
+        self.lease = renewed.ok_or_else(|| {
+            AppError::Application(anyhow::anyhow!(
+                "lease on launcher blob {} passed to another attempt",
+                self.md5
+            ))
+        })?;
         Ok(())
     }
 
@@ -261,14 +304,18 @@ impl LauncherBlobJob {
         Ok(())
     }
 
-    /// Back off exponentially from `retry_seconds`, capped at one day, so
-    /// content whose sources are gone for good is not requested every minute.
-    pub async fn fail(self, error: &str, retry_seconds: i32) -> AppResult<()> {
+    /// Back off exponentially from `retry_seconds` (capped at one day) for
+    /// up to `max_retries` retries. After that the content waits until a new
+    /// publication lists it, so sources that are gone for good are not
+    /// requested forever. Does nothing once the lease has passed on.
+    pub async fn fail(self, error: &str, retry_seconds: i32, max_retries: i32) -> AppResult<()> {
         sqlx::query!(
             "UPDATE launcher_blobs SET attempts = attempts + 1, last_error = $3,
-                retry_at = now() + make_interval(secs => least($4::double precision * power(2::double precision, least(attempts, 16)), 86400))
-            WHERE md5 = $1 AND size = $2 AND sha256 IS NULL",
-            &self.md5, self.size, error, f64::from(retry_seconds)
+                retry_at = CASE WHEN attempts < $5
+                    THEN now() + make_interval(secs => least($4::double precision * power(2::double precision, least(attempts, 16)), 86400))
+                    ELSE 'infinity' END
+            WHERE md5 = $1 AND size = $2 AND sha256 IS NULL AND retry_at = $6",
+            &self.md5, self.size, error, f64::from(retry_seconds), max_retries, self.lease
         ).execute(self.database.pool()).await.map_err(db_error)?;
         Ok(())
     }

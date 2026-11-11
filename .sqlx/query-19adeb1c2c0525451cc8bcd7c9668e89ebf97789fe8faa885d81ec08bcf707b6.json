@@ -1,0 +1,19 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE launcher_blobs SET attempts = attempts + 1, last_error = $3,\n                retry_at = CASE WHEN attempts < $5\n                    THEN now() + make_interval(secs => least($4::double precision * power(2::double precision, least(attempts, 16)), 86400))\n                    ELSE 'infinity' END\n            WHERE md5 = $1 AND size = $2 AND sha256 IS NULL AND retry_at = $6",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Text",
+        "Int8",
+        "Text",
+        "Float8",
+        "Int4",
+        "Timestamptz"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "19adeb1c2c0525451cc8bcd7c9668e89ebf97789fe8faa885d81ec08bcf707b6"
+}

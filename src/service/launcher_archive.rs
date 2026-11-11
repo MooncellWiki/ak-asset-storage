@@ -21,6 +21,7 @@ pub struct LauncherArchiveService {
     pub storage: S3Storage,
     pub concurrency: usize,
     pub retry_interval_seconds: i32,
+    pub max_retries: i32,
     /// How long a claimed blob stays hidden from other claims. Renewed per
     /// source; an interrupted claim is retried once this expires.
     pub claim_lease_seconds: i32,
@@ -34,6 +35,7 @@ impl LauncherArchiveService {
             storage,
             concurrency: config.concurrency,
             retry_interval_seconds: config.retry_interval_seconds,
+            max_retries: config.max_retries,
             claim_lease_seconds: config.claim_lease_seconds(),
         })
     }
@@ -54,7 +56,7 @@ impl LauncherArchiveService {
                         .database
                         .claim_launcher_blob(self.claim_lease_seconds)
                         .await;
-                    let job = match claim {
+                    let mut job = match claim {
                         Ok(Some(job)) => job,
                         Ok(None) => break,
                         Err(err) => {
@@ -62,19 +64,18 @@ impl LauncherArchiveService {
                             break;
                         }
                     };
-                    let result = self.archive_blob(&job).await;
+                    let result = self.archive_blob(&mut job).await;
                     let archived = result.is_ok();
                     let recorded = match result {
                         Ok(hash) => job.complete(&hash).await,
                         Err(err) => {
-                            error!(
-                                md5 = job.md5,
-                                size = job.size,
-                                ?err,
-                                "Launcher file will be retried"
-                            );
-                            job.fail(&err.to_string(), self.retry_interval_seconds)
-                                .await
+                            error!(md5 = job.md5, size = job.size, ?err, "Launcher file failed");
+                            job.fail(
+                                &err.to_string(),
+                                self.retry_interval_seconds,
+                                self.max_retries,
+                            )
+                            .await
                         }
                     };
                     if let Err(err) = recorded {
@@ -92,7 +93,7 @@ impl LauncherArchiveService {
         self.database.refresh_launcher_ready().await
     }
 
-    async fn archive_blob(&self, job: &LauncherBlobJob) -> AppResult<String> {
+    async fn archive_blob(&self, job: &mut LauncherBlobJob) -> AppResult<String> {
         let mut last_error = anyhow::anyhow!("no sources for launcher blob {}", job.md5);
         for (index, source) in job.sources().await?.into_iter().enumerate() {
             if index > 0 {

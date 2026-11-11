@@ -1,0 +1,14 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE launcher_blobs b SET retry_at = now(), attempts = 0, last_error = NULL\n            FROM launcher_entries e\n            WHERE e.release_id = $1 AND (b.md5, b.size) = (e.md5, e.size)\n                AND b.sha256 IS NULL AND b.last_error IS NOT NULL AND b.retry_at > now()",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Int8"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "a4f1315eccfd9de610f593a0526dec0865fd1738af81a2576334c9a9655a71b3"
+}

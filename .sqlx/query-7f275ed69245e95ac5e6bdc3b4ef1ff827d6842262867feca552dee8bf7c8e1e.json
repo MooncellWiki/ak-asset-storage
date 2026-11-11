@@ -1,0 +1,31 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE launcher_blobs SET retry_at = now() + make_interval(secs => $3::double precision)\n            WHERE md5 = $1 AND size = $2 AND sha256 IS NULL AND retry_at = $4 RETURNING retry_at",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "retry_at",
+        "type_info": "Timestamptz",
+        "origin": {
+          "Table": {
+            "table": "launcher_blobs",
+            "name": "retry_at"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Text",
+        "Int8",
+        "Float8",
+        "Timestamptz"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "7f275ed69245e95ac5e6bdc3b4ef1ff827d6842262867feca552dee8bf7c8e1e"
+}
