@@ -1,5 +1,6 @@
 #![allow(clippy::unwrap_used)]
 
+mod asset_download;
 mod import_manifest;
 mod item_demand;
 mod launch_container;
