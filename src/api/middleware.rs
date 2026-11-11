@@ -1,25 +1,34 @@
 use axum::{
     Router,
-    http::{HeaderValue, Response, header::CONTENT_TYPE},
+    http::{
+        Extensions, HeaderMap, HeaderValue, Response, StatusCode, Version, header::CONTENT_TYPE,
+    },
     routing::{MethodRouter, get_service},
 };
 use std::{path::PathBuf, time::Duration};
 use tower::ServiceBuilder;
 use tower_http::{
-    compression::{CompressionLayer, DefaultPredicate, Predicate, predicate::NotForContentType},
+    compression::{CompressionLayer, DefaultPredicate, Predicate},
     services::ServeDir,
     set_header::SetResponseHeaderLayer,
     timeout::RequestBodyTimeoutLayer,
 };
 
+/// Response extension that skips compression, for bodies that would not
+/// shrink and should keep their `Content-Length` so browsers show progress.
+#[derive(Clone, Copy, Debug)]
+pub struct Uncompressed;
+
 pub fn apply_axum_middleware(router: Router) -> Router {
     router
         .layer(RequestBodyTimeoutLayer::new(Duration::from_secs(10)))
-        // Raw downloads are mostly compressed already; leaving them alone
-        // also keeps their Content-Length, so browsers can show progress.
-        .layer(CompressionLayer::new().compress_when(
-            DefaultPredicate::new().and(NotForContentType::const_new("application/octet-stream")),
-        ))
+        .layer(
+            CompressionLayer::new().compress_when(DefaultPredicate::new().and(
+                |_: StatusCode, _: Version, _: &HeaderMap, extensions: &Extensions| {
+                    extensions.get::<Uncompressed>().is_none()
+                },
+            )),
+        )
 }
 
 fn set_text_plain_charset<B>(response: &Response<B>) -> Option<HeaderValue> {
@@ -42,9 +51,9 @@ pub fn serve_dir_with_charset(path: PathBuf) -> MethodRouter {
 
 #[cfg(test)]
 mod tests {
-    use super::apply_axum_middleware;
+    use super::{Uncompressed, apply_axum_middleware};
     use axum::{
-        Router,
+        Extension, Router,
         body::Body,
         http::{
             Request,
@@ -55,9 +64,20 @@ mod tests {
     use tower::ServiceExt;
 
     #[tokio::test]
-    async fn raw_downloads_keep_their_length_while_text_is_compressed() {
+    async fn only_marked_responses_skip_compression() {
         let router = apply_axum_middleware(
             Router::new()
+                .route(
+                    "/marked",
+                    get(|| async {
+                        (
+                            Extension(Uncompressed),
+                            [(CONTENT_TYPE, "application/octet-stream")],
+                            vec![0; 4096],
+                        )
+                    }),
+                )
+                // Served files with an unknown extension are octet-streams too.
                 .route(
                     "/raw",
                     get(|| async { ([(CONTENT_TYPE, "application/octet-stream")], vec![0; 4096]) }),
@@ -78,9 +98,10 @@ mod tests {
                     .expect("response")
             }
         };
-        let raw = fetch("/raw").await;
-        assert!(!raw.headers().contains_key(CONTENT_ENCODING));
-        assert_eq!(raw.headers()[CONTENT_LENGTH], "4096");
+        let marked = fetch("/marked").await;
+        assert!(!marked.headers().contains_key(CONTENT_ENCODING));
+        assert_eq!(marked.headers()[CONTENT_LENGTH], "4096");
+        assert_eq!(fetch("/raw").await.headers()[CONTENT_ENCODING], "gzip");
         assert_eq!(fetch("/text").await.headers()[CONTENT_ENCODING], "gzip");
     }
 }

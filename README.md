@@ -118,7 +118,9 @@ interrupted by a restart is retried once its lease (twice
 `download_timeout_seconds`) expires. Failures are recorded per content pair
 and retried with exponential backoff: `retry_interval_seconds` after the first
 failure, doubling each time up to one day, so content whose CDN directory has
-been purged is not requested every minute. If a source is unavailable or fails
+been purged is not requested every minute. A newly imported publication that
+lists such content adds a source for it, so the content is retried right away
+with a fresh backoff. If a source is unavailable or fails
 verification, the worker tries the other known paths for that same content,
 newest package version first, whatever order the manifests were imported in.
 Successful objects remain available across restarts. A publication becomes

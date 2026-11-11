@@ -275,6 +275,48 @@ async fn retry_delay_starts_after_a_slow_attempt_fails(pool: PgPool) {
     assert!(db.claim_launcher_blob(60).await.unwrap().is_some());
 }
 
+#[sqlx::test]
+async fn a_new_publication_retries_content_waiting_out_a_backoff(pool: PgPool) {
+    let db = database(&pool).await;
+    let manifest = |entries: &[&LauncherEntry]| {
+        entries
+            .iter()
+            .map(|entry| serde_json::to_string(entry).unwrap())
+            .collect::<Vec<_>>()
+            .join("\n")
+    };
+    let mut entries = parse_manifest(OLD).unwrap().into_iter();
+    let waiting = entries.next().unwrap();
+    let unlisted = entries.next().unwrap();
+    import(&db, "78.0.0", &manifest(&[&waiting, &unlisted])).await;
+    // Every source of both blobs is gone; they back off for an hour.
+    while let Some(job) = db.claim_launcher_blob(60).await.unwrap() {
+        job.fail("source gone", 3600).await.unwrap();
+    }
+    assert!(db.claim_launcher_blob(60).await.unwrap().is_none());
+
+    // The next publication lists one of them, under another path.
+    let moved = LauncherEntry {
+        path: format!("moved/{}", waiting.path),
+        ..waiting.clone()
+    };
+    let next = import(&db, "79.0.0", &manifest(&[&moved])).await;
+    let file = listed_file(&db, next, &moved.path).await;
+    assert_eq!((file.attempts, file.last_error), (0, None));
+    let job = db.claim_launcher_blob(60).await.unwrap().unwrap();
+    assert_eq!(
+        (job.md5.as_str(), job.size),
+        (waiting.md5.as_str(), waiting.size)
+    );
+    // Content the publication does not list keeps its backoff.
+    assert!(db.claim_launcher_blob(60).await.unwrap().is_none());
+
+    // A first attempt in flight has no failure to forgive: its lease holds.
+    import(&db, "80.0.0", &manifest(&[&waiting])).await;
+    assert!(db.claim_launcher_blob(60).await.unwrap().is_none());
+    job.complete(&"a".repeat(64)).await.unwrap();
+}
+
 mod archival {
     use super::*;
     use aes::cipher::{BlockModeEncrypt, KeyIvInit, block_padding::Pkcs7};
@@ -294,6 +336,7 @@ mod archival {
         response::{IntoResponse, Response},
         routing::{get, post},
     };
+    use object_store::{ObjectStoreExt, aws::AmazonS3Builder};
     use sqlx::ConnectOptions;
     use std::{
         collections::HashMap,
@@ -386,13 +429,31 @@ mod archival {
         }
     }
 
-    fn blob_key(hash: &str) -> String {
-        format!(
+    /// Reads an archived blob straight from the test bucket.
+    async fn stored_blob(hash: &str) -> Vec<u8> {
+        let config = storage_config();
+        let store = AmazonS3Builder::new()
+            .with_allow_http(true)
+            .with_endpoint(config.endpoint)
+            .with_bucket_name(config.bucket_name)
+            .with_access_key_id(config.access_key_id)
+            .with_secret_access_key(config.secret_access_key)
+            .build()
+            .unwrap();
+        let key = format!(
             "launcher/blobs/{}/{}/{}",
             &hash[..2],
             &hash[2..4],
             &hash[4..]
-        )
+        );
+        store
+            .get(&object_store::path::Path::from(key))
+            .await
+            .unwrap()
+            .bytes()
+            .await
+            .unwrap()
+            .to_vec()
     }
 
     #[sqlx::test]
@@ -457,12 +518,7 @@ mod archival {
             assert!(release.ready_at.is_some());
             assert_eq!(release.archived_files, 1);
         }
-        let stored = service
-            .storage
-            .download(&blob_key(&sha256::digest(bytes)))
-            .await
-            .unwrap();
-        assert_eq!(stored.bytes().await.unwrap().as_ref(), bytes);
+        assert_eq!(stored_blob(&sha256::digest(bytes)).await, bytes);
         upstream_task.abort();
     }
 
@@ -718,9 +774,8 @@ mod archival {
             let file = listed_file(&db, id, path).await;
             let hash = file.sha256.unwrap();
             assert_eq!(hash, sha256::digest(expected));
-            let object = restarted.storage.download(&blob_key(&hash)).await.unwrap();
-            let bytes = object.bytes().await.unwrap();
-            assert_eq!(bytes.as_ref(), expected);
+            let bytes = stored_blob(&hash).await;
+            assert_eq!(bytes, expected);
             assert_eq!(hex::encode(Md5::digest(&bytes)), file.md5);
         }
         let manifest = http

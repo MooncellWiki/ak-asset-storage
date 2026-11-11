@@ -109,6 +109,20 @@ impl Database {
             "INSERT INTO launcher_entries (release_id, path, md5, size) SELECT $1, * FROM UNNEST($2::text[], $3::text[], $4::bigint[])",
             id, &paths, &md5s, &sizes
         ).execute(&mut *tx).await.map_err(db_error)?;
+        // This release is a new source for content that is waiting out the
+        // backoff of earlier failures: retry it now, with a fresh backoff. A
+        // blob whose retry is in flight may then be claimed twice, which only
+        // repeats work, since blobs are content-addressed.
+        sqlx::query!(
+            "UPDATE launcher_blobs b SET retry_at = now(), attempts = 0, last_error = NULL
+            FROM launcher_entries e
+            WHERE e.release_id = $1 AND (b.md5, b.size) = (e.md5, e.size)
+                AND b.sha256 IS NULL AND b.last_error IS NOT NULL AND b.retry_at > now()",
+            id
+        )
+        .execute(&mut *tx)
+        .await
+        .map_err(db_error)?;
         tx.commit().await.map_err(db_error)?;
         self.refresh_launcher_ready().await?;
         Ok(id)
@@ -116,19 +130,27 @@ impl Database {
 
     /// Newest package version first; imports of older releases do not jump the
     /// queue. `before` is the id of the last release on the previous page.
+    ///
+    /// The page is chosen from `launcher_releases` first, and the progress
+    /// view is evaluated per listed id. `OFFSET 0` stops the planner from
+    /// merging it back into one aggregate over every release's entries.
     pub async fn list_launcher_releases(
         &self,
         before: Option<i64>,
         limit: i64,
     ) -> AppResult<Vec<LauncherRelease>> {
         sqlx::query_as!(LauncherRelease,
-            r#"SELECT id AS "id!", package_version AS "package_version!", game_version AS "game_version!",
-            file_path AS "file_path!", manifest_md5 AS "manifest_md5!", discovered_at AS "discovered_at!", ready_at,
-            total_files AS "total_files!", archived_files AS "archived_files!", total_bytes AS "total_bytes!", archived_bytes AS "archived_bytes!"
-            FROM launcher_release_progress p
-            WHERE $1::bigint IS NULL OR (launcher_version_key(p.package_version), p.id) <
-                (SELECT launcher_version_key(c.package_version), c.id FROM launcher_releases c WHERE c.id = $1)
-            ORDER BY launcher_version_key(p.package_version) DESC, p.id DESC LIMIT $2"#,
+            r#"SELECT p.id AS "id!", p.package_version AS "package_version!", p.game_version AS "game_version!",
+            p.file_path AS "file_path!", p.manifest_md5 AS "manifest_md5!", p.discovered_at AS "discovered_at!", p.ready_at,
+            p.total_files AS "total_files!", p.archived_files AS "archived_files!", p.total_bytes AS "total_bytes!", p.archived_bytes AS "archived_bytes!"
+            FROM (
+                SELECT r.id FROM launcher_releases r
+                WHERE $1::bigint IS NULL OR (launcher_version_key(r.package_version), r.id) <
+                    (SELECT launcher_version_key(c.package_version), c.id FROM launcher_releases c WHERE c.id = $1)
+                ORDER BY launcher_version_key(r.package_version) DESC, r.id DESC LIMIT $2
+            ) page
+            CROSS JOIN LATERAL (SELECT * FROM launcher_release_progress v WHERE v.id = page.id OFFSET 0) p
+            ORDER BY launcher_version_key(p.package_version) DESC, p.id DESC"#,
             before, limit
         ).fetch_all(self.pool()).await.map_err(db_error)
     }

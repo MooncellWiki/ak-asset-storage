@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "SELECT id AS \"id!\", package_version AS \"package_version!\", game_version AS \"game_version!\",\n            file_path AS \"file_path!\", manifest_md5 AS \"manifest_md5!\", discovered_at AS \"discovered_at!\", ready_at,\n            total_files AS \"total_files!\", archived_files AS \"archived_files!\", total_bytes AS \"total_bytes!\", archived_bytes AS \"archived_bytes!\"\n            FROM launcher_release_progress p\n            WHERE $1::bigint IS NULL OR (launcher_version_key(p.package_version), p.id) <\n                (SELECT launcher_version_key(c.package_version), c.id FROM launcher_releases c WHERE c.id = $1)\n            ORDER BY launcher_version_key(p.package_version) DESC, p.id DESC LIMIT $2",
+  "query": "SELECT p.id AS \"id!\", p.package_version AS \"package_version!\", p.game_version AS \"game_version!\",\n            p.file_path AS \"file_path!\", p.manifest_md5 AS \"manifest_md5!\", p.discovered_at AS \"discovered_at!\", p.ready_at,\n            p.total_files AS \"total_files!\", p.archived_files AS \"archived_files!\", p.total_bytes AS \"total_bytes!\", p.archived_bytes AS \"archived_bytes!\"\n            FROM (\n                SELECT r.id FROM launcher_releases r\n                WHERE $1::bigint IS NULL OR (launcher_version_key(r.package_version), r.id) <\n                    (SELECT launcher_version_key(c.package_version), c.id FROM launcher_releases c WHERE c.id = $1)\n                ORDER BY launcher_version_key(r.package_version) DESC, r.id DESC LIMIT $2\n            ) page\n            CROSS JOIN LATERAL (SELECT * FROM launcher_release_progress v WHERE v.id = page.id OFFSET 0) p\n            ORDER BY launcher_version_key(p.package_version) DESC, p.id DESC",
   "describe": {
     "columns": [
       {
@@ -145,5 +145,5 @@
       true
     ]
   },
-  "hash": "fb085b9050e5573b6267faa6aa9456d535ee7d6232e78f1e961a1ae93b55503f"
+  "hash": "14fb40314c2542b1a2ac80ecb9a29e9fca43635d7f2f11797f8b1683071cccab"
 }
