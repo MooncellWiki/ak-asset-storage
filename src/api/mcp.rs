@@ -8,6 +8,7 @@ use crate::{
     api::{
         cursor::{self, ResourceCursor, UsageCursor},
         error::WebError,
+        metrics::McpMetrics,
         state::AppState,
         story,
         utils::escape_like,
@@ -24,15 +25,18 @@ use crate::{
     },
 };
 use rmcp::{
-    ErrorData, ServerHandler,
-    handler::server::{router::tool::ToolRouter, wrapper::Parameters},
-    model::{CallToolResult, ContentBlock, ErrorCode},
+    ErrorData, RoleServer, ServerHandler,
+    handler::server::{router::tool::ToolRouter, tool::ToolCallContext, wrapper::Parameters},
+    model::{CallToolRequestParams, CallToolResponse, CallToolResult, ContentBlock, ErrorCode},
     schemars::JsonSchema,
+    service::RequestContext,
     tool, tool_handler, tool_router,
 };
 use serde::{Deserialize, Serialize};
-use std::{fmt::Write as _, sync::Arc};
+use std::{fmt::Write as _, sync::Arc, time::Instant};
 use tracing::warn;
+
+const UNKNOWN_TOOL: &str = "unknown";
 
 const INSTRUCTIONS: &str = "\
 This server indexes Arknights game assets.
@@ -69,13 +73,22 @@ All tools are read-only.";
 pub struct AkAssetMcpServer {
     state: Arc<AppState>,
     tool_router: Arc<ToolRouter<Self>>,
+    metrics: Option<McpMetrics>,
 }
 
 impl AkAssetMcpServer {
-    pub fn new(state: AppState) -> Self {
+    pub(super) fn new(state: AppState, metrics: Option<McpMetrics>) -> Self {
+        let tool_router = Self::tool_router();
+        if let Some(metrics) = &metrics {
+            for tool in tool_router.list_all() {
+                metrics.initialize_tool(&tool.name);
+            }
+            metrics.initialize_tool(UNKNOWN_TOOL);
+        }
         Self {
             state: Arc::new(state),
-            tool_router: Arc::new(Self::tool_router()),
+            tool_router: Arc::new(tool_router),
+            metrics,
         }
     }
 }
@@ -1009,6 +1022,33 @@ fn summarize_hot_update_list(raw: &str) -> Option<serde_json::Value> {
 )]
 #[tool_handler(router = self.tool_router)]
 impl ServerHandler for AkAssetMcpServer {
+    async fn call_tool(
+        &self,
+        request: CallToolRequestParams,
+        context: RequestContext<RoleServer>,
+    ) -> Result<CallToolResponse, ErrorData> {
+        let call = ToolCallContext::new(self, request, context);
+        let Some(metrics) = &self.metrics else {
+            return self.tool_router.call(call).await;
+        };
+
+        let started = Instant::now();
+        let tool = self
+            .tool_router
+            .get(call.name())
+            .map_or(UNKNOWN_TOOL, |tool| tool.name.as_ref());
+        let response = self.tool_router.call(call).await;
+        let duration = started.elapsed();
+        let success = match &response {
+            Ok(CallToolResponse::Complete(result)) => result.is_error != Some(true),
+            Err(_) => false,
+            // An intermediate result has not completed the call.
+            _ => return response,
+        };
+        metrics.observe(tool, success, duration);
+        response
+    }
+
     fn get_info(&self) -> rmcp::model::ServerConfig {
         rmcp::model::ServerConfig::new(
             rmcp::model::ServerCapabilities::builder()

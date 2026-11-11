@@ -53,6 +53,7 @@ Main sections:
 - `s3`
 - `sentry`
 - `mcp`
+- `metrics`
 - `torappu` (with `plocate`, `kubernetes`, `github` subsections)
 
 ### Server
@@ -197,6 +198,21 @@ Set `[mcp] enable = true` to expose the read-only query tools at `/mcp` (Streama
   to the version the alias links to.
 - MCP never returns file contents: clients download a file's `url` and extract what they
   need themselves (gamedata tables are several MB each).
+
+### Prometheus metrics
+
+Enable metrics separately from MCP in the server config.
+
+```toml
+[metrics]
+enable = true
+```
+
+Prometheus scrapes `GET /metrics` on the existing server port. The endpoint
+returns 404 by default. With metrics enabled and MCP disabled, the endpoint
+returns a valid empty scrape. Restrict `/metrics` to Prometheus at the gateway
+or network layer. When running multiple replicas, scrape each replica directly
+so Prometheus can track each process's counters.
 
 ### Story resource explorer
 
