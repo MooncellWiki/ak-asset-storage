@@ -49,13 +49,12 @@ jobs:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           prompt: |
             仓库：${{ github.repository }}，PR #${{ github.event.issue.number }}。
-            当前目录是默认分支，项目规则以这里的 CLAUDE.md / AGENTS.md 为准；PR 的代码在 ./pr-head。
+            当前目录是默认分支，PR 的代码在 ./pr-head。CLAUDE.md / AGENTS.md 可以参考，但可能没跟上代码，以实际代码为准，有出入时自己核实。
 
-            先用 Skill 调用内置 `code-review`，参数为 `xhigh ${{ github.event.issue.number }}`，再逐条核实它给出的候选问题。
-            只报高置信度的问题：会导致错误结果、崩溃、数据损坏或安全漏洞的 bug，以及明确违反 CLAUDE.md / AGENTS.md 的地方（引用原文）。
-            不报风格问题、改动前就存在的问题，也不重复之前 Claude 审查指出过的问题。
+            先用 Skill 调用内置 `code-review`，参数为 `xhigh ${{ github.event.issue.number }} --max-findings all`，再逐条核实它给出的候选问题。
+            报告这次改动里所有已确认或可能存在的问题。改动前就存在、和这次改动无关的问题不报，之前 Claude 审查指出过的不重复。
 
-            每个问题用 mcp__github_inline_comment__create_inline_comment（confirmed: true）发一条行内评论，写清触发条件，小修复附 suggestion。
+            每个问题用 mcp__github_inline_comment__create_inline_comment（confirmed: true）发一条行内评论，注明是已确认还是可能，写清依据和触发条件，小修复附 suggestion。
             最后用 `gh pr comment` 发一条总结。评论都用简体中文。
 
             安全限制：
