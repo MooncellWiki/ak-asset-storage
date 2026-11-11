@@ -92,6 +92,7 @@ after applying the database migrations:
 poll_interval_seconds = 300
 concurrency = 4
 retry_interval_seconds = 60
+max_retries = 3
 download_timeout_seconds = 900
 ```
 
@@ -117,10 +118,12 @@ is held during transfers; concurrent workers skip leased content, and a claim
 interrupted by a restart is retried once its lease (twice
 `download_timeout_seconds`) expires. Failures are recorded per content pair
 and retried with exponential backoff: `retry_interval_seconds` after the first
-failure, doubling each time up to one day, so content whose CDN directory has
-been purged is not requested every minute. A newly imported publication that
-lists such content adds a source for it, so the content is retried right away
-with a fresh backoff. If a source is unavailable or fails
+failure, doubling each time (1, 2 and 4 minutes by default, never more than one
+day). After `max_retries` retries the content is no longer requested, so CDN
+directories that have been purged are not polled forever. A newly imported
+publication that lists such content adds a source for it, so the content is
+retried right away with fresh retries; a retry still in flight then loses its
+lease and its failure is not recorded. If a source is unavailable or fails
 verification, the worker tries the other known paths for that same content,
 newest package version first, whatever order the manifests were imported in.
 Successful objects remain available across restarts. A publication becomes

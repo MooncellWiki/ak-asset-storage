@@ -510,6 +510,8 @@ export interface components {
             lastError?: string | null;
             md5: string;
             path: string;
+            /** @description Failed every retry; waits for a publication that lists it again. */
+            retriesExhausted: boolean;
             sha256?: string | null;
             /** Format: int64 */
             size: number;

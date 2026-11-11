@@ -190,7 +190,7 @@ async fn publications_diffs_reuse_and_interrupted_claims(pool: PgPool) {
     let interrupted = db.claim_launcher_blob(1).await.unwrap().unwrap();
     let parallel = db.claim_launcher_blob(60).await.unwrap().unwrap();
     assert_ne!(parallel.md5, interrupted.md5);
-    let renewed = db.claim_launcher_blob(60).await.unwrap().unwrap();
+    let mut renewed = db.claim_launcher_blob(60).await.unwrap().unwrap();
     renewed.renew(1).await.unwrap();
     tokio::time::sleep(std::time::Duration::from_millis(1100)).await;
     let mut reclaimed = Vec::new();
@@ -246,7 +246,7 @@ async fn publications_diffs_reuse_and_interrupted_claims(pool: PgPool) {
 }
 
 #[sqlx::test]
-async fn retry_delay_starts_after_a_slow_attempt_fails(pool: PgPool) {
+async fn retries_back_off_from_each_failure_up_to_the_limit(pool: PgPool) {
     let db = database(&pool).await;
     let entry = parse_manifest(OLD).unwrap().remove(0);
     let manifest = serde_json::to_string(&entry).unwrap();
@@ -254,7 +254,7 @@ async fn retry_delay_starts_after_a_slow_attempt_fails(pool: PgPool) {
     let job = db.claim_launcher_blob(60).await.unwrap().unwrap();
 
     tokio::time::sleep(std::time::Duration::from_millis(1200)).await;
-    job.fail("slow download failed", 1).await.unwrap();
+    job.fail("slow download failed", 1, 2).await.unwrap();
     assert!(
         db.claim_launcher_blob(60).await.unwrap().is_none(),
         "the retry interval starts at failure, not when the blob was claimed"
@@ -263,20 +263,28 @@ async fn retry_delay_starts_after_a_slow_attempt_fails(pool: PgPool) {
     assert_eq!(file.attempts, 1);
     assert_eq!(file.last_error.as_deref(), Some("slow download failed"));
     assert!(file.sha256.is_none());
+    assert!(!file.retries_exhausted);
 
     tokio::time::sleep(std::time::Duration::from_millis(1100)).await;
     let retry = db.claim_launcher_blob(60).await.unwrap().unwrap();
     assert_eq!(retry.md5, entry.md5);
     // Each further failure doubles the delay.
-    retry.fail("still failing", 1).await.unwrap();
+    retry.fail("still failing", 1, 2).await.unwrap();
     tokio::time::sleep(std::time::Duration::from_millis(1100)).await;
     assert!(db.claim_launcher_blob(60).await.unwrap().is_none());
     tokio::time::sleep(std::time::Duration::from_millis(1000)).await;
-    assert!(db.claim_launcher_blob(60).await.unwrap().is_some());
+    let last = db.claim_launcher_blob(60).await.unwrap().unwrap();
+
+    // After the last retry fails, the content waits for a new source.
+    last.fail("still failing", 1, 2).await.unwrap();
+    let file = listed_file(&db, release, &entry.path).await;
+    assert_eq!(file.attempts, 3);
+    assert!(file.retries_exhausted);
+    assert!(db.claim_launcher_blob(60).await.unwrap().is_none());
 }
 
 #[sqlx::test]
-async fn a_new_publication_retries_content_waiting_out_a_backoff(pool: PgPool) {
+async fn a_new_publication_retries_content_that_failed_before(pool: PgPool) {
     let db = database(&pool).await;
     let manifest = |entries: &[&LauncherEntry]| {
         entries
@@ -288,11 +296,14 @@ async fn a_new_publication_retries_content_waiting_out_a_backoff(pool: PgPool) {
     let mut entries = parse_manifest(OLD).unwrap().into_iter();
     let waiting = entries.next().unwrap();
     let unlisted = entries.next().unwrap();
-    import(&db, "78.0.0", &manifest(&[&waiting, &unlisted])).await;
-    // Every source of both blobs is gone; they back off for an hour.
+    let old = import(&db, "78.0.0", &manifest(&[&waiting, &unlisted])).await;
+    // Every source of both blobs is gone: one has run out of retries, the
+    // other backs off for an hour.
     while let Some(job) = db.claim_launcher_blob(60).await.unwrap() {
-        job.fail("source gone", 3600).await.unwrap();
+        let max_retries = if job.md5 == waiting.md5 { 0 } else { 3 };
+        job.fail("source gone", 3600, max_retries).await.unwrap();
     }
+    assert!(listed_file(&db, old, &waiting.path).await.retries_exhausted);
     assert!(db.claim_launcher_blob(60).await.unwrap().is_none());
 
     // The next publication lists one of them, under another path.
@@ -303,6 +314,7 @@ async fn a_new_publication_retries_content_waiting_out_a_backoff(pool: PgPool) {
     let next = import(&db, "79.0.0", &manifest(&[&moved])).await;
     let file = listed_file(&db, next, &moved.path).await;
     assert_eq!((file.attempts, file.last_error), (0, None));
+    assert!(!file.retries_exhausted);
     let job = db.claim_launcher_blob(60).await.unwrap().unwrap();
     assert_eq!(
         (job.md5.as_str(), job.size),
@@ -315,6 +327,40 @@ async fn a_new_publication_retries_content_waiting_out_a_backoff(pool: PgPool) {
     import(&db, "80.0.0", &manifest(&[&waiting])).await;
     assert!(db.claim_launcher_blob(60).await.unwrap().is_none());
     job.complete(&"a".repeat(64)).await.unwrap();
+}
+
+#[sqlx::test]
+async fn a_superseded_attempt_cannot_overwrite_newer_state(pool: PgPool) {
+    let db = database(&pool).await;
+    let entry = parse_manifest(OLD).unwrap().remove(0);
+    import(&db, "78.0.0", &serde_json::to_string(&entry).unwrap()).await;
+    let first = db.claim_launcher_blob(60).await.unwrap().unwrap();
+    first.fail("source gone", 0, 3).await.unwrap();
+
+    // A retry is still trying the old sources when a new publication lists
+    // the content. Its failure must not undo the reset.
+    let mut stale = db.claim_launcher_blob(60).await.unwrap().unwrap();
+    let moved = LauncherEntry {
+        path: format!("moved/{}", entry.path),
+        ..entry.clone()
+    };
+    let next = import(&db, "79.0.0", &serde_json::to_string(&moved).unwrap()).await;
+    assert!(stale.renew(60).await.is_err());
+    stale.fail("old source gone", 3600, 3).await.unwrap();
+    let file = listed_file(&db, next, &moved.path).await;
+    assert_eq!((file.attempts, file.last_error), (0, None));
+
+    // Neither may an attempt whose lease expired and was claimed again.
+    let mut expired = db.claim_launcher_blob(1).await.unwrap().unwrap();
+    tokio::time::sleep(std::time::Duration::from_millis(1100)).await;
+    let current = db.claim_launcher_blob(60).await.unwrap().unwrap();
+    assert!(expired.renew(60).await.is_err());
+    expired.fail("timed out", 0, 3).await.unwrap();
+    assert!(db.claim_launcher_blob(60).await.unwrap().is_none());
+    current.fail("source gone", 3600, 3).await.unwrap();
+    let file = listed_file(&db, next, &moved.path).await;
+    assert_eq!(file.attempts, 1);
+    assert_eq!(file.last_error.as_deref(), Some("source gone"));
 }
 
 mod archival {
@@ -664,6 +710,7 @@ mod archival {
             storage: S3Storage::new(&storage_config()).unwrap(),
             concurrency: 2,
             retry_interval_seconds: 1,
+            max_retries: 3,
             claim_lease_seconds: 2,
         };
         service.discover().await.unwrap();

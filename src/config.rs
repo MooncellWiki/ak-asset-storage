@@ -51,6 +51,10 @@ pub struct LauncherConfig {
     pub concurrency: usize,
     #[serde(default = "default_launcher_retry")]
     pub retry_interval_seconds: i32,
+    /// Retries after the first failed attempt before content waits for a new
+    /// source. Each retry doubles the delay.
+    #[serde(default = "default_launcher_max_retries")]
+    pub max_retries: i32,
     #[serde(default = "default_launcher_timeout")]
     pub download_timeout_seconds: u64,
 }
@@ -74,6 +78,7 @@ impl Default for LauncherConfig {
             poll_interval_seconds: default_launcher_poll(),
             concurrency: default_launcher_concurrency(),
             retry_interval_seconds: default_launcher_retry(),
+            max_retries: default_launcher_max_retries(),
             download_timeout_seconds: default_launcher_timeout(),
         }
     }
@@ -87,6 +92,9 @@ const fn default_launcher_concurrency() -> usize {
 }
 const fn default_launcher_retry() -> i32 {
     60
+}
+const fn default_launcher_max_retries() -> i32 {
+    3
 }
 const fn default_launcher_timeout() -> u64 {
     900
@@ -120,8 +128,9 @@ impl LauncherConfig {
                 && self.concurrency > 0
                 && self.concurrency <= 32
                 && self.retry_interval_seconds > 0
+                && self.max_retries >= 0
                 && self.download_timeout_seconds > 0,
-            "invalid launcher intervals or concurrency (1-32)"
+            "invalid launcher intervals, retries or concurrency (1-32)"
         );
         Ok(())
     }
@@ -540,6 +549,7 @@ mod tests {
             "concurrency = 0",
             "concurrency = 9",
             "retry_interval_seconds = 0",
+            "max_retries = -1",
             "poll_interval_seconds = 0",
             "aes_key = 'bad'",
             "aes_iv = 'bad'",

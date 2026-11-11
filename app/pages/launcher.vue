@@ -137,7 +137,11 @@
                   class="launcher-pending"
                   :title="file.lastError ?? undefined"
                   >{{
-                    file.lastError ? `等待重试 (${file.attempts})` : "待归档"
+                    file.retriesExhausted
+                      ? `停止重试 (${file.attempts})`
+                      : file.lastError
+                        ? `等待重试 (${file.attempts})`
+                        : "待归档"
                   }}</span
                 >
               </td>
