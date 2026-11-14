@@ -185,6 +185,7 @@ sqlx = { workspace = true }
 workspace = true
 
 [workspace.metadata.release]
+allow-branch = [ "main" ]
 publish = false
 tag-prefix = ""
 shared-version = true
