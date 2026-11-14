@@ -36,7 +36,7 @@ pub struct LauncherFile {
     pub sha256: Option<String>,
     pub attempts: i32,
     pub last_error: Option<String>,
-    /// Failed every retry; waits for a publication that lists it again.
+    /// Failed every retry. A worker restart or a new publication listing this content requeues it.
     pub retries_exhausted: bool,
 }
 
@@ -230,6 +230,18 @@ impl Database {
         .map_err(db_error)
     }
 
+    /// Give exhausted blobs a fresh retry budget when the worker starts.
+    pub(crate) async fn requeue_exhausted_launcher_blobs(&self) -> AppResult<()> {
+        sqlx::query!(
+            "UPDATE launcher_blobs SET retry_at = now(), attempts = 0, last_error = NULL
+            WHERE sha256 IS NULL AND retry_at = 'infinity'"
+        )
+        .execute(self.pool())
+        .await
+        .map_err(db_error)?;
+        Ok(())
+    }
+
     /// Lease the pending blob that has waited longest. The row lock only
     /// lasts for this statement; `FOR NO KEY UPDATE` still permits the FK's
     /// KEY SHARE lock when discovery inserts another release's entries.
@@ -305,9 +317,9 @@ impl LauncherBlobJob {
     }
 
     /// Back off exponentially from `retry_seconds` (capped at one day) for
-    /// up to `max_retries` retries. After that the content waits until a new
-    /// publication lists it, so sources that are gone for good are not
-    /// requested forever. Does nothing once the lease has passed on.
+    /// up to `max_retries` retries. After that the content waits for a worker
+    /// restart or a new publication that lists it. Does nothing once the
+    /// lease has passed on.
     pub async fn fail(self, error: &str, retry_seconds: i32, max_retries: i32) -> AppResult<()> {
         sqlx::query!(
             "UPDATE launcher_blobs SET attempts = attempts + 1, last_error = $3,

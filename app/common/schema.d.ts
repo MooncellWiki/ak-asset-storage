@@ -510,7 +510,7 @@ export interface components {
             lastError?: string | null;
             md5: string;
             path: string;
-            /** @description Failed every retry; waits for a publication that lists it again. */
+            /** @description Failed every retry. A worker restart or a new publication listing this content requeues it. */
             retriesExhausted: boolean;
             sha256?: string | null;
             /** Format: int64 */

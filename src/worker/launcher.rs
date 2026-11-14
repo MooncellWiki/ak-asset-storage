@@ -17,11 +17,18 @@ pub async fn run(service: &LauncherArchiveService, poll_interval: Duration) {
     let archival = async {
         let mut timer = interval(Duration::from_secs(5));
         timer.set_missed_tick_behavior(MissedTickBehavior::Skip);
-        loop {
+        // Wait for the startup reset before claiming files, including when the
+        // database is temporarily unavailable.
+        timer.tick().await;
+        while let Err(err) = service.database.requeue_exhausted_launcher_blobs().await {
+            error!(?err, "Failed to requeue exhausted PC launcher blobs");
             timer.tick().await;
+        }
+        loop {
             if let Err(err) = service.archive_pending().await {
                 error!(?err, "PC launcher archival failed");
             }
+            timer.tick().await;
         }
     };
     tokio::join!(discovery, archival);

@@ -119,13 +119,13 @@ interrupted by a restart is retried once its lease (twice
 `download_timeout_seconds`) expires. Failures are recorded per content pair
 and retried with exponential backoff: `retry_interval_seconds` after the first
 failure, doubling each time (1, 2 and 4 minutes by default, never more than one
-day). After `max_retries` retries the content is no longer requested, so CDN
-directories that have been purged are not polled forever. A newly imported
-publication that lists such content adds a source for it, so the content is
-retried right away with fresh retries; a retry still in flight then loses its
-lease and its failure is not recorded. If a source is unavailable or fails
-verification, the worker tries the other known paths for that same content,
-newest package version first, whatever order the manifests were imported in.
+day). After `max_retries` retries the worker stops requesting that content.
+On startup it requeues exhausted content with a fresh retry budget. A newly
+imported publication also requeues content it lists that is in backoff or
+has exhausted its retries. An in-flight retry then loses its lease, so the
+worker discards its failure. If a source is unavailable or fails verification,
+the worker tries the other known paths for that same content, newest package
+version first, whatever order the manifests were imported in.
 Successful objects remain available across restarts. A publication becomes
 ready only when every entry references a verified, uploaded object.
 
