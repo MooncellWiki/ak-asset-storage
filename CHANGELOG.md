@@ -2,9 +2,37 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.30.0] - 2026-11-14
+
+[d3f8232](d3f8232cf87a67919ad141272a4fad638151759a)...[f0d23e4](f0d23e487f61d02ad77b671ea0246b7dddfa9562)
+
+### 🚀 Features
+
+- 发版时把前端资源上传到 OSS，切版本后旧 chunk 仍可加载 (#203) ([a622914](https://github.com/MooncellWiki/ak-asset-storage/commit/a6229140486fcfdeb09a3fd42db85985b238e823))
+- 追踪并增量归档 PC 官服启动器文件 (#204) ([fd5bf51](https://github.com/MooncellWiki/ak-asset-storage/commit/fd5bf5199fec26a00836ab8859bb0511a465f24d)), Co-authored-by:Brenda Wood <flyimbed@gmail.com>, Co-authored-by:StarHeartHunt <starheart233@gmail.com>
+- Android 热更 AB 跨版本增量下载 (#207) ([135c2fa](https://github.com/MooncellWiki/ak-asset-storage/commit/135c2fa28a5ba73fb160b652c2c48667df1fda15))
+- 添加 Prometheus 调用指标 (#209) ([33d7ff5](https://github.com/MooncellWiki/ak-asset-storage/commit/33d7ff5fb7cdb4e4e68d715771ad706d1f955ede))
+
+### 🐛 Bug Fixes
+
+- Reserve scrollbar space to prevent layout shifts (#200) ([33b7d94](https://github.com/MooncellWiki/ak-asset-storage/commit/33b7d948a1e6bee53519a8e7677d93de6bcdbd45))
+- 通过 CDN 直下归档文件 (#206) ([e47a4d9](https://github.com/MooncellWiki/ak-asset-storage/commit/e47a4d9f6185487ada558858baf9f7901b4da799))
+- 按客户端规则校验下载的 AB，非整数 meta 只影响单条 (#210) ([f66f66b](https://github.com/MooncellWiki/ak-asset-storage/commit/f66f66bf5263e7184260b5c10c001f6a2ea0deef))
+- 新来源重置退避，发布列表只聚合当页，仅 /manifest 跳过压缩 (#212) ([674570e](https://github.com/MooncellWiki/ak-asset-storage/commit/674570e7f279ea2798861d01df21fa6537996202))
+- 重启 worker 后重试已停止归档的文件 (#213) ([1d0335c](https://github.com/MooncellWiki/ak-asset-storage/commit/1d0335c738a4bef1c6c0491bbc1c14515950d726))
+
+### ⚙️ Miscellaneous Tasks
+
+- Run e2e tests in GitHub Actions (#201) ([b68a770](https://github.com/MooncellWiki/ak-asset-storage/commit/b68a770a7dcf03a3151d946b0516956f352af994))
+- E2e 跟进 #201 review：去重日志、固定本地 RustFS、缩短 watcher 等待 (#202) ([9f25861](https://github.com/MooncellWiki/ak-asset-storage/commit/9f258610ba20a0dfc9baf111572190575d51b07c))
+- Enable full output for Claude Code Review action ([841f1e7](https://github.com/MooncellWiki/ak-asset-storage/commit/841f1e7dd56b12f0cb0a528845516f5cea134552))
+- 默认调用 Claude Code 内置审查 (#208) ([1d6ce48](https://github.com/MooncellWiki/ak-asset-storage/commit/1d6ce48dbe1e0c708ac0e04e8f290365ec36c4d1))
+- 改用 auto 权限模式和 xhigh，报告改动里所有可能的问题 (#211) ([88f7f55](https://github.com/MooncellWiki/ak-asset-storage/commit/88f7f55d35bbfa470a653eb5fb7b9a6d807a6f67))
+- Restrict cargo release to main ([f0d23e4](https://github.com/MooncellWiki/ak-asset-storage/commit/f0d23e487f61d02ad77b671ea0246b7dddfa9562))
+
 ## [0.29.0] - 2026-11-07
 
-[cc937d6](cc937d63c46037603aec5b28f4b93dcc41566cf2)...[49b49a6](49b49a650e15726053129f65430a0ad4740ae165)
+[cc937d6](cc937d63c46037603aec5b28f4b93dcc41566cf2)...[d3f8232](d3f8232cf87a67919ad141272a4fad638151759a)
 
 ### 🚀 Features
 
@@ -15,6 +43,7 @@ All notable changes to this project will be documented in this file.
 ### ⚙️ Miscellaneous Tasks
 
 - Upload Rust debug symbols and link Sentry releases (#196) ([0908272](https://github.com/MooncellWiki/ak-asset-storage/commit/0908272ed372feef4484d89f8e39980a12fbe2ab)), Co-authored-by:StarHeartHunt <starheart233@gmail.com>
+- Release 0.29.0 ([d3f8232](https://github.com/MooncellWiki/ak-asset-storage/commit/d3f8232cf87a67919ad141272a4fad638151759a))
 
 ## [0.28.0] - 2026-10-25
 
