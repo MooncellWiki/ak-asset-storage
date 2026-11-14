@@ -1,0 +1,12 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE launcher_blobs SET retry_at = now(), attempts = 0, last_error = NULL\n            WHERE sha256 IS NULL AND retry_at = 'infinity'",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": []
+    },
+    "nullable": []
+  },
+  "hash": "752e58089b6875d977f8e184bed690cffd02edea315083ee91d10904d983b318"
+}

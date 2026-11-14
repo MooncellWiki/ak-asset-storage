@@ -377,10 +377,10 @@ mod archival {
         extract::{Path, State},
         http::{
             StatusCode,
-            header::{ACCEPT_ENCODING, CONTENT_ENCODING},
+            header::{ACCEPT_ENCODING, CONTENT_ENCODING, ETAG},
         },
         response::{IntoResponse, Response},
-        routing::{get, post},
+        routing::{get, post, put},
     };
     use object_store::{ObjectStoreExt, aws::AmazonS3Builder};
     use sqlx::ConnectOptions;
@@ -392,7 +392,10 @@ mod archival {
         },
         time::Duration,
     };
-    use tokio::{net::TcpListener, task::JoinHandle};
+    use tokio::{
+        net::TcpListener,
+        task::{JoinHandle, JoinSet},
+    };
 
     struct Upstream {
         latest: Mutex<serde_json::Value>,
@@ -652,6 +655,131 @@ mod archival {
             db.launcher_manifest(new.id).await.unwrap().unwrap(),
             remote_ciphertext
         );
+        upstream.abort();
+    }
+
+    #[sqlx::test]
+    async fn worker_retries_exhausted_upload_after_restart(pool: PgPool) {
+        let db = database(&pool).await;
+        let storage_available = Arc::new(AtomicBool::new(false));
+        let available = storage_available.clone();
+        let (base, upstream) = serve(
+            Router::new()
+                .route("/latest", post(|| async { StatusCode::NOT_FOUND }))
+                .route("/empty", get(|| async { "" }))
+                .route(
+                    "/review/{*key}",
+                    put(move || async move {
+                        if available.load(Ordering::SeqCst) {
+                            [(ETAG, "\"uploaded\"")].into_response()
+                        } else {
+                            StatusCode::FORBIDDEN.into_response()
+                        }
+                    }),
+                ),
+        )
+        .await;
+
+        let entries = parse_manifest(OLD).unwrap();
+        let previous = db
+            .import_launcher_release(
+                "78.0.0",
+                "2.7.91",
+                &base,
+                &"a".repeat(32),
+                b"previous",
+                &entries[..3],
+            )
+            .await
+            .unwrap();
+        let archived = db.claim_launcher_blob(600).await.unwrap().unwrap();
+        let archived_path = &entries
+            .iter()
+            .find(|entry| entry.md5 == archived.md5)
+            .unwrap()
+            .path;
+        let archived_hash = "b".repeat(64);
+        archived.complete(&archived_hash).await.unwrap();
+        let backoff = db.claim_launcher_blob(600).await.unwrap().unwrap();
+        let backoff_path = &entries
+            .iter()
+            .find(|entry| entry.md5 == backoff.md5)
+            .unwrap()
+            .path;
+        backoff.fail("waiting", 600, 1).await.unwrap();
+        let mut leased = db.claim_launcher_blob(600).await.unwrap().unwrap();
+
+        // The empty file uses a single S3 PUT, which the local stub can reject.
+        let empty = LauncherEntry {
+            path: "empty".into(),
+            md5: hex::encode(Md5::digest(b"")),
+            size: 0,
+        };
+        let release = db
+            .import_launcher_release(
+                "79.0.0",
+                "2.7.91",
+                &base,
+                &"c".repeat(32),
+                b"manifest",
+                &[empty],
+            )
+            .await
+            .unwrap();
+        let config = LauncherConfig {
+            latest_url: format!("{base}/latest"),
+            // Exhaust the budget on the first failure.
+            max_retries: 0,
+            ..LauncherConfig::default()
+        };
+        let storage = S3Storage::new(&S3Config {
+            endpoint: base,
+            bucket_name: "review".into(),
+            ..storage_config()
+        })
+        .unwrap();
+        let service = LauncherArchiveService::new(&config, db.clone(), storage).unwrap();
+        service.archive_pending().await.unwrap();
+        let exhausted = listed_file(&db, release, "empty").await;
+        assert_eq!(exhausted.attempts, 1);
+        assert!(exhausted.retries_exhausted);
+        assert!(exhausted.sha256.is_none());
+
+        storage_available.store(true, Ordering::SeqCst);
+        let mut worker = JoinSet::new();
+        worker.spawn(async move {
+            ak_asset_storage::worker::launcher::run(&service, Duration::from_secs(300)).await;
+        });
+        tokio::time::timeout(Duration::from_secs(5), async {
+            while db
+                .get_launcher_release(release)
+                .await
+                .unwrap()
+                .unwrap()
+                .ready_at
+                .is_none()
+            {
+                tokio::time::sleep(Duration::from_millis(10)).await;
+            }
+        })
+        .await
+        .expect("restarted worker should archive the exhausted file");
+        let recovered = listed_file(&db, release, "empty").await;
+        assert_eq!(
+            recovered.sha256.as_deref(),
+            Some(sha256::digest(b"").as_str())
+        );
+        assert_eq!(recovered.attempts, 1);
+
+        leased.renew(600).await.unwrap();
+        let archived = listed_file(&db, previous, archived_path).await;
+        assert_eq!(archived.sha256.as_deref(), Some(archived_hash.as_str()));
+        assert_eq!(archived.attempts, 1);
+        let backing_off = listed_file(&db, previous, backoff_path).await;
+        assert_eq!(backing_off.last_error.as_deref(), Some("waiting"));
+        assert_eq!(backing_off.attempts, 1);
+        assert!(db.claim_launcher_blob(60).await.unwrap().is_none());
+        worker.shutdown().await;
         upstream.abort();
     }
 
