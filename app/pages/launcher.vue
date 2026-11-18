@@ -2,23 +2,11 @@
   <PageHeader title="PC 启动器归档" en="PC Launcher" />
 
   <AkCollapseItem title="各版本归档进度" @toggle.once="progressOpened = true">
-    <LauncherArchiveProgress v-if="progressOpened" ref="archiveProgress">
-      <template #actions="{ loading }">
-        <button
-          type="button"
-          class="ak-btn ak-btn--sm"
-          :disabled="loading || loadingReleases || refreshing"
-          @click="refresh"
-        >
-          <AsIcon name="refresh" :size="16" />
-          {{ refreshing ? "正在刷新…" : "刷新进度" }}
-        </button>
-      </template>
-    </LauncherArchiveProgress>
+    <LauncherArchiveProgress v-if="progressOpened" />
   </AkCollapseItem>
 
   <AkEmpty
-    v-if="!release && releasesError"
+    v-if="!releases.length && releasesError"
     :icon="false"
     title="加载发布列表失败"
   >
@@ -32,7 +20,7 @@
     </template>
   </AkEmpty>
   <AkEmpty
-    v-else-if="!release && !loadingReleases"
+    v-else-if="!releases.length && !loadingReleases"
     :icon="false"
     title="暂无 PC 发布"
   >
@@ -40,7 +28,7 @@
       ><AsIcon name="empty" :size="48" class="ak-empty__icon"
     /></template>
   </AkEmpty>
-  <PaneBox v-else-if="!release" aria-busy="true">
+  <PaneBox v-else-if="!releases.length" aria-busy="true">
     <PaneNote><AkSkeleton text :repeat="5" /></PaneNote>
   </PaneBox>
 
@@ -59,7 +47,7 @@
           class="ak-btn ak-btn--icon ak-btn--sm launcher-swap"
           title="交换版本"
           aria-label="交换版本"
-          :disabled="compareFrom == null || compareFrom === selected"
+          :disabled="sameRelease"
           @click="swap"
         >
           <AsIcon name="swap" :size="16" />
@@ -75,14 +63,18 @@
           v-if="nextBefore != null"
           type="button"
           class="ak-btn ak-btn--ghost ak-btn--sm launcher-older"
-          :disabled="loadingReleases || refreshing"
+          :disabled="loadingReleases"
           @click="loadReleases(true)"
         >
           <AsIcon name="history" :size="16" />
           {{ loadingReleases ? "正在加载…" : "更多发布" }}
         </button>
       </div>
-      <KindToggles v-model="kinds" :counts="diffReady ? counts : undefined" />
+      <KindToggles
+        v-if="!sameRelease"
+        v-model="kinds"
+        :counts="diffReady ? counts : undefined"
+      />
       <template #end>
         <AkSearch
           v-model="keyword"
@@ -102,7 +94,7 @@
         <PaneNote v-if="loadingDiff"><AkSkeleton text :repeat="8" /></PaneNote>
         <FileTree
           v-else-if="diffReady"
-          label="版本差异文件树"
+          :label="sameRelease ? '归档文件树' : '版本差异文件树'"
           :roots="tree.roots"
           :children-of="tree.childrenOf"
           :expanded="expanded"
@@ -114,7 +106,7 @@
           @toggle="toggle"
         />
       </template>
-      <template #side-foot>
+      <template v-if="release" #side-foot>
         <LauncherReleaseSummary
           class="launcher-progress"
           :release="release"
@@ -124,12 +116,13 @@
 
       <PaneBox
         class="launcher-results"
-        label="版本差异"
+        :label="resultLabel"
         :aria-busy="loadingDiff"
       >
         <template #head>
           <h2 class="launcher-heading">
-            <AsIcon name="diff" :size="16" />版本差异
+            <AsIcon :name="sameRelease ? 'folder' : 'diff'" :size="16" />
+            {{ resultLabel }}
           </h2>
           <span v-if="diffReady" class="launcher-count">
             {{ formatCount(rows.length) }} 项
@@ -138,20 +131,7 @@
         <template v-if="diffReady" #head-end>
           <AkSwitch v-model="withSubdirs" size="sm">含子目录</AkSwitch>
         </template>
-        <AkEmpty
-          v-if="compareFrom == null || compareFrom === selected"
-          :icon="false"
-          :title="
-            compareFrom == null ? '选择基准版本来比较' : '两边是同一个发布'
-          "
-        >
-          <template #icon
-            ><AsIcon name="info" :size="48" class="ak-empty__icon"
-          /></template>
-        </AkEmpty>
-        <PaneNote v-else-if="loadingDiff"
-          ><AkSkeleton text :repeat="6"
-        /></PaneNote>
+        <PaneNote v-if="loadingDiff"><AkSkeleton text :repeat="6" /></PaneNote>
         <AkEmpty v-else-if="diffError" :icon="false" :title="diffError">
           <template #icon
             ><AsIcon name="warn" :size="48" class="ak-empty__icon"
@@ -195,6 +175,7 @@
         </AkEmpty>
         <LauncherChangeTable
           v-else
+          :aria-label="sameRelease ? '文件清单' : '版本差异表'"
           :changes="pageRows"
           :selected="detail?.path"
           @select="selectedFile = $event"
@@ -209,7 +190,7 @@
           />
         </template>
       </PaneBox>
-      <template v-if="wide && detail && baseRelease" #detail>
+      <template v-if="wide && detail && baseRelease && release" #detail>
         <LauncherFileDetail
           :change="detail"
           :before="baseRelease"
@@ -220,7 +201,7 @@
     </SplitView>
 
     <AkDialog
-      v-if="!wide && baseRelease"
+      v-if="!wide && baseRelease && release"
       class="launcher-detail-dialog"
       label="文件详情"
       size="sm"
@@ -251,14 +232,8 @@ import {
   AkSwitch,
 } from "@mooncellwiki/prts-design-vue";
 import { useMediaQuery } from "@vueuse/core";
-import {
-  computed,
-  onMounted,
-  ref,
-  shallowRef,
-  useTemplateRef,
-  watch,
-} from "vue";
+import { computed, onMounted, ref, shallowRef, watch } from "vue";
+import { useRoute, useRouter } from "vue-router";
 import { client } from "~/common/client";
 import { fetchLauncherReleases } from "~/common/launcher";
 import { formatCount, parentPath } from "~/common/utils";
@@ -291,32 +266,64 @@ const CHANGE_KINDS = new Map<string, LauncherChange["kind"]>([
   ["deleted", "rem"],
   ["unchanged", "same"],
 ]);
+const route = useRoute();
+const router = useRouter();
 const releases = ref<LauncherRelease[]>([]);
 const progressOpened = ref(false);
-const archiveProgress = useTemplateRef("archiveProgress");
-const selected = ref<number>();
-const compareFrom = ref<number>();
+const nextBefore = ref<number | null>();
+const loadingReleases = ref(true);
+const releasesError = ref("");
+
+interface ReleasePair {
+  from: number;
+  to: number;
+}
+
+const defaultPair = computed(() => {
+  const [latest, previous] = releases.value;
+  return latest ? { from: (previous ?? latest).id, to: latest.id } : undefined;
+});
+const queryPair = computed<ReleasePair | undefined>(() => {
+  const diff = route.query.diff;
+  const match =
+    typeof diff === "string" ? /^([1-9]\d*)\.\.\.([1-9]\d*)$/.exec(diff) : null;
+  const from = Number(match?.[1]);
+  const to = Number(match?.[2]);
+  return Number.isSafeInteger(from) && Number.isSafeInteger(to)
+    ? { from, to }
+    : undefined;
+});
+const pair = computed(() =>
+  defaultPair.value ? (queryPair.value ?? defaultPair.value) : undefined,
+);
+const sameRelease = computed(
+  () => pair.value != null && pair.value.from === pair.value.to,
+);
+const resultLabel = computed(() =>
+  sameRelease.value ? "文件清单" : "版本差异",
+);
+
+function setPair({ from, to }: ReleasePair) {
+  void router.replace({ query: { ...route.query, diff: `${from}...${to}` } });
+}
 
 /** VersionSelect models use null for the placeholder; release ids stay numeric. */
-function idModel(id: typeof selected) {
+function releaseModel(side: keyof ReleasePair) {
   return computed({
-    get: () => id.value ?? null,
+    get: () => pair.value?.[side] ?? null,
     set: (value) => {
-      id.value = value == null ? undefined : Number(value);
+      if (pair.value && value != null)
+        setPair({ ...pair.value, [side]: Number(value) });
     },
   });
 }
-const selectedModel = idModel(selected);
-const compareModel = idModel(compareFrom);
-const nextBefore = ref<number | null>();
-const loadingReleases = ref(true);
-const refreshing = ref(false);
-const releasesError = ref("");
+const selectedModel = releaseModel("to");
+const compareModel = releaseModel("from");
 const release = computed(() =>
-  releases.value.find((r) => r.id === selected.value),
+  releases.value.find((r) => r.id === pair.value?.to),
 );
 const baseRelease = computed(() =>
-  releases.value.find((r) => r.id === compareFrom.value),
+  releases.value.find((r) => r.id === pair.value?.from),
 );
 const options = computed(() =>
   releases.value.map((r) => ({
@@ -326,7 +333,7 @@ const options = computed(() =>
 );
 const manifestUrl = computed(() => {
   const base = (import.meta.env.VITE_API_PATH ?? "").replace(/\/$/, "");
-  return `${base}/api/v1/launcher/releases/${selected.value}/manifest`;
+  return `${base}/api/v1/launcher/releases/${pair.value?.to}/manifest`;
 });
 
 const changes = shallowRef<LauncherChange[]>([]);
@@ -335,8 +342,18 @@ const loadingDiff = ref(false);
 const diffError = ref("");
 let diffRequest = 0;
 
-const { kinds, keyword, q, counts, visible, resetFilters } =
-  useChangeFilters(changes);
+const {
+  kinds,
+  keyword,
+  q,
+  matched,
+  counts,
+  visible: filteredChanges,
+  resetFilters,
+} = useChangeFilters(changes);
+const visible = computed(() =>
+  sameRelease.value ? matched.value : filteredChanges.value,
+);
 const tree = computed(() => buildChangeTree(visible.value));
 const expanded = ref(new Set([""]));
 const directory = ref("");
@@ -387,6 +404,7 @@ function resetView() {
 
 const noChanges = computed(
   () =>
+    !sameRelease.value &&
     !kinds.value.same &&
     changes.value.every((change) => change.kind === "same"),
 );
@@ -414,7 +432,7 @@ const range = computed(
 );
 
 function swap() {
-  [selected.value, compareFrom.value] = [compareFrom.value, selected.value];
+  if (pair.value) setPair({ from: pair.value.to, to: pair.value.from });
 }
 
 /** Mirrors the API's order: newest package version first, then newest id. */
@@ -429,6 +447,12 @@ function compareReleases(a: LauncherRelease, b: LauncherRelease) {
   return y.length - x.length || b.id - a.id;
 }
 
+function mergeReleases(items: LauncherRelease[]) {
+  const combined = new Map(releases.value.map((r) => [r.id, r]));
+  for (const item of items) combined.set(item.id, item);
+  releases.value = [...combined.values()].sort(compareReleases);
+}
+
 async function loadReleases(more = false) {
   loadingReleases.value = true;
   releasesError.value = "";
@@ -437,13 +461,8 @@ async function loadReleases(more = false) {
       limit: PAGE_SIZE,
       before: more ? (nextBefore.value ?? undefined) : undefined,
     });
-    const hadReleases = releases.value.length > 0;
-    const combined = new Map(releases.value.map((r) => [r.id, r]));
-    for (const item of data.releases) combined.set(item.id, item);
-    releases.value = [...combined.values()].sort(compareReleases);
-    if (more || !hadReleases) nextBefore.value = data.nextBefore;
-    selected.value ??= data.releases[0]?.id;
-    return data.releases;
+    mergeReleases(data.releases);
+    nextBefore.value = data.nextBefore;
   } catch (err) {
     releasesError.value =
       err instanceof Error ? err.message : "加载发布列表失败";
@@ -453,8 +472,7 @@ async function loadReleases(more = false) {
 }
 
 async function loadDiff() {
-  const from = compareFrom.value;
-  const to = selected.value;
+  const comparison = pair.value;
   const request = ++diffRequest;
   changes.value = [];
   directory.value = "";
@@ -462,9 +480,28 @@ async function loadDiff() {
   expanded.value = new Set([""]);
   diffReady.value = false;
   diffError.value = "";
-  loadingDiff.value = from != null && to != null && from !== to;
-  if (from == null || to == null || from === to) return;
+  loadingDiff.value = comparison != null;
+  if (!comparison) return;
+  const { from, to } = comparison;
   try {
+    const missing = [...new Set([from, to])].filter(
+      (id) => !releases.value.some((item) => item.id === id),
+    );
+    if (missing.length) {
+      const linked = await Promise.all(
+        missing.map(async (id) => {
+          const { data, response } = await client.GET(
+            "/api/v1/launcher/releases/{id}",
+            { params: { path: { id } } },
+          );
+          if (!data)
+            throw new Error(`加载发布 #${id} 失败（${response.status}）`);
+          return data;
+        }),
+      );
+      if (request !== diffRequest) return;
+      mergeReleases(linked);
+    }
     const { data, response } = await client.GET("/api/v1/launcher/diff/files", {
       params: { query: { from, to } },
     });
@@ -484,40 +521,10 @@ async function loadDiff() {
   }
 }
 
-async function refresh() {
-  if (loadingReleases.value || refreshing.value) return;
-  refreshing.value = true;
-  try {
-    const [latestPage] = await Promise.all([
-      loadReleases(),
-      archiveProgress.value?.refresh(),
-    ]);
-    const current = release.value;
-    if (current && !latestPage?.some((item) => item.id === current.id)) {
-      const { data, response } = await client.GET(
-        "/api/v1/launcher/releases/{id}",
-        {
-          params: { path: { id: current.id } },
-        },
-      );
-      if (!data) throw new Error(`刷新进度失败（${response.status}）`);
-      releases.value = releases.value.map((item) =>
-        item.id === data.id ? data : item,
-      );
-    }
-  } catch (err) {
-    releasesError.value = err instanceof Error ? err.message : "刷新进度失败";
-  } finally {
-    refreshing.value = false;
-  }
-}
-
-watch([selected, releases], () => {
-  if (compareFrom.value != null) return;
-  const index = releases.value.findIndex((r) => r.id === selected.value);
-  if (index >= 0) compareFrom.value = releases.value[index + 1]?.id;
+watch([defaultPair, queryPair], ([defaults, query]) => {
+  if (defaults && !query) setPair(defaults);
 });
-watch([selected, compareFrom], loadDiff);
+watch([() => pair.value?.from, () => pair.value?.to], loadDiff);
 onMounted(() => void loadReleases());
 </script>
 

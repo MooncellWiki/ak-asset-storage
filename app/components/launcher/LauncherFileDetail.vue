@@ -14,7 +14,7 @@
     }"
     @close="emit('close')"
   >
-    <template #before-action>
+    <template v-if="before.id !== after.id" #before-action>
       <LauncherFileDownload :release-id="before.id" :path="change.path" />
     </template>
     <template #after-action>

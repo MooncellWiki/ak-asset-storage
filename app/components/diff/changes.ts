@@ -45,7 +45,7 @@ export function useChangeFilters<T extends PathChange>(changes: Ref<T[]>) {
     kinds.value = { ...DEFAULT_KINDS };
   }
 
-  return { kinds, keyword, q, counts, visible, resetFilters };
+  return { kinds, keyword, q, matched, counts, visible, resetFilters };
 }
 
 // A path can be a file in one release and a directory in another.

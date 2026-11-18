@@ -17,7 +17,6 @@
           全部
         </button>
       </div>
-      <slot name="actions" :loading="isLoading" />
       <div
         v-if="cursors.length || page?.nextBefore != null"
         class="archive-progress__pages"
@@ -49,7 +48,7 @@
     />
     <AkMessage v-else-if="error" variant="danger">
       {{ error instanceof Error ? error.message : "加载归档进度失败" }}
-      <button type="button" class="ak-btn ak-btn--sm" @click="refresh()">
+      <button type="button" class="ak-btn ak-btn--sm" @click="loadPage()">
         重试
       </button>
     </AkMessage>
@@ -116,7 +115,6 @@ import { computed, ref, watch } from "vue";
 import { archivedFilePercent, fetchLauncherReleases } from "~/common/launcher";
 import { formatCount, formatSize } from "~/common/utils";
 
-defineSlots<{ actions: (props: { loading: boolean }) => unknown }>();
 const pendingOnly = ref(true);
 const cursors = ref<number[]>([]);
 const before = computed(() => cursors.value.at(-1));
@@ -124,7 +122,7 @@ const {
   state: page,
   error,
   isLoading,
-  executeImmediate: refresh,
+  executeImmediate: loadPage,
 } = useAsyncState(
   () =>
     fetchLauncherReleases({
@@ -134,8 +132,7 @@ const {
     }),
   undefined,
 );
-watch([pendingOnly, before], () => void refresh());
-defineExpose({ refresh });
+watch([pendingOnly, before], () => void loadPage());
 
 function setFilter(pending: boolean) {
   if (pendingOnly.value === pending) return;
