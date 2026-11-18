@@ -1,505 +1,611 @@
 <template>
-  <PageHeader title="PC 启动器归档" en="PC Launcher">
-    <button
-      type="button"
-      class="ak-btn ak-btn--sm"
-      :disabled="loading"
-      @click="refresh"
-    >
-      刷新进度
-    </button>
-  </PageHeader>
-  <p v-if="error" role="alert" class="launcher-error">{{ error }}</p>
-  <p v-if="!releases.length && !loading" role="status">
-    暂无 PC 发布。启用 launcher 配置后，worker 会独立追踪并归档。
-  </p>
-  <div class="launcher-tools">
-    <VersionSelect
-      v-model="selectedModel"
-      :options="options"
-      label="PC 发布"
-      placeholder="选择 PC 发布（同包版本重发按清单区分）"
-    />
-    <button
-      v-if="nextBefore"
-      type="button"
-      class="ak-btn ak-btn--ghost ak-btn--sm"
-      :disabled="loading"
-      @click="loadReleases(true)"
-    >
-      更多发布
-    </button>
-  </div>
-  <template v-if="release">
-    <section class="launcher-summary" aria-label="归档进度">
-      <h2>包 {{ release.packageVersion }} / 游戏 {{ release.gameVersion }}</h2>
-      <p class="launcher-dim">
-        清单 MD5：<code>{{ release.manifestMd5 }}</code> · 发现于
-        {{ new Date(release.discoveredAt).toLocaleString() }}
-      </p>
-      <progress
-        class="launcher-progress"
-        :value="progress"
-        max="100"
-        aria-label="已归档文件比例"
-      >
-        {{ progress }}%
-      </progress>
-      <div class="launcher-tools">
-        <span
-          >{{ release.readyAt ? "归档完成" : "归档中" }}：{{
-            release.archivedFiles
-          }}
-          / {{ release.totalFiles }} 文件，{{
-            formatSize(release.archivedBytes)
-          }}
-          / {{ formatSize(release.totalBytes) }}</span
-        >
-        <a
-          class="ak-btn ak-btn--ghost ak-btn--sm"
-          :href="apiUrl(`/api/v1/launcher/releases/${release.id}/manifest`)"
-          >下载原始加密清单</a
-        >
-      </div>
-    </section>
-    <div class="ak-tabs launcher-tabs" role="tablist" aria-label="PC 归档内容">
-      <button
-        id="launcher-files-tab"
-        type="button"
-        class="ak-tab"
-        :class="{ 'is-active': tab === 'files' }"
-        role="tab"
-        :aria-selected="tab === 'files'"
-        aria-controls="launcher-files"
-        @click="tab = 'files'"
-      >
-        文件清单
+  <PageHeader title="PC 启动器归档" en="PC Launcher" />
+
+  <AkCollapseItem title="各版本归档进度" @toggle.once="progressOpened = true">
+    <LauncherArchiveProgress v-if="progressOpened" />
+  </AkCollapseItem>
+
+  <AkEmpty
+    v-if="!releases.length && releasesError"
+    :icon="false"
+    title="加载发布列表失败"
+  >
+    <template #icon
+      ><AsIcon name="warn" :size="48" class="ak-empty__icon"
+    /></template>
+    <template #extra>
+      <button type="button" class="ak-btn ak-btn--sm" @click="loadReleases()">
+        <AsIcon name="refresh" :size="16" />重试
       </button>
-      <button
-        id="launcher-diff-tab"
-        type="button"
-        class="ak-tab"
-        :class="{ 'is-active': tab === 'diff' }"
-        role="tab"
-        :aria-selected="tab === 'diff'"
-        aria-controls="launcher-diff"
-        @click="tab = 'diff'"
-      >
-        版本差异
-      </button>
-    </div>
-    <section
-      v-if="tab === 'files'"
-      id="launcher-files"
-      role="tabpanel"
-      aria-labelledby="launcher-files-tab"
-    >
-      <form class="launcher-tools" @submit.prevent="loadFiles()">
-        <AkSearch
-          v-model="search"
-          placeholder="按历史路径搜索（区分大小写）"
-          label="按历史路径搜索"
-        />
-        <button
-          type="submit"
-          class="ak-btn ak-btn--sm"
-          :disabled="loadingFiles"
-        >
-          搜索
-        </button>
-      </form>
-      <p v-if="loadingFiles" role="status">加载清单…</p>
-      <div class="launcher-table">
-        <table class="ak-table ak-table--compact">
-          <thead>
-            <tr>
-              <th scope="col">历史路径</th>
-              <th scope="col">大小</th>
-              <th scope="col">MD5</th>
-              <th scope="col">归档</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr v-for="file in files" :key="file.path">
-              <td class="launcher-path">{{ file.path }}</td>
-              <td class="launcher-size">{{ formatSize(file.size) }}</td>
-              <td class="launcher-hash">{{ file.md5 }}</td>
-              <td>
-                <a
-                  v-if="file.sha256"
-                  class="ak-btn ak-btn--ghost ak-btn--sm"
-                  :href="storageUrl(file.sha256, '/storage/launcher/blobs')"
-                  :download="splitPath(file.path).name"
-                  >下载原始文件</a
-                >
-                <span
-                  v-else
-                  class="launcher-pending"
-                  :title="file.lastError ?? undefined"
-                  >{{
-                    file.retriesExhausted
-                      ? `停止重试 (${file.attempts})`
-                      : file.lastError
-                        ? `等待重试 (${file.attempts})`
-                        : "待归档"
-                  }}</span
-                >
-              </td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
-      <p v-if="!loadingFiles && !files.length">没有匹配的文件</p>
-      <button
-        v-if="nextFile"
-        type="button"
-        class="ak-btn ak-btn--sm launcher-more"
-        :disabled="loadingFiles"
-        @click="loadFiles('more')"
-      >
-        更多文件
-      </button>
-    </section>
-    <section
-      v-else
-      id="launcher-diff"
-      role="tabpanel"
-      aria-labelledby="launcher-diff-tab"
-    >
-      <div class="launcher-tools">
+    </template>
+  </AkEmpty>
+  <AkEmpty
+    v-else-if="!releases.length && !loadingReleases"
+    :icon="false"
+    title="暂无 PC 发布"
+  >
+    <template #icon
+      ><AsIcon name="empty" :size="48" class="ak-empty__icon"
+    /></template>
+  </AkEmpty>
+  <PaneBox v-else-if="!releases.length" aria-busy="true">
+    <PaneNote><AkSkeleton text :repeat="5" /></PaneNote>
+  </PaneBox>
+
+  <template v-else>
+    <AsToolbar class="launcher-toolbar">
+      <div class="launcher-versions">
         <VersionSelect
           v-model="compareModel"
           :options="options"
-          label="与旧发布比较"
-          placeholder="选择旧发布，与当前发布比较"
+          class="launcher-select"
+          label="基准版本"
+          placeholder="基准版本"
         />
+        <button
+          type="button"
+          class="ak-btn ak-btn--icon ak-btn--sm launcher-swap"
+          title="交换版本"
+          aria-label="交换版本"
+          :disabled="sameRelease"
+          @click="swap"
+        >
+          <AsIcon name="swap" :size="16" />
+        </button>
+        <VersionSelect
+          v-model="selectedModel"
+          :options="options"
+          class="launcher-select"
+          label="对比版本"
+          placeholder="对比版本"
+        />
+        <button
+          v-if="nextBefore != null"
+          type="button"
+          class="ak-btn ak-btn--ghost ak-btn--sm launcher-older"
+          :disabled="loadingReleases"
+          @click="loadReleases(true)"
+        >
+          <AsIcon name="history" :size="16" />
+          {{ loadingReleases ? "正在加载…" : "更多发布" }}
+        </button>
       </div>
-      <p class="launcher-dim">
-        清单入库即可比较。改名显示为删除旧路径和新增路径，内容按 MD5
-        与大小复用。
-      </p>
-      <p v-if="loadingDiff" role="status">比较发布…</p>
-      <div class="launcher-table">
-        <table class="ak-table ak-table--compact">
-          <thead>
-            <tr>
-              <th scope="col">路径</th>
-              <th scope="col">变化</th>
-              <th scope="col">旧 MD5</th>
-              <th scope="col">新 MD5</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr v-for="change in changes" :key="change.path">
-              <td class="launcher-path">{{ change.path }}</td>
-              <td>
-                {{
-                  { added: "新增", deleted: "删除", modified: "修改" }[
-                    change.change
-                  ] ?? change.change
-                }}
-              </td>
-              <td class="launcher-hash">{{ change.oldMd5 ?? "—" }}</td>
-              <td class="launcher-hash">{{ change.newMd5 ?? "—" }}</td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
-      <p v-if="compareFrom != null && !loadingDiff && !changes.length">
-        两次发布没有文件差异
-      </p>
-      <button
-        v-if="nextDiff"
-        type="button"
-        class="ak-btn ak-btn--sm launcher-more"
-        :disabled="loadingDiff"
-        @click="loadDiff(true)"
+      <KindToggles
+        v-if="!sameRelease"
+        v-model="kinds"
+        :counts="diffReady ? counts : undefined"
+      />
+      <template #end>
+        <AkSearch
+          v-model="keyword"
+          size="sm"
+          placeholder="筛选路径"
+          label="筛选路径"
+        />
+      </template>
+    </AsToolbar>
+
+    <AkMessage v-if="releasesError" class="launcher-message" variant="danger">
+      {{ releasesError }}
+    </AkMessage>
+
+    <SplitView side-label="文件树">
+      <template #side>
+        <PaneNote v-if="loadingDiff"><AkSkeleton text :repeat="8" /></PaneNote>
+        <FileTree
+          v-else-if="diffReady"
+          :label="sameRelease ? '归档文件树' : '版本差异文件树'"
+          :roots="tree.roots"
+          :children-of="tree.childrenOf"
+          :expanded="expanded"
+          :selected="detail ? changeFileId(detail.path) : directory"
+          :expand-all="q.trim() !== ''"
+          :highlight="q"
+          :empty-note="() => '没有符合筛选的文件'"
+          @select="selectTreeNode"
+          @toggle="toggle"
+        />
+      </template>
+      <template v-if="release" #side-foot>
+        <LauncherReleaseSummary
+          class="launcher-progress"
+          :release="release"
+          :manifest-url="manifestUrl"
+        />
+      </template>
+
+      <PaneBox
+        class="launcher-results"
+        :label="resultLabel"
+        :aria-busy="loadingDiff"
       >
-        更多差异
-      </button>
-    </section>
+        <template #head>
+          <h2 class="launcher-heading">
+            <AsIcon :name="sameRelease ? 'folder' : 'diff'" :size="16" />
+            {{ resultLabel }}
+          </h2>
+          <span v-if="diffReady" class="launcher-count">
+            {{ formatCount(rows.length) }} 项
+          </span>
+        </template>
+        <template v-if="diffReady" #head-end>
+          <AkSwitch v-model="withSubdirs" size="sm">含子目录</AkSwitch>
+        </template>
+        <PaneNote v-if="loadingDiff"><AkSkeleton text :repeat="6" /></PaneNote>
+        <AkEmpty v-else-if="diffError" :icon="false" :title="diffError">
+          <template #icon
+            ><AsIcon name="warn" :size="48" class="ak-empty__icon"
+          /></template>
+          <template #extra>
+            <button type="button" class="ak-btn ak-btn--sm" @click="loadDiff">
+              <AsIcon name="refresh" :size="16" />重试
+            </button>
+          </template>
+        </AkEmpty>
+        <AkEmpty
+          v-else-if="!rows.length"
+          :icon="false"
+          :title="noChanges ? '两次发布没有文件差异' : '没有符合筛选的文件'"
+        >
+          <template #icon>
+            <AsIcon
+              :name="noChanges ? 'check' : 'search'"
+              :size="48"
+              class="ak-empty__icon"
+            />
+          </template>
+          <template #extra>
+            <button
+              v-if="noChanges"
+              type="button"
+              class="ak-btn ak-btn--sm"
+              @click="kinds.same = true"
+            >
+              显示未变更
+            </button>
+            <button
+              v-else
+              type="button"
+              class="ak-btn ak-btn--sm"
+              @click="resetView"
+            >
+              清除筛选
+            </button>
+          </template>
+        </AkEmpty>
+        <LauncherChangeTable
+          v-else
+          :aria-label="sameRelease ? '文件清单' : '版本差异表'"
+          :changes="pageRows"
+          :selected="detail?.path"
+          @select="selectedFile = $event"
+        />
+        <template v-if="rows.length > PAGE_SIZE" #foot>
+          <span class="launcher-count">{{ range }}</span>
+          <AkPagination
+            v-model="page"
+            class="launcher-pager"
+            :item-count="rows.length"
+            :page-size="PAGE_SIZE"
+          />
+        </template>
+      </PaneBox>
+      <template v-if="wide && detail && baseRelease && release" #detail>
+        <LauncherFileDetail
+          :change="detail"
+          :before="baseRelease"
+          :after="release"
+          @close="closeDetail"
+        />
+      </template>
+    </SplitView>
+
+    <AkDialog
+      v-if="!wide && baseRelease && release"
+      class="launcher-detail-dialog"
+      label="文件详情"
+      size="sm"
+      :closable="false"
+      :model-value="detail != null"
+      @update:model-value="closeDetail"
+    >
+      <LauncherFileDetail
+        v-if="detail"
+        :change="detail"
+        :before="baseRelease"
+        :after="release"
+        @close="closeDetail"
+      />
+    </AkDialog>
   </template>
 </template>
 
 <script setup lang="ts">
-import { AkSearch } from "@mooncellwiki/prts-design-vue";
-import { useIntervalFn } from "@vueuse/core";
-import { computed, onMounted, ref, watch } from "vue";
+import {
+  AkCollapseItem,
+  AkDialog,
+  AkEmpty,
+  AkMessage,
+  AkPagination,
+  AkSearch,
+  AkSkeleton,
+  AkSwitch,
+} from "@mooncellwiki/prts-design-vue";
+import { useMediaQuery } from "@vueuse/core";
+import { computed, onMounted, ref, shallowRef, watch } from "vue";
+import { useRoute, useRouter } from "vue-router";
 import { client } from "~/common/client";
-import { formatSize, splitPath, storageUrl } from "~/common/utils";
+import { fetchLauncherReleases } from "~/common/launcher";
+import { formatCount, parentPath } from "~/common/utils";
+import AsIcon from "~/components/AsIcon.vue";
+import {
+  buildChangeTree,
+  changeFileId,
+  useChangeFilters,
+} from "~/components/diff/changes";
+import KindToggles from "~/components/diff/KindToggles.vue";
+import LauncherArchiveProgress from "~/components/launcher/LauncherArchiveProgress.vue";
+import LauncherChangeTable from "~/components/launcher/LauncherChangeTable.vue";
+import LauncherFileDetail from "~/components/launcher/LauncherFileDetail.vue";
+import LauncherReleaseSummary from "~/components/launcher/LauncherReleaseSummary.vue";
+import AsToolbar from "~/components/layout/AsToolbar.vue";
+import PaneBox from "~/components/layout/PaneBox.vue";
+import PaneNote from "~/components/layout/PaneNote.vue";
+import SplitView from "~/components/layout/SplitView.vue";
 import VersionSelect from "~/components/layout/VersionSelect.vue";
 import PageHeader from "~/components/PageHeader.vue";
-import type { components } from "~/common/schema";
+import FileTree from "~/components/tree/FileTree.vue";
+import type { LauncherRelease } from "~/common/launcher";
+import type { LauncherChange } from "~/components/launcher/LauncherChangeTable.vue";
+import type { TreeNode } from "~/components/tree/model";
 
-type Release = components["schemas"]["LauncherRelease"];
-type File = components["schemas"]["LauncherFile"];
-type Change = components["schemas"]["LauncherDiff"];
+const PAGE_SIZE = 100;
+const CHANGE_KINDS = new Map<string, LauncherChange["kind"]>([
+  ["added", "add"],
+  ["modified", "chg"],
+  ["deleted", "rem"],
+  ["unchanged", "same"],
+]);
+const route = useRoute();
+const router = useRouter();
+const releases = ref<LauncherRelease[]>([]);
+const progressOpened = ref(false);
+const nextBefore = ref<number | null>();
+const loadingReleases = ref(true);
+const releasesError = ref("");
 
-const releases = ref<Release[]>([]);
-const selected = ref<number>();
-const compareFrom = ref<number>();
-/** AkSelect models are `string | number | null`; release ids stay numbers. */
-function idModel(id: typeof selected) {
+interface ReleasePair {
+  from: number;
+  to: number;
+}
+
+const defaultPair = computed(() => {
+  const [latest, previous] = releases.value;
+  return latest ? { from: (previous ?? latest).id, to: latest.id } : undefined;
+});
+const queryPair = computed<ReleasePair | undefined>(() => {
+  const diff = route.query.diff;
+  const match =
+    typeof diff === "string" ? /^([1-9]\d*)\.\.\.([1-9]\d*)$/.exec(diff) : null;
+  const from = Number(match?.[1]);
+  const to = Number(match?.[2]);
+  return Number.isSafeInteger(from) && Number.isSafeInteger(to)
+    ? { from, to }
+    : undefined;
+});
+const pair = computed(() =>
+  defaultPair.value ? (queryPair.value ?? defaultPair.value) : undefined,
+);
+const sameRelease = computed(
+  () => pair.value != null && pair.value.from === pair.value.to,
+);
+const resultLabel = computed(() =>
+  sameRelease.value ? "文件清单" : "版本差异",
+);
+
+function setPair({ from, to }: ReleasePair) {
+  void router.replace({ query: { ...route.query, diff: `${from}...${to}` } });
+}
+
+/** VersionSelect models use null for the placeholder; release ids stay numeric. */
+function releaseModel(side: keyof ReleasePair) {
   return computed({
-    get: () => id.value ?? null,
+    get: () => pair.value?.[side] ?? null,
     set: (value) => {
-      id.value = value == null ? undefined : Number(value);
+      if (pair.value && value != null)
+        setPair({ ...pair.value, [side]: Number(value) });
     },
   });
 }
-const selectedModel = idModel(selected);
-const compareModel = idModel(compareFrom);
-const nextBefore = ref<number | null>();
-const files = ref<File[]>([]);
-const changes = ref<Change[]>([]);
-const nextFile = ref<string | null>();
-const nextDiff = ref<string | null>();
-const search = ref("");
-let fileSearch = "";
-let fileRequest = 0;
-let diffRequest = 0;
-const tab = ref("files");
-const error = ref("");
-const loading = ref(false);
-const loadingFiles = ref(false);
-const loadingDiff = ref(false);
+const selectedModel = releaseModel("to");
+const compareModel = releaseModel("from");
 const release = computed(() =>
-  releases.value.find((r) => r.id === selected.value),
+  releases.value.find((r) => r.id === pair.value?.to),
 );
-const progress = computed(() =>
-  release.value?.totalFiles
-    ? Math.round(
-        (release.value.archivedFiles / release.value.totalFiles) * 10000,
-      ) / 100
-    : 0,
+const baseRelease = computed(() =>
+  releases.value.find((r) => r.id === pair.value?.from),
 );
 const options = computed(() =>
   releases.value.map((r) => ({
     value: r.id,
-    label: `${r.packageVersion} / ${r.gameVersion} · ${r.manifestMd5.slice(0, 10)} · #${r.id}`,
+    label: `#${r.id} · ${r.packageVersion} / ${r.gameVersion} · ${r.manifestMd5.slice(0, 10)}`,
   })),
 );
+const manifestUrl = computed(() => {
+  const base = (import.meta.env.VITE_API_PATH ?? "").replace(/\/$/, "");
+  return `${base}/api/v1/launcher/releases/${pair.value?.to}/manifest`;
+});
 
-function apiUrl(path: string) {
-  return `${(import.meta.env.VITE_API_PATH ?? "").replace(/\/$/, "")}${path}`;
+const changes = shallowRef<LauncherChange[]>([]);
+const diffReady = ref(false);
+const loadingDiff = ref(false);
+const diffError = ref("");
+let diffRequest = 0;
+
+const {
+  kinds,
+  keyword,
+  q,
+  matched,
+  counts,
+  visible: filteredChanges,
+  resetFilters,
+} = useChangeFilters(changes);
+const visible = computed(() =>
+  sameRelease.value ? matched.value : filteredChanges.value,
+);
+const tree = computed(() => buildChangeTree(visible.value));
+const expanded = ref(new Set([""]));
+const directory = ref("");
+const selectedFile = ref<string>();
+const detail = computed(() =>
+  selectedFile.value == null
+    ? undefined
+    : visible.value.find((change) => change.path === selectedFile.value),
+);
+const wide = useMediaQuery("(width > 1399px)");
+const withSubdirs = ref(true);
+
+watch(tree, ({ childrenOf }) => {
+  if (!childrenOf(directory.value)) {
+    directory.value = "";
+    expanded.value.add("");
+  }
+});
+watch(detail, (change) => {
+  if (!change) closeDetail();
+});
+
+function closeDetail() {
+  selectedFile.value = undefined;
+}
+
+function selectTreeNode(node: TreeNode) {
+  if (node.isDir) {
+    directory.value = node.path;
+    closeDetail();
+  } else {
+    selectedFile.value = node.path;
+  }
+}
+
+function toggle(path: string, open: boolean) {
+  if (open) expanded.value.add(path);
+  else expanded.value.delete(path);
+}
+
+function resetView() {
+  resetFilters();
+  directory.value = "";
+  closeDetail();
+  withSubdirs.value = true;
+  expanded.value.add("");
+}
+
+const noChanges = computed(
+  () =>
+    !sameRelease.value &&
+    !kinds.value.same &&
+    changes.value.every((change) => change.kind === "same"),
+);
+const rows = computed(() => {
+  const dir = directory.value;
+  if (!withSubdirs.value) {
+    return visible.value.filter((change) => parentPath(change.path) === dir);
+  }
+  return dir
+    ? visible.value.filter((change) => change.path.startsWith(`${dir}/`))
+    : visible.value;
+});
+const page = ref(1);
+watch(rows, () => {
+  page.value = 1;
+});
+const pageRows = computed(() =>
+  rows.value.slice((page.value - 1) * PAGE_SIZE, page.value * PAGE_SIZE),
+);
+const range = computed(
+  () =>
+    `${formatCount((page.value - 1) * PAGE_SIZE + 1)}–${formatCount(
+      Math.min(page.value * PAGE_SIZE, rows.value.length),
+    )} / ${formatCount(rows.value.length)}`,
+);
+
+function swap() {
+  if (pair.value) setPair({ from: pair.value.to, to: pair.value.from });
 }
 
 /** Mirrors the API's order: newest package version first, then newest id. */
 function versionKey(version: string) {
-  return (version.match(/\d+/g) ?? []).map(Number);
+  return (version.match(/\d{1,18}/g) ?? []).map(BigInt);
 }
-function compareReleases(a: Release, b: Release) {
+function compareReleases(a: LauncherRelease, b: LauncherRelease) {
   const x = versionKey(a.packageVersion);
   const y = versionKey(b.packageVersion);
   for (let i = 0; i < Math.min(x.length, y.length); i++)
-    if (x[i] !== y[i]) return y[i]! - x[i]!;
+    if (x[i] !== y[i]) return x[i]! > y[i]! ? -1 : 1;
   return y.length - x.length || b.id - a.id;
 }
 
+function mergeReleases(items: LauncherRelease[]) {
+  const combined = new Map(releases.value.map((r) => [r.id, r]));
+  for (const item of items) combined.set(item.id, item);
+  releases.value = [...combined.values()].sort(compareReleases);
+}
+
 async function loadReleases(more = false) {
-  loading.value = true;
+  loadingReleases.value = true;
+  releasesError.value = "";
   try {
-    const { data, response } = await client.GET("/api/v1/launcher/releases", {
-      params: {
-        query: {
-          limit: 100,
-          before: more ? (nextBefore.value ?? undefined) : undefined,
-        },
-      },
+    const data = await fetchLauncherReleases({
+      limit: PAGE_SIZE,
+      before: more ? (nextBefore.value ?? undefined) : undefined,
     });
-    if (!data) throw new Error(`加载发布失败：${response.status}`);
-    const hadReleases = releases.value.length > 0;
-    const combined = new Map(releases.value.map((r) => [r.id, r]));
-    for (const item of data.releases) combined.set(item.id, item);
-    releases.value = [...combined.values()].sort(compareReleases);
-    if (more || !hadReleases) nextBefore.value = data.nextBefore;
-    selected.value ??= data.releases[0]?.id;
+    mergeReleases(data.releases);
+    nextBefore.value = data.nextBefore;
   } catch (err) {
-    error.value = String(err);
+    releasesError.value =
+      err instanceof Error ? err.message : "加载发布列表失败";
   } finally {
-    loading.value = false;
+    loadingReleases.value = false;
   }
 }
 
-async function loadFiles(mode: "replace" | "more" | "refresh" = "replace") {
-  if (mode === "refresh" && loadingFiles.value) return;
-  const id = selected.value;
-  if (id == null) return;
-  const request = ++fileRequest;
-  const query = mode === "replace" ? search.value : fileSearch;
-  const count = mode === "refresh" ? Math.max(files.value.length, 100) : 100;
-  let after = mode === "more" ? (nextFile.value ?? undefined) : undefined;
-  const updated: File[] = [];
-  loadingFiles.value = true;
-  try {
-    // Manifests are immutable: reload the same pages to update archive status
-    // without dropping the rows the user has already expanded.
-    do {
-      const { data, response } = await client.GET(
-        "/api/v1/launcher/releases/{id}/files",
-        {
-          params: {
-            path: { id },
-            query: { q: query, after, limit: 100 },
-          },
-        },
-      );
-      if (request !== fileRequest || id !== selected.value) return;
-      if (!data) throw new Error(`加载清单失败：${response.status}`);
-      updated.push(...data.files);
-      after = data.nextAfter ?? undefined;
-    } while (after != null && updated.length < count);
-    files.value = mode === "more" ? [...files.value, ...updated] : updated;
-    nextFile.value = after ?? null;
-    fileSearch = query;
-  } catch (err) {
-    if (request === fileRequest && id === selected.value)
-      error.value = String(err);
-  } finally {
-    if (request === fileRequest) loadingFiles.value = false;
-  }
-}
-
-async function loadDiff(more = false) {
-  const from = compareFrom.value;
-  const to = selected.value;
+async function loadDiff() {
+  const comparison = pair.value;
   const request = ++diffRequest;
-  loadingDiff.value = from != null && to != null;
-  if (from == null || to == null) return;
+  changes.value = [];
+  directory.value = "";
+  closeDetail();
+  expanded.value = new Set([""]);
+  diffReady.value = false;
+  diffError.value = "";
+  loadingDiff.value = comparison != null;
+  if (!comparison) return;
+  const { from, to } = comparison;
   try {
-    const { data, response } = await client.GET("/api/v1/launcher/diff", {
-      params: {
-        query: {
-          from,
-          to,
-          after: more ? (nextDiff.value ?? undefined) : undefined,
-        },
-      },
+    const missing = [...new Set([from, to])].filter(
+      (id) => !releases.value.some((item) => item.id === id),
+    );
+    if (missing.length) {
+      const linked = await Promise.all(
+        missing.map(async (id) => {
+          const { data, response } = await client.GET(
+            "/api/v1/launcher/releases/{id}",
+            { params: { path: { id } } },
+          );
+          if (!data)
+            throw new Error(`加载发布 #${id} 失败（${response.status}）`);
+          return data;
+        }),
+      );
+      if (request !== diffRequest) return;
+      mergeReleases(linked);
+    }
+    const { data, response } = await client.GET("/api/v1/launcher/diff/files", {
+      params: { query: { from, to } },
     });
     if (request !== diffRequest) return;
-    if (!data) throw new Error(`比较发布失败：${response.status}`);
-    changes.value = more ? [...changes.value, ...data.changes] : data.changes;
-    nextDiff.value = data.nextAfter;
+    if (!data) throw new Error(`比较发布失败（${response.status}）`);
+    changes.value = data.map((change) => {
+      const kind = CHANGE_KINDS.get(change.change);
+      if (!kind) throw new Error("比较发布失败（未知的文件变更类型）");
+      return { ...change, kind };
+    });
+    diffReady.value = true;
   } catch (err) {
-    if (request === diffRequest) error.value = String(err);
+    if (request === diffRequest)
+      diffError.value = err instanceof Error ? err.message : "比较发布失败";
   } finally {
     if (request === diffRequest) loadingDiff.value = false;
   }
 }
 
-async function refresh() {
-  error.value = "";
-  await loadReleases();
-  const id = selected.value;
-  if (id != null) {
-    try {
-      const { data, response } = await client.GET(
-        "/api/v1/launcher/releases/{id}",
-        {
-          params: { path: { id } },
-        },
-      );
-      if (!data) throw new Error(`刷新发布失败：${response.status}`);
-      releases.value = releases.value.map((item) =>
-        item.id === id ? data : item,
-      );
-    } catch (err) {
-      error.value = String(err);
-    }
-  }
-  if (tab.value === "files") await loadFiles("refresh");
-}
-
-watch(selected, () => {
-  files.value = [];
-  changes.value = [];
-  nextFile.value = null;
-  nextDiff.value = null;
-  loadFiles();
-  loadDiff();
+watch([defaultPair, queryPair], ([defaults, query]) => {
+  if (defaults && !query) setPair(defaults);
 });
-watch(compareFrom, () => {
-  changes.value = [];
-  nextDiff.value = null;
-  loadDiff();
-});
-onMounted(loadReleases);
-useIntervalFn(() => {
-  if (
-    release.value &&
-    !release.value.readyAt &&
-    !loading.value &&
-    !loadingFiles.value
-  )
-    refresh();
-}, 15000);
+watch([() => pair.value?.from, () => pair.value?.to], loadDiff);
+onMounted(() => void loadReleases());
 </script>
 
 <style scoped lang="scss">
 @use "~/styles/shared" as *;
 
-.launcher-tools {
+.launcher-message {
+  margin-bottom: var(--ak-space-4);
+}
+
+.launcher-heading {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--ak-space-2);
+  margin: 0;
+  font-size: var(--ak-fs-sm);
+  font-weight: 700;
+}
+
+.launcher-versions {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: var(--ak-space-3);
-  margin-bottom: var(--ak-space-3);
-
-  .ak-search {
-    flex: 1;
-    min-width: 200px;
-  }
+  gap: var(--ak-space-2);
+  max-width: 100%;
 }
-.launcher-summary {
-  padding: var(--ak-space-4);
-  border: 1px solid var(--ak-border);
-  background: var(--ak-bg-surface);
-  margin: var(--ak-space-4) 0;
 
-  h2 {
-    margin: 0 0 var(--ak-space-3);
-    font-size: var(--ak-fs-h3);
-  }
-  p {
-    overflow-wrap: anywhere;
-  }
+.launcher-select {
+  width: 20rem;
+  min-width: 0;
 }
+
+.launcher-count {
+  color: var(--ak-fg-muted);
+  font-variant-numeric: tabular-nums;
+}
+
 .launcher-progress {
   width: 100%;
-  height: 12px;
-  margin-bottom: var(--ak-space-3);
-  accent-color: var(--ak-accent);
 }
-.launcher-tabs {
-  margin-bottom: var(--ak-space-4);
+
+.launcher-pager {
+  margin-left: auto;
 }
-.launcher-table {
-  overflow-x: auto;
-  border: 1px solid var(--ak-border);
+
+.launcher-results {
+  container-type: inline-size;
 }
-.launcher-path {
-  @include mono;
-  min-width: 280px;
-  overflow-wrap: anywhere;
+
+.launcher-detail-dialog {
+  :deep(.ak-dialog__body) {
+    padding: 0;
+  }
+
+  :deep(.pane) {
+    border: 0;
+  }
 }
-.launcher-hash {
-  @include mono;
-  white-space: nowrap;
-}
-.launcher-size {
-  @include num;
-}
-.launcher-dim {
-  color: var(--ak-fg-muted);
-}
-.launcher-error {
-  color: var(--ak-danger);
-}
-.launcher-pending {
-  color: var(--ak-warning);
-  white-space: nowrap;
-}
-.launcher-more {
-  margin-top: var(--ak-space-3);
+
+@media (max-width: $bp-phone) {
+  .launcher-versions,
+  .launcher-toolbar :deep(.toolbar__end) {
+    width: 100%;
+  }
+
+  .launcher-versions {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+
+  .launcher-select {
+    grid-column: 1;
+    width: 100%;
+  }
+
+  .launcher-swap {
+    grid-area: 1 / 2 / 3 / 3;
+  }
+
+  .launcher-older {
+    justify-self: start;
+  }
 }
 </style>

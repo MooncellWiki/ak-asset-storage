@@ -2,7 +2,7 @@ use crate::AppResult;
 use anyhow::Context;
 use chrono::{DateTime, Utc};
 use serde::Serialize;
-use std::path::Path;
+use std::{io::ErrorKind, path::Path};
 use utoipa::ToSchema;
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, ToSchema)]
@@ -24,8 +24,15 @@ impl AssetEntry {
             .context("Failed to convert file name to string")?
             .to_string();
 
-        let create_at: DateTime<Utc> = DateTime::from(meta.created()?);
-        let modified_at: DateTime<Utc> = DateTime::from(meta.modified()?);
+        let modified = meta.modified()?;
+        // SSHFS and other filesystems may expose modification time only.
+        let created = match meta.created() {
+            Ok(created) => created,
+            Err(error) if error.kind() == ErrorKind::Unsupported => modified,
+            Err(error) => return Err(error.into()),
+        };
+        let create_at = DateTime::<Utc>::from(created);
+        let modified_at = DateTime::<Utc>::from(modified);
 
         Ok(Self {
             name,

@@ -165,6 +165,10 @@ the same content. Public read-only API endpoints:
 | `GET /api/v1/launcher/diff?from=ID&to=ID`     | Added/deleted/modified paths; `after`, `limit`      |
 | `GET /api/v1/launcher/releases/{id}/manifest` | Original encrypted `game_files`                     |
 
+Pass `pending=true` to list incomplete releases. On `/launcher`, expand
+**各版本归档进度** to see them. Use `/launcher?diff=3...4` to link to a comparison
+by release ID. Use the same ID on both sides to browse that release's files.
+
 Page sizes default to 100 and are limited to 200. Use `nextBefore` or
 `nextAfter` as the next request's `before` or `after` with the same filters.
 The page downloads sharded objects through the same `/storage/` route as

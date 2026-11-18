@@ -129,6 +129,33 @@ async fn import(database: &Database, version: &str, manifest: &str) -> i64 {
 }
 
 #[sqlx::test]
+async fn pending_releases_are_filtered_before_pagination(pool: PgPool) {
+    let db = database(&pool).await;
+    let ready = import(&db, "3.0.0", OLD.lines().next().unwrap()).await;
+    let job = db.claim_launcher_blob(60).await.unwrap().unwrap();
+    job.complete(&"a".repeat(64)).await.unwrap();
+    let newer = import(&db, "2.0.0", NEW).await;
+    let older = import(&db, "1.0.0", OLD).await;
+
+    assert_eq!(
+        db.list_launcher_releases(None, false, 1).await.unwrap()[0].id,
+        ready
+    );
+    for (before, expected) in [(None, newer), (Some(newer), older)] {
+        let page = db.list_launcher_releases(before, true, 1).await.unwrap();
+        assert_eq!(page.len(), 1);
+        assert_eq!(page[0].id, expected);
+        assert!(page[0].ready_at.is_none());
+    }
+    assert!(
+        db.list_launcher_releases(Some(older), true, 1)
+            .await
+            .unwrap()
+            .is_empty()
+    );
+}
+
+#[sqlx::test]
 async fn publications_diffs_reuse_and_interrupted_claims(pool: PgPool) {
     let db = database(&pool).await;
     let old = import(&db, "78.0.0", OLD).await;
@@ -136,9 +163,15 @@ async fn publications_diffs_reuse_and_interrupted_claims(pool: PgPool) {
     let new = import(&db, "79.0.0", NEW).await;
     let reissue = import(&db, "79.0.0", OLD).await;
     assert_ne!(reissue, new);
-    assert_eq!(db.list_launcher_releases(None, 100).await.unwrap().len(), 3);
     assert_eq!(
-        db.list_launcher_releases(None, 100).await.unwrap()[0].id,
+        db.list_launcher_releases(None, false, 100)
+            .await
+            .unwrap()
+            .len(),
+        3
+    );
+    assert_eq!(
+        db.list_launcher_releases(None, false, 100).await.unwrap()[0].id,
         reissue
     );
     let changes = db.launcher_diff(old, new, "", 100).await.unwrap();
@@ -163,6 +196,13 @@ async fn publications_diffs_reuse_and_interrupted_claims(pool: PgPool) {
             .len(),
         3
     );
+    let files = db.launcher_diff_files(old, new).await.unwrap();
+    assert_eq!(files.len(), changes.len() + 1);
+    let unchanged = files.last().unwrap();
+    assert_eq!(unchanged.path, "unchanged.ab");
+    assert_eq!(unchanged.change, "unchanged");
+    assert_eq!(unchanged.old_md5, unchanged.new_md5);
+    assert_eq!(unchanged.old_size, unchanged.new_size);
     assert!(
         db.get_launcher_release(new)
             .await
@@ -173,12 +213,15 @@ async fn publications_diffs_reuse_and_interrupted_claims(pool: PgPool) {
     );
     // Historical imports list by package version, not by insertion order.
     let backfilled = import(&db, "9.1.0", OLD.lines().next().unwrap()).await;
-    let listed = db.list_launcher_releases(None, 100).await.unwrap();
+    let listed = db.list_launcher_releases(None, false, 100).await.unwrap();
     assert_eq!(
         listed.iter().map(|r| r.id).collect::<Vec<_>>(),
         [reissue, new, old, backfilled]
     );
-    let page = db.list_launcher_releases(Some(new), 100).await.unwrap();
+    let page = db
+        .list_launcher_releases(Some(new), false, 100)
+        .await
+        .unwrap();
     assert_eq!(
         page.iter().map(|r| r.id).collect::<Vec<_>>(),
         [old, backfilled]
@@ -563,7 +606,7 @@ mod archival {
         assert_eq!(requests.get("expired/old-name.dll"), Some(&1));
         assert_eq!(requests.get("corrupt/old-name.dll"), Some(&1));
         assert_eq!(requests.get("current/new-name.dll"), Some(&1));
-        for release in db.list_launcher_releases(None, 100).await.unwrap() {
+        for release in db.list_launcher_releases(None, false, 100).await.unwrap() {
             assert!(release.ready_at.is_some());
             assert_eq!(release.archived_files, 1);
         }
@@ -627,7 +670,7 @@ mod archival {
         let failed = run().output().await.unwrap();
         assert!(!failed.status.success());
         assert!(String::from_utf8_lossy(&failed.stderr).contains("launcher manifest MD5 mismatch"));
-        let releases = db.list_launcher_releases(None, 100).await.unwrap();
+        let releases = db.list_launcher_releases(None, false, 100).await.unwrap();
         assert_eq!(releases.len(), 1);
         let old = &releases[0];
         assert_eq!(old.package_version, "78.0.0");
@@ -645,7 +688,7 @@ mod archival {
             "{}",
             String::from_utf8_lossy(&resumed.stderr)
         );
-        let releases = db.list_launcher_releases(None, 100).await.unwrap();
+        let releases = db.list_launcher_releases(None, false, 100).await.unwrap();
         assert_eq!(releases.len(), 2);
         let new = &releases[0];
         assert_eq!(new.package_version, "79.0.0");
@@ -847,7 +890,7 @@ mod archival {
             db.query_versions().await.unwrap().is_empty(),
             "PC discovery must not create Android versions"
         );
-        let old = db.list_launcher_releases(None, 100).await.unwrap()[0].id;
+        let old = db.list_launcher_releases(None, false, 100).await.unwrap()[0].id;
         assert_eq!(upstream.requests.lock().unwrap()["old/game_files"], 1);
         service.archive_pending().await.unwrap();
         assert!(
@@ -861,7 +904,7 @@ mod archival {
         *upstream.latest.lock().unwrap() = publication(&base, "79.0.0", "new", &new_ciphertext);
         upstream.corrupt.store(true, Ordering::SeqCst);
         service.discover().await.unwrap();
-        let new = db.list_launcher_releases(None, 100).await.unwrap()[0].id;
+        let new = db.list_launcher_releases(None, false, 100).await.unwrap()[0].id;
         assert_eq!(db.launcher_diff(old, new, "", 100).await.unwrap().len(), 5);
         service.archive_pending().await.unwrap();
         let progress = db.get_launcher_release(new).await.unwrap().unwrap();
@@ -889,7 +932,13 @@ mod archival {
         .unwrap();
         *upstream.latest.lock().unwrap() = publication(&base, "80.0.0", "next", &next_ciphertext);
         service.discover().await.unwrap();
-        assert_eq!(db.list_launcher_releases(None, 100).await.unwrap().len(), 3);
+        assert_eq!(
+            db.list_launcher_releases(None, false, 100)
+                .await
+                .unwrap()
+                .len(),
+            3
+        );
         running.abort();
         assert!(running.await.unwrap_err().is_cancelled());
         upstream.stall.store(false, Ordering::SeqCst);
@@ -932,7 +981,7 @@ mod archival {
             ..service
         };
         restarted.archive_pending().await.unwrap();
-        for release in db.list_launcher_releases(None, 100).await.unwrap() {
+        for release in db.list_launcher_releases(None, false, 100).await.unwrap() {
             assert!(release.ready_at.is_some());
         }
         let requests = upstream.requests.lock().unwrap().clone();

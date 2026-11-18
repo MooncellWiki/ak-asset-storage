@@ -29,7 +29,7 @@
     <div class="file-tree__space" :style="{ height: `${rows.length * ROW}px` }">
       <template
         v-for="{ index, row } in slice"
-        :key="row.kind === 'node' ? row.node.path : `note-${index}`"
+        :key="row.kind === 'node' ? nodeId(row.node) : `note-${index}`"
       >
         <div
           v-if="row.kind === 'node'"
@@ -132,12 +132,13 @@ const rows = computed(() =>
 );
 type NodeRow = Row & { kind: "node" };
 const isNode = (r: Row | undefined): r is NodeRow => r?.kind === "node";
-/** Whether `row` shows `path`, also as part of a flattened `a/b/c` chain. */
-function holds(row: Row, path: string | undefined) {
+const nodeId = (node: TreeNode) => node.id ?? node.path;
+/** Matches the node identity or a directory path in a flattened chain. */
+function holds(row: Row, id: string | undefined) {
   return (
     isNode(row) &&
-    path !== undefined &&
-    (row.node.path === path || row.merged.includes(path))
+    id !== undefined &&
+    (nodeId(row.node) === id || row.merged.includes(id))
   );
 }
 function indexOf(path: string | undefined) {
@@ -215,7 +216,7 @@ watch(
 );
 
 function activate(row: NodeRow) {
-  activePath.value = row.node.path;
+  activePath.value = nodeId(row.node);
   const { node, open } = row;
   if (node.isDir && open && holds(row, props.selected)) {
     emit("toggle", node.path, false);
@@ -228,7 +229,7 @@ function activate(row: NodeRow) {
 function moveTo(index: number) {
   const row = rows.value[index];
   if (!isNode(row)) return;
-  activePath.value = row.node.path;
+  activePath.value = nodeId(row.node);
   scrollToRow(index);
 }
 /** Next node row from `index` in direction `step`, skipping notes. */

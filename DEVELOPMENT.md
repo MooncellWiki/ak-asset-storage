@@ -113,12 +113,20 @@ server 和前端，默认不启动 worker；需要时可使用下方命令单独
 首次创建会话前会执行数据库迁移、前端构建和后端编译；
 重复运行会连接已有会话。每个 checkout 使用独立的会话。
 
+默认 `/api`、`/assets` 和 `/gamedata` 走本地后端，`/storage` 走生产 CDN
+`https://torappu.prts.wiki`。导入生产元数据后，AB 和 Launcher 文件可从 CDN 下载。
+
 `Ctrl-b d` 脱离会话并保留服务，`just dev` 重新连接，`just dev-stop`
 停止整个会话及其中的服务。单个窗格里的 `Ctrl-c` 只停止该服务；代码修改后，
 用 `just dev-stop` 再 `just dev` 重新构建并启动。前端仍由 Vite 自动热更新。
 
+只改前端时，安装前端依赖后运行 `just dev-frontend` 即可。Vite 在前台运行，
+将 API 和资源请求代理到 `https://torappu.prts.wiki`，无需启动本地后端、
+数据库或 RustFS。用 `Ctrl-c` 停止，也可以通过 `AK_DEV_BACKEND` 指定其他部署地址。
+
 ```bash
 just dev          # 启动 server 和前端（需要 tmux，不启动 worker）
+just dev-frontend # 只启动 Vite，代理到生产后端
 just dev-stop     # 停止当前 checkout 的 dev 会话
 target/debug/ak-asset-storage server -c tmp/config.toml   # :5150,MCP 开启
 target/debug/ak-asset-storage --worker-threads 2 worker -c tmp/config.toml --concurrent 5
