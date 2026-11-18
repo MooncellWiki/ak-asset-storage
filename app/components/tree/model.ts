@@ -1,8 +1,10 @@
 import type { IconName } from "../AsIcon.vue";
 import type { ChangeKind } from "~/common/bundles";
 
-/** One node of a FileTree. Paths are unique; directories have children. */
+/** One node of a FileTree. Directories have children. */
 export interface TreeNode {
+  /** Identity when a file and a directory share a path. Defaults to path. */
+  id?: string;
   name: string;
   path: string;
   isDir: boolean;

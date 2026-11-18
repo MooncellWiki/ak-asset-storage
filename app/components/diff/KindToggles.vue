@@ -48,6 +48,7 @@ const KINDS: ChangeKind[] = ["add", "chg", "rem", "same"];
     height: 28px;
     padding: 0 12px;
     font-size: var(--ak-fs-xs);
+    white-space: nowrap;
     color: var(--ak-fg-muted);
     cursor: pointer;
     transition:
@@ -81,6 +82,24 @@ const KINDS: ChangeKind[] = ["add", "chg", "rem", "same"];
 
     &[aria-pressed="false"] > b {
       text-decoration: line-through;
+    }
+
+    @media (max-width: $bp-phone) {
+      padding-inline: var(--ak-space-2);
+    }
+  }
+
+  @media (max-width: 359px) {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    flex-basis: 100%;
+
+    &__kind:nth-child(3) {
+      border-left: 0;
+    }
+
+    &__kind:nth-child(n + 3) {
+      border-top: 1px solid var(--ak-border);
     }
   }
 }

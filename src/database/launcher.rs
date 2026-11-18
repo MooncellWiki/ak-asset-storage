@@ -146,6 +146,7 @@ impl Database {
     pub async fn list_launcher_releases(
         &self,
         before: Option<i64>,
+        pending_only: bool,
         limit: i64,
     ) -> AppResult<Vec<LauncherRelease>> {
         sqlx::query_as!(LauncherRelease,
@@ -154,13 +155,14 @@ impl Database {
             p.total_files AS "total_files!", p.archived_files AS "archived_files!", p.total_bytes AS "total_bytes!", p.archived_bytes AS "archived_bytes!"
             FROM (
                 SELECT r.id FROM launcher_releases r
-                WHERE $1::bigint IS NULL OR (launcher_version_key(r.package_version), r.id) <
-                    (SELECT launcher_version_key(c.package_version), c.id FROM launcher_releases c WHERE c.id = $1)
-                ORDER BY launcher_version_key(r.package_version) DESC, r.id DESC LIMIT $2
+                WHERE (NOT $2 OR r.ready_at IS NULL)
+                  AND ($1::bigint IS NULL OR (launcher_version_key(r.package_version), r.id) <
+                    (SELECT launcher_version_key(c.package_version), c.id FROM launcher_releases c WHERE c.id = $1))
+                ORDER BY launcher_version_key(r.package_version) DESC, r.id DESC LIMIT $3
             ) page
             CROSS JOIN LATERAL (SELECT * FROM launcher_release_progress v WHERE v.id = page.id OFFSET 0) p
             ORDER BY launcher_version_key(p.package_version) DESC, p.id DESC"#,
-            before, limit
+            before, pending_only, limit
         ).fetch_all(self.pool()).await.map_err(db_error)
     }
 
@@ -208,13 +210,30 @@ impl Database {
         after: &str,
         limit: i64,
     ) -> AppResult<Vec<LauncherDiff>> {
+        self.compare_launcher_entries(from, to, Some((after, limit)))
+            .await
+    }
+
+    /// Compare both complete manifests, including paths whose content is identical.
+    pub async fn launcher_diff_files(&self, from: i64, to: i64) -> AppResult<Vec<LauncherDiff>> {
+        self.compare_launcher_entries(from, to, None).await
+    }
+
+    async fn compare_launcher_entries(
+        &self,
+        from: i64,
+        to: i64,
+        change_page: Option<(&str, i64)>,
+    ) -> AppResult<Vec<LauncherDiff>> {
+        let (after, limit) = change_page.unzip();
         sqlx::query_as!(LauncherDiff,
             r#"SELECT coalesce(o.path, n.path) AS "path!",
-            CASE WHEN o.path IS NULL THEN 'added' WHEN n.path IS NULL THEN 'deleted' ELSE 'modified' END AS "change!",
+            CASE WHEN o.path IS NULL THEN 'added' WHEN n.path IS NULL THEN 'deleted'
+                WHEN (o.md5, o.size) = (n.md5, n.size) THEN 'unchanged' ELSE 'modified' END AS "change!",
             o.md5 AS "old_md5?", o.size AS "old_size?", n.md5 AS "new_md5?", n.size AS "new_size?"
             FROM (SELECT path, md5, size FROM launcher_entries WHERE release_id = $1) o
             FULL JOIN (SELECT path, md5, size FROM launcher_entries WHERE release_id = $2) n USING (path)
-            WHERE (o.md5, o.size) IS DISTINCT FROM (n.md5, n.size) AND coalesce(o.path, n.path) > $3
+            WHERE $3::text IS NULL OR ((o.md5, o.size) IS DISTINCT FROM (n.md5, n.size) AND coalesce(o.path, n.path) > $3)
             ORDER BY coalesce(o.path, n.path) LIMIT $4"#,
             from, to, after, limit
         ).fetch_all(self.pool()).await.map_err(db_error)

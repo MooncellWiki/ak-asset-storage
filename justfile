@@ -271,6 +271,10 @@ dev:
         tmux attach-session -t "=$session"
     fi
 
+# Run only Vite, with API and asset requests proxied to the deployed backend.
+dev-frontend:
+    AK_DEV_BACKEND="${AK_DEV_BACKEND:-https://torappu.prts.wiki}" pnpm dev
+
 # Stop the dev processes for this checkout.
 dev-stop:
     #!/usr/bin/env bash

@@ -87,9 +87,10 @@ export default defineConfig({
   server: {
     proxy: {
       "/api": proxy(local),
-      "/storage": remote
-        ? proxy(local)
-        : proxy("http://localhost:31000/arknights-assets/"),
+      "/storage": {
+        target: remote ?? "https://torappu.prts.wiki",
+        changeOrigin: true,
+      },
       "/gamedata": proxy(local),
       "/assets": proxy(local),
       "/skins/Arknights/resources/design-system": {

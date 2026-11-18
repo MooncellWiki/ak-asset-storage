@@ -19,6 +19,8 @@ use utoipa::{IntoParams, ToSchema};
 pub struct ReleaseQuery {
     pub before: Option<i64>,
     pub limit: Option<u32>,
+    /// Only include releases whose archive is incomplete.
+    pub pending: Option<bool>,
 }
 
 #[derive(Debug, Deserialize, IntoParams)]
@@ -36,6 +38,12 @@ pub struct DiffQuery {
     pub to: i64,
     pub after: Option<String>,
     pub limit: Option<u32>,
+}
+
+#[derive(Debug, Deserialize, IntoParams)]
+pub struct DiffFilesQuery {
+    pub from: i64,
+    pub to: i64,
 }
 
 #[derive(Serialize, ToSchema)]
@@ -86,7 +94,11 @@ pub async fn list_releases(
     let limit = page_limit(query.limit)?;
     let mut releases = state
         .database
-        .list_launcher_releases(query.before, i64::try_from(limit + 1).unwrap_or(201))
+        .list_launcher_releases(
+            query.before,
+            query.pending.unwrap_or(false),
+            i64::try_from(limit + 1).unwrap_or(201),
+        )
         .await?;
     let next_before = (releases.len() > limit).then(|| releases[limit - 1].id);
     releases.truncate(limit);
@@ -154,6 +166,22 @@ pub async fn diff(
         changes,
         next_after,
     }))
+}
+
+/// Compare all files in a pair of launcher manifests, including unchanged paths.
+#[utoipa::path(get, path = "/launcher/diff/files", tag = "launcher", params(DiffFilesQuery), responses((status = 200, body = [LauncherDiff]), (status = 404)))]
+pub async fn diff_files(
+    State(state): State<AppState>,
+    Query(query): Query<DiffFilesQuery>,
+) -> WebResult<Json<Vec<LauncherDiff>>> {
+    require_release(&state, query.from).await?;
+    require_release(&state, query.to).await?;
+    Ok(Json(
+        state
+            .database
+            .launcher_diff_files(query.from, query.to)
+            .await?,
+    ))
 }
 
 #[utoipa::path(get, path = "/launcher/releases/{id}/manifest", tag = "launcher", responses((status = 200, description = "Original encrypted game_files"), (status = 404)))]

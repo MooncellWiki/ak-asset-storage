@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "SELECT coalesce(o.path, n.path) AS \"path!\",\n            CASE WHEN o.path IS NULL THEN 'added' WHEN n.path IS NULL THEN 'deleted' ELSE 'modified' END AS \"change!\",\n            o.md5 AS \"old_md5?\", o.size AS \"old_size?\", n.md5 AS \"new_md5?\", n.size AS \"new_size?\"\n            FROM (SELECT path, md5, size FROM launcher_entries WHERE release_id = $1) o\n            FULL JOIN (SELECT path, md5, size FROM launcher_entries WHERE release_id = $2) n USING (path)\n            WHERE (o.md5, o.size) IS DISTINCT FROM (n.md5, n.size) AND coalesce(o.path, n.path) > $3\n            ORDER BY coalesce(o.path, n.path) LIMIT $4",
+  "query": "SELECT coalesce(o.path, n.path) AS \"path!\",\n            CASE WHEN o.path IS NULL THEN 'added' WHEN n.path IS NULL THEN 'deleted'\n                WHEN (o.md5, o.size) = (n.md5, n.size) THEN 'unchanged' ELSE 'modified' END AS \"change!\",\n            o.md5 AS \"old_md5?\", o.size AS \"old_size?\", n.md5 AS \"new_md5?\", n.size AS \"new_size?\"\n            FROM (SELECT path, md5, size FROM launcher_entries WHERE release_id = $1) o\n            FULL JOIN (SELECT path, md5, size FROM launcher_entries WHERE release_id = $2) n USING (path)\n            WHERE $3::text IS NULL OR ((o.md5, o.size) IS DISTINCT FROM (n.md5, n.size) AND coalesce(o.path, n.path) > $3)\n            ORDER BY coalesce(o.path, n.path) LIMIT $4",
   "describe": {
     "columns": [
       {
@@ -77,5 +77,5 @@
       false
     ]
   },
-  "hash": "1d61fe611c17cb4a3648eb65b2373bb0a7438e95b9ad00903748099da173c30a"
+  "hash": "fef37ad0e8bc5647c33c5d65de2b07e6fa9d44ec86c8ba463bc60ce11df6e76b"
 }

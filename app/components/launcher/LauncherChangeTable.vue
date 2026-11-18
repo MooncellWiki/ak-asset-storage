@@ -20,14 +20,22 @@
         v-for="row in rows"
         :key="row.path"
         class="launcher-changes__row"
-        :class="row.kind && `is-${row.kind}`"
+        :class="[`is-${row.kind}`, { 'is-selected': row.path === selected }]"
         role="row"
+        @click="emit('select', row.path)"
       >
         <td class="launcher-changes__mark" role="cell">
-          <ChangeMark v-if="row.kind" :kind="row.kind" aria-hidden="true" />
+          <ChangeMark :kind="row.kind" aria-hidden="true" />
         </td>
         <td class="launcher-changes__path" role="cell">
-          <LauncherPath :path="row.path" />
+          <button
+            type="button"
+            class="launcher-changes__file"
+            :aria-expanded="row.path === selected"
+            @click.stop="emit('select', row.path)"
+          >
+            <LauncherPath :path="row.path" />
+          </button>
           <span class="launcher-changes__change">
             <span v-if="row.delta != null" class="ak-sr-only">{{
               row.label
@@ -78,22 +86,19 @@ import LauncherPath from "./LauncherPath.vue";
 import type { ChangeKind } from "~/common/bundles";
 import type { components } from "~/common/schema";
 
-const props = defineProps<{
-  changes: components["schemas"]["LauncherDiff"][];
-}>();
-const kinds = new Map<string, ChangeKind>([
-  ["added", "add"],
-  ["modified", "chg"],
-  ["deleted", "rem"],
-]);
+export type LauncherChange = components["schemas"]["LauncherDiff"] & {
+  kind: ChangeKind;
+};
+
+const props = defineProps<{ changes: LauncherChange[]; selected?: string }>();
+const emit = defineEmits<{ select: [path: string] }>();
 const rows = computed(() =>
   props.changes.map((change) => {
-    const { path, oldMd5, newMd5, oldSize, newSize } = change;
-    const kind = kinds.get(change.change);
+    const { path, kind, oldMd5, newMd5, oldSize, newSize } = change;
     return {
       path,
       kind,
-      label: kind ? KIND_LABEL[kind] : change.change,
+      label: KIND_LABEL[kind],
       delta:
         kind === "chg" && oldSize != null && newSize != null
           ? newSize - oldSize
@@ -116,6 +121,8 @@ const rows = computed(() =>
   &__row {
     @include kind-colors;
 
+    cursor: pointer;
+
     > td:first-child {
       box-shadow: inset 3px 0 var(--_c, transparent);
     }
@@ -123,6 +130,23 @@ const rows = computed(() =>
 
   &__mark {
     width: 2.25rem;
+  }
+
+  &__file {
+    display: block;
+    width: 100%;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    color: inherit;
+    font: inherit;
+    text-align: inherit;
+    cursor: pointer;
+
+    &:focus-visible {
+      outline: 2px solid var(--ak-focus);
+      outline-offset: 2px;
+    }
   }
 
   &__delta {
@@ -136,7 +160,7 @@ const rows = computed(() =>
   }
 
   &__version {
-    width: 14rem;
+    width: clamp(8rem, 23cqw, 14rem);
   }
 
   &__change,

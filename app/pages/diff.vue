@@ -170,19 +170,19 @@ import {
   AkSkeleton,
   AkSwitch,
 } from "@mooncellwiki/prts-design-vue";
-import { refDebounced } from "@vueuse/core";
 import { computed, ref, shallowRef, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
-import {
-  buildChangeTree,
-  diffBundles,
-  loadVersionBundles,
-} from "~/common/bundles";
+import { diffBundles, loadVersionBundles } from "~/common/bundles";
 import { useCopy } from "~/common/clipboard";
-import { formatCount, parentPath, splitPath } from "~/common/utils";
+import { formatCount, parentPath } from "~/common/utils";
 import { torappuCommand, useVersions, versionOptions } from "~/common/versions";
 import AsIcon from "~/components/AsIcon.vue";
 import BundleDetail from "~/components/diff/BundleDetail.vue";
+import {
+  buildChangeTree,
+  changeFileId,
+  useChangeFilters,
+} from "~/components/diff/changes";
 import ChangeTable from "~/components/diff/ChangeTable.vue";
 import KindToggles from "~/components/diff/KindToggles.vue";
 import AsToolbar from "~/components/layout/AsToolbar.vue";
@@ -194,7 +194,7 @@ import PageHeader from "~/components/PageHeader.vue";
 import PageTool from "~/components/PageTool.vue";
 import PathBar from "~/components/PathBar.vue";
 import FileTree from "~/components/tree/FileTree.vue";
-import type { Bundle, Change, ChangeKind, DirNode } from "~/common/bundles";
+import type { Bundle, Change } from "~/common/bundles";
 import type { PathSegment } from "~/components/PathBar.vue";
 import type { TreeNode } from "~/components/tree/model";
 
@@ -303,71 +303,9 @@ const changes = computed<Change[]>(() =>
 );
 const noChanges = computed(() => changes.value.every((c) => c.kind === "same"));
 
-// ── filters: change kinds and a path substring ──
-const DEFAULT_KINDS: Record<ChangeKind, boolean> = {
-  add: true,
-  chg: true,
-  rem: true,
-  same: false,
-};
-const kinds = ref({ ...DEFAULT_KINDS });
-const keyword = ref("");
-const q = refDebounced(keyword, 150);
-const matched = computed(() => {
-  const needle = q.value.trim().toLowerCase();
-  return needle
-    ? changes.value.filter((c) => c.path.toLowerCase().includes(needle))
-    : changes.value;
-});
-const counts = computed(() => {
-  const result: Record<ChangeKind, number> = {
-    add: 0,
-    chg: 0,
-    rem: 0,
-    same: 0,
-  };
-  for (const c of matched.value) result[c.kind]++;
-  return result;
-});
-const visible = computed(() =>
-  matched.value.filter((c) => kinds.value[c.kind]),
-);
-/** The change tree as FileTree nodes: directories with counts, files with their mark. */
-const tree = computed(() => {
-  const root = buildChangeTree(visible.value);
-  const children = new Map<string, TreeNode[]>();
-  const walk = (dir: DirNode) => {
-    const dirs = [...dir.dirs.values()].sort((a, b) =>
-      a.name < b.name ? -1 : 1,
-    );
-    children.set(dir.path, [
-      ...dirs.map((d) => ({
-        name: d.name,
-        path: d.path,
-        isDir: true,
-        counts: d.counts,
-      })),
-      ...dir.files.map((f) => ({
-        name: splitPath(f.path).name,
-        path: f.path,
-        isDir: false,
-        mark: f.kind,
-      })),
-    ]);
-    dirs.forEach(walk);
-  };
-  walk(root);
-  return {
-    roots: [
-      { name: "全部", path: "", isDir: true, counts: root.counts, keep: true },
-    ],
-    childrenOf: (path: string) => children.get(path),
-  };
-});
-function resetFilters() {
-  keyword.value = "";
-  kinds.value = { ...DEFAULT_KINDS };
-}
+const { kinds, keyword, q, counts, visible, resetFilters } =
+  useChangeFilters(changes);
+const tree = computed(() => buildChangeTree(visible.value));
 
 // ── tree: ?dir=<directory>&bundle=<path> ──
 const dir = computed(() =>
@@ -393,12 +331,12 @@ watch(
   { immediate: true },
 );
 /** The tree highlights whatever was picked last: a directory or a bundle. */
-const treeSelected = ref(bundle.value ?? dir.value);
+const treeSelected = ref(bundle.value ? changeFileId(bundle.value) : dir.value);
 watch(dir, (d) => {
   treeSelected.value = d;
 });
 watch(bundle, (b) => {
-  if (b) treeSelected.value = b;
+  if (b) treeSelected.value = changeFileId(b);
 });
 function onTreeSelect(node: TreeNode) {
   if (node.isDir) setQuery({ dir: node.path || undefined });

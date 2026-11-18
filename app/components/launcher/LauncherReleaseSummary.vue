@@ -1,5 +1,5 @@
 <template>
-  <details class="release-summary" :open="!compact">
+  <details class="release-summary">
     <summary class="release-summary__progress">
       <span class="release-summary__status">
         <span class="ak-sr-only">归档详情</span>
@@ -61,23 +61,18 @@
 
 <script setup lang="ts">
 import { AkTag } from "@mooncellwiki/prts-design-vue";
-import { useMediaQuery } from "@vueuse/core";
 import { computed } from "vue";
+import { archivedFilePercent } from "~/common/launcher";
 import { formatCount, formatDateTime, formatSize } from "~/common/utils";
 import AsIcon from "../AsIcon.vue";
 import CopyButton from "../CopyButton.vue";
-import type { components } from "~/common/schema";
+import type { LauncherRelease } from "~/common/launcher";
 
 const props = defineProps<{
-  release: components["schemas"]["LauncherRelease"];
+  release: LauncherRelease;
   manifestUrl: string;
 }>();
-const compact = useMediaQuery("(max-width: 1119px)");
-const progress = computed(() => {
-  const { archivedFiles, totalFiles, readyAt } = props.release;
-  if (!totalFiles) return readyAt ? 100 : 0;
-  return Math.floor((archivedFiles / totalFiles) * 10_000) / 100;
-});
+const progress = computed(() => archivedFilePercent(props.release));
 </script>
 
 <style scoped lang="scss">
