@@ -248,11 +248,19 @@ pub async fn launch_container(
             "client_version and res_version cannot be empty".to_string(),
         ));
     }
-    if payload.prev_client_version.is_empty() || payload.prev_res_version.is_empty() {
-        return Err(WebError::BadRequest(
-            "prev_client_version and prev_res_version cannot be empty".to_string(),
-        ));
-    }
+    let previous_version = match (
+        payload.prev_client_version.as_deref(),
+        payload.prev_res_version.as_deref(),
+    ) {
+        (None, None) => None,
+        (Some(client), Some(res)) if !client.is_empty() && !res.is_empty() => Some((client, res)),
+        _ => {
+            return Err(WebError::BadRequest(
+                "prev_client_version and prev_res_version must both be non-empty or omitted"
+                    .to_string(),
+            ));
+        }
+    };
 
     let kubernetes = state
         .kubernetes
@@ -265,8 +273,7 @@ pub async fn launch_container(
         .launch_container(
             &payload.client_version,
             &payload.res_version,
-            &payload.prev_client_version,
-            &payload.prev_res_version,
+            previous_version,
             payload.include.as_deref().filter(|value| !value.is_empty()),
             payload.exclude.as_deref().filter(|value| !value.is_empty()),
         )

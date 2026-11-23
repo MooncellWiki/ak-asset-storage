@@ -89,9 +89,10 @@ Job 将同一个 storage 根目录挂到 `/app/storage`,并设置
 不要把 storage 根目录直接当作 `asset_base_path`,否则 worker 会监听错目录。
 
 server 启动后,可通过 `POST /api/v1/docker/launch` 手动触发 Job,请求头
-`torappu-auth` 使用配置中的 `torappu.token`。请求需提供 `client_version`、
-`res_version`、`prev_client_version` 和 `prev_res_version`,可用 `include`
-限制提取任务。接口沿用原路径,实际创建的是 Kubernetes Job。worker 检测到新
+`torappu-auth` 使用配置中的 `torappu.token`。请求需提供 `client_version` 和
+`res_version`。差分解包需同时提供 `prev_client_version` 和 `prev_res_version`,
+全量解包可省略这两个字段。两种方式均可用 `include` 和 `exclude` 筛选提取任务。
+接口沿用原路径,实际创建的是 Kubernetes Job。worker 检测到新
 版本且数据库已有前一版本时也会自动触发;首次入库不会启动提取。
 
 ```bash

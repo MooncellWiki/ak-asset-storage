@@ -168,8 +168,8 @@ pub struct Health {
 pub struct DockerLaunchRequest {
     pub client_version: String,
     pub res_version: String,
-    pub prev_client_version: String,
-    pub prev_res_version: String,
+    pub prev_client_version: Option<String>,
+    pub prev_res_version: Option<String>,
     pub include: Option<String>,
     pub exclude: Option<String>,
 }
