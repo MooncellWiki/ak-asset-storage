@@ -214,6 +214,7 @@ import type { PathSegment } from "~/components/PathBar.vue";
 import type { TreeNode } from "~/components/tree/model";
 
 type ManifestNode = components["schemas"]["ManifestNode"];
+type ManifestTreeNode = TreeNode & Pick<ManifestNode, "nodeType">;
 type AssetDetail = components["schemas"]["AssetMappingDetails"];
 
 const route = useRoute();
@@ -259,15 +260,16 @@ const versionId = computed({
 });
 
 // ── tree, loaded one directory at a time ──
-function toNode(n: ManifestNode): TreeNode {
+function toNode(n: ManifestNode): ManifestTreeNode {
   return {
     name: n.name,
     path: n.path,
+    nodeType: n.nodeType,
     isDir: n.nodeType !== "file",
     icon: n.nodeType === "file" ? "file" : "folder",
   };
 }
-async function fetchChildren(dir: string): Promise<TreeNode[]> {
+async function fetchChildren(dir: string): Promise<ManifestTreeNode[]> {
   const id = current.value?.id;
   if (id == null) return [];
   const { data } = await client.GET("/api/v1/manifest/{version_id}/children", {
@@ -278,55 +280,52 @@ async function fetchChildren(dir: string): Promise<TreeNode[]> {
 }
 const tree = useLazyTree(fetchChildren);
 const roots = computed(() => tree.childrenOf(""));
-watch(
-  () => current.value?.id,
-  (id) => {
-    tree.reset();
-    if (id == null) return;
-    void tree.load("");
-    if (path.value) void tree.reveal(path.value);
-  },
-  { immediate: true },
-);
-watch(path, (p) => {
-  if (p && current.value) void tree.reveal(p);
-});
 
 // ── selected asset / directory ──
 const detail = shallowRef<AssetDetail>();
 const listing = shallowRef<TreeNode[]>();
 const listingDir = ref("");
 const loading = ref(false);
-let request = 0;
 watch(
   [() => current.value?.id, path],
-  async ([id, p]) => {
-    const seq = ++request;
+  async ([id, p], [previousId], onCleanup) => {
+    if (id !== previousId) tree.reset();
     detail.value = undefined;
     listing.value = undefined;
+    loading.value = id != null;
     if (id == null) return;
-    loading.value = true;
-    const detailRequest = p
-      ? client
-          .GET("/api/v1/manifest/{version_id}/detail", {
-            params: { path: { version_id: id }, query: { asset_name: p } },
-          })
-          .then(({ data }) => data)
-          .catch(() => undefined)
-      : Promise.resolve(undefined);
-    const children = await tree.load(p);
-    const found = await detailRequest;
-    if (seq !== request) return;
+
+    const controller = new AbortController();
+    const { signal } = controller;
+    onCleanup(() => controller.abort());
+
+    if (p) void tree.reveal(p);
+    const parent = parentPath(p);
+    const siblings = await tree.load(parent);
+    if (signal.aborted) return;
+
+    // The parent listing also identifies the node when opening a direct link.
+    const nodeType = p
+      ? siblings.find((node) => node.path === p)?.nodeType
+      : undefined;
+    const [children, found] = await Promise.all([
+      nodeType === "directory" || nodeType === "both" ? tree.load(p) : [],
+      nodeType === "file" || nodeType === "both"
+        ? client
+            .GET("/api/v1/manifest/{version_id}/detail", {
+              params: { path: { version_id: id }, query: { asset_name: p } },
+              signal,
+            })
+            .then(({ data }) => data)
+            .catch(() => undefined)
+        : undefined,
+    ]);
+    if (signal.aborted) return;
+
     detail.value = found;
-    // A directory lists its own children; an asset lists its siblings.
-    if (children.length > 0 || !found) {
-      listing.value = children;
-      listingDir.value = p;
-    } else {
-      listingDir.value = parentPath(p);
-      listing.value = await tree.load(listingDir.value);
-    }
-    if (seq === request) loading.value = false;
+    listingDir.value = nodeType === "file" ? parent : p;
+    listing.value = !p || nodeType === "file" ? siblings : children;
+    loading.value = false;
   },
   { immediate: true },
 );

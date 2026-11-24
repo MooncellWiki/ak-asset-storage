@@ -6,14 +6,16 @@ import type { TreeNode } from "./model";
  * (manifest, files). Opening a directory that holds a single directory keeps
  * opening down the chain, so FileTree can show it as one `a/b/c` row.
  */
-export function useLazyTree(fetch: (path: string) => Promise<TreeNode[]>) {
-  const cache = shallowReactive(new Map<string, TreeNode[]>());
+export function useLazyTree<T extends TreeNode>(
+  fetch: (path: string) => Promise<T[]>,
+) {
+  const cache = shallowReactive(new Map<string, T[]>());
   const errors = shallowReactive(new Set<string>());
-  const pending = new Map<string, Promise<TreeNode[]>>();
+  const pending = new Map<string, Promise<T[]>>();
   const expanded = ref(new Set<string>());
   let generation = 0;
 
-  function load(path: string): Promise<TreeNode[]> {
+  function load(path: string): Promise<T[]> {
     const hit = cache.get(path);
     // A failed directory shows as empty until it is opened again, which retries.
     if (hit && !errors.has(path)) return Promise.resolve(hit);
@@ -28,8 +30,10 @@ export function useLazyTree(fetch: (path: string) => Promise<TreeNode[]>) {
         return [];
       })
       .then((list) => {
-        if (gen === generation) cache.set(path, list);
-        pending.delete(path);
+        if (gen === generation) {
+          cache.set(path, list);
+          pending.delete(path);
+        }
         return list;
       });
     pending.set(path, request);
