@@ -92,8 +92,7 @@ impl VersionCheckService {
                 .launch_container(
                     client_version,
                     res_version,
-                    &prev.client,
-                    &prev.res,
+                    Some((&prev.client, &prev.res)),
                     None,
                     None,
                 )

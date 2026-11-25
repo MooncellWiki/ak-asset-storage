@@ -68,8 +68,7 @@ impl KubernetesClient {
         &self,
         client_version: &str,
         res_version: &str,
-        prev_client_version: &str,
-        prev_res_version: &str,
+        previous_version: Option<(&str, &str)>,
         include: Option<&str>,
         exclude: Option<&str>,
     ) -> AppResult<String> {
@@ -83,8 +82,7 @@ impl KubernetesClient {
             &self.config,
             client_version,
             res_version,
-            prev_client_version,
-            prev_res_version,
+            previous_version,
             include,
             exclude,
         )?;
@@ -209,21 +207,21 @@ fn build_job(
     config: &KubernetesConfig,
     client_version: &str,
     res_version: &str,
-    prev_client_version: &str,
-    prev_res_version: &str,
+    previous_version: Option<(&str, &str)>,
     include: Option<&str>,
     exclude: Option<&str>,
 ) -> AppResult<Job> {
     // The image's ENTRYPOINT is preserved; only its CMD is overridden, which
     // is exactly what the Docker implementation's `cmd` did.
-    let mut args = vec![
-        client_version.to_string(),
-        res_version.to_string(),
-        "-c".to_string(),
-        prev_client_version.to_string(),
-        "-r".to_string(),
-        prev_res_version.to_string(),
-    ];
+    let mut args = vec![client_version.to_string(), res_version.to_string()];
+    if let Some((prev_client_version, prev_res_version)) = previous_version {
+        args.extend([
+            "-c".to_string(),
+            prev_client_version.to_string(),
+            "-r".to_string(),
+            prev_res_version.to_string(),
+        ]);
+    }
     if let Some(include) = include {
         args.push("-i".to_string());
         args.push(include.to_string());
@@ -408,8 +406,7 @@ mod tests {
             &config(),
             "2.7.41",
             "26-05-27",
-            "2.7.31",
-            "26-05-20",
+            Some(("2.7.31", "26-05-20")),
             Some("arts/*"),
             Some("scenes/x"),
         )
@@ -443,8 +440,19 @@ mod tests {
     }
 
     #[test]
+    fn job_builds_command_args_without_previous_version() {
+        let job = build_job(&config(), "c", "r", None, Some("CharSpine"), Some("Video"))
+            .expect("job builds");
+        let pod = job.spec.unwrap().template.spec.unwrap();
+        assert_eq!(
+            pod.containers[0].args.as_deref().unwrap(),
+            ["c", "r", "-i", "CharSpine", "-e", "Video"]
+        );
+    }
+
+    #[test]
     fn job_wires_volumes() {
-        let job = build_job(&config(), "c", "r", "pc", "pr", None, None).expect("job builds");
+        let job = build_job(&config(), "c", "r", None, None, None).expect("job builds");
         let spec = job.spec.as_ref().unwrap();
         let pod_spec = spec.template.spec.as_ref().unwrap();
 
@@ -468,7 +476,7 @@ mod tests {
 
     #[test]
     fn extractor_cannot_inherit_launcher_credentials_or_container_privileges() {
-        let job = build_job(&config(), "c", "r", "pc", "pr", None, None).expect("job builds");
+        let job = build_job(&config(), "c", "r", None, None, None).expect("job builds");
         let pod = job.spec.unwrap().template.spec.unwrap();
 
         assert_eq!(
@@ -497,7 +505,7 @@ mod tests {
         let mut config = config();
         config.run_as_user = Some(1000);
         config.run_as_group = Some(2000);
-        let job = build_job(&config, "c", "r", "pc", "pr", None, None).expect("job builds");
+        let job = build_job(&config, "c", "r", None, None, None).expect("job builds");
         let pod = job.spec.unwrap().template.spec.unwrap();
         let security = pod.containers[0].security_context.as_ref().unwrap();
 
@@ -525,7 +533,7 @@ mod tests {
             pvc: None,
             host_path: Some("/srv/storage".to_string()),
         }]);
-        let job = build_job(&config, "c", "r", "pc", "pr", None, None).expect("job builds");
+        let job = build_job(&config, "c", "r", None, None, None).expect("job builds");
         let volumes = job.spec.unwrap().template.spec.unwrap().volumes.unwrap();
         let host_path = volumes[0].host_path.as_ref().unwrap();
         assert_eq!(host_path.path, "/srv/storage");
@@ -534,7 +542,7 @@ mod tests {
 
     #[test]
     fn job_metadata_targets_the_configured_namespace() {
-        let job = build_job(&config(), "c", "r", "pc", "pr", None, None).expect("job builds");
+        let job = build_job(&config(), "c", "r", None, None, None).expect("job builds");
         let metadata = &job.metadata;
         assert_eq!(metadata.name.as_deref(), Some("ak-asset-job"));
         assert_eq!(metadata.namespace.as_deref(), Some("ak-asset-storage"));
@@ -563,7 +571,7 @@ mod tests {
     fn malformed_env_var_rejects_the_launch() {
         let mut config = config();
         config.env_vars = Some(vec!["MISSING_SEPARATOR".to_string()]);
-        let error = build_job(&config, "c", "r", "pc", "pr", None, None).unwrap_err();
+        let error = build_job(&config, "c", "r", None, None, None).unwrap_err();
         assert!(error.to_string().contains("MISSING_SEPARATOR"), "{error:?}");
     }
 
@@ -784,7 +792,7 @@ mod tests {
 
     async fn launch(launcher: &KubernetesClient) -> AppResult<String> {
         launcher
-            .launch_container("c", "r", "pc", "pr", None, None)
+            .launch_container("c", "r", Some(("pc", "pr")), None, None)
             .await
     }
 

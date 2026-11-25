@@ -7,15 +7,15 @@
           readonly
         />
       </AkField>
-      <AkField label="对比的上一版" required>
+      <AkField label="对比的上一版">
         <AkSelect v-model="prevId" :options="prevOptions" />
       </AkField>
       <div class="relaunch__tasks">
         <AkField label="只跑这些任务">
-          <AkInput v-model="include" placeholder="CharSpine, EnemySpine" />
+          <AkInput v-model="include" placeholder="CharSpine,EnemySpine" />
         </AkField>
         <AkField label="跳过这些任务">
-          <AkInput v-model="exclude" placeholder="Video, Audio" />
+          <AkInput v-model="exclude" placeholder="Video,Audio" />
         </AkField>
       </div>
       <AkField label="令牌" required class="relaunch__last">
@@ -61,30 +61,38 @@ const open = defineModel<boolean>({ default: false });
 const { versions, previous, byId } = useVersions();
 const toast = useToast();
 
-const prevId = ref<number | string | null>(null);
+const NO_PREVIOUS_VERSION = "none";
+const prevId = ref<number | string | null>(NO_PREVIOUS_VERSION);
 const include = ref("");
 const exclude = ref("");
 const token = ref("");
 const submitting = ref(false);
 const error = ref("");
 
-const prevOptions = computed(() =>
-  versionOptions(versions.value.filter((v) => v.id < props.version.id)),
+const prevOptions = computed(() => [
+  { label: "不对比（全量解包）", value: NO_PREVIOUS_VERSION },
+  ...versionOptions(versions.value.filter((v) => v.id < props.version.id)),
+]);
+const prevVersion = computed(() =>
+  typeof prevId.value === "number" ? byId(prevId.value) : undefined,
 );
 
 watch(open, (isOpen) => {
   if (!isOpen) return;
-  prevId.value = previous(props.version)?.id ?? null;
+  prevId.value = previous(props.version)?.id ?? NO_PREVIOUS_VERSION;
   error.value = "";
 });
 
 const canSubmit = computed(
-  () => prevId.value != null && token.value.length > 0,
+  () =>
+    !submitting.value &&
+    token.value.length > 0 &&
+    (prevId.value === NO_PREVIOUS_VERSION || prevVersion.value != null),
 );
 
 async function submit() {
-  const prev = byId(Number(prevId.value));
-  if (!prev || !token.value) return;
+  if (!canSubmit.value) return;
+  const prev = prevVersion.value;
   submitting.value = true;
   error.value = "";
   try {
@@ -92,8 +100,8 @@ async function submit() {
       body: {
         client_version: props.version.clientVersion,
         res_version: props.version.resVersion,
-        prev_client_version: prev.clientVersion,
-        prev_res_version: prev.resVersion,
+        prev_client_version: prev?.clientVersion,
+        prev_res_version: prev?.resVersion,
         include: include.value.trim() || null,
         exclude: exclude.value.trim() || null,
       },

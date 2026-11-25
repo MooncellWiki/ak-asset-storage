@@ -448,8 +448,8 @@ export interface components {
             client_version: string;
             exclude?: string | null;
             include?: string | null;
-            prev_client_version: string;
-            prev_res_version: string;
+            prev_client_version?: string | null;
+            prev_res_version?: string | null;
             res_version: string;
         };
         DockerLaunchResponse: {
