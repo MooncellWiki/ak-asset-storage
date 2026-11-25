@@ -12,10 +12,10 @@
       </AkField>
       <div class="relaunch__tasks">
         <AkField label="只跑这些任务">
-          <AkInput v-model="include" placeholder="CharSpine, EnemySpine" />
+          <AkInput v-model="include" placeholder="CharSpine,EnemySpine" />
         </AkField>
         <AkField label="跳过这些任务">
-          <AkInput v-model="exclude" placeholder="Video, Audio" />
+          <AkInput v-model="exclude" placeholder="Video,Audio" />
         </AkField>
       </div>
       <AkField label="令牌" required class="relaunch__last">
