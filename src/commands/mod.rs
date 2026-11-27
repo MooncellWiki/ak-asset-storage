@@ -62,6 +62,9 @@ pub enum Commands {
         csv_path: PathBuf,
         #[arg(long, default_value = "5")]
         concurrent: usize,
+        /// Import only the listed versions without sending upgrade or download notifications
+        #[arg(long)]
+        backfill: bool,
     },
     ImportManifest {
         #[arg(short, long, default_value = "config.toml")]
@@ -136,9 +139,10 @@ pub async fn run(cli: Cli) -> Result<()> {
             config,
             csv_path,
             concurrent,
+            backfill,
         } => {
             let (settings, _sentry) = init(&config)?;
-            seed::execute(settings.as_ref(), &csv_path, concurrent)
+            seed::execute(settings.as_ref(), &csv_path, concurrent, backfill)
                 .await
                 .map_err(anyhow::Error::from)
         }

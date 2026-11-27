@@ -38,7 +38,8 @@ impl CursorPayload for ResourceCursor {
     }
 }
 
-/// Keyset position for `/bundle` pages, ordered `version DESC, path, id`.
+/// Keyset position for `/bundle` pages, newest resource version first,
+/// followed by path and bundle ID ascending.
 ///
 /// `filter` records the conditions that produced the cursor: the keyset
 /// bound is only meaningful for that exact filter, so replaying the cursor

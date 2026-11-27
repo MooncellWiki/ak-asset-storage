@@ -40,12 +40,12 @@ impl VersionCheckService {
 
     #[allow(clippy::cognitive_complexity)]
     pub async fn check_and_save(&self, remote: RemoteVersion) -> AppResult<bool> {
-        let exists = self
+        let existing = self
             .database
-            .is_client_and_res_exist(&remote.client_version, &remote.res_version)
+            .get_version_import_state(&remote.client_version, &remote.res_version)
             .await?;
 
-        if exists {
+        if existing.is_some() {
             info!("no change, skip");
             return Ok(false);
         }
@@ -66,23 +66,11 @@ impl VersionCheckService {
                 .await;
         }
 
-        let hot_update_list = self.ak_api.get_hot_update_list(&remote.res_version).await?;
-        HotUpdateList::new(&hot_update_list)?;
+        self.save_version(&remote).await?;
         let RemoteVersion {
             res_version,
             client_version,
         } = &remote;
-        let version = VersionRow {
-            id: None,
-            res: res_version.clone(),
-            client: client_version.clone(),
-            hot_update_list,
-            is_ready: false,
-            asset_mapping_status: AssetMappingStatus::Pending,
-        };
-
-        self.database.create_version(version).await?;
-        info!("new version created and ready for download");
 
         if let Some(kubernetes) = &self.kubernetes
             && let Some(prev) = &prev
@@ -107,5 +95,36 @@ impl VersionCheckService {
         }
 
         Ok(true)
+    }
+
+    /// Return the id to download, or skip a version whose bundles are already ready.
+    pub(crate) async fn prepare_backfill(&self, remote: &RemoteVersion) -> AppResult<Option<i32>> {
+        match self
+            .database
+            .get_version_import_state(&remote.client_version, &remote.res_version)
+            .await?
+        {
+            Some((_, true)) => Ok(None),
+            Some((id, false)) => Ok(Some(id)),
+            None => self.save_version(remote).await.map(Some),
+        }
+    }
+
+    async fn save_version(&self, remote: &RemoteVersion) -> AppResult<i32> {
+        let hot_update_list = self.ak_api.get_hot_update_list(&remote.res_version).await?;
+        HotUpdateList::new(&hot_update_list)?;
+        let id = self
+            .database
+            .create_version(VersionRow {
+                id: None,
+                res: remote.res_version.clone(),
+                client: remote.client_version.clone(),
+                hot_update_list,
+                is_ready: false,
+                asset_mapping_status: AssetMappingStatus::Pending,
+            })
+            .await?;
+        info!(id, "new version created and ready for download");
+        Ok(id)
     }
 }

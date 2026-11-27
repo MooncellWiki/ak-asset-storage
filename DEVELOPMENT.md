@@ -108,6 +108,22 @@ ak-asset-job-dev` 查看事件,先补建账号;无需扩大 launcher 的 RBAC �
 
 ## 常用命令
 
+### 补录历史资源版本
+
+准备无表头的 CSV，每行写 `res_version,client_version`。建议按资源版本时间从早到晚填写，以便下载时复用较早版本的 bundle。`[ak].asset_url` 要指向能提供这些版本的 `hot_update_list.json` 和 bundle 的 CDN 或归档。
+
+暂停同库的 worker，使用已应用迁移的数据库运行：
+
+```bash
+ak-asset-storage seed --config config.toml --csv-path history.csv --backfill
+```
+
+命令只下载 CSV 中尚未完成的版本。下载中断后，用同一份 CSV 重跑即可继续。确认补录完成后恢复 worker。版本列表按资源版本号的时间前缀排序，通过 ID 查询的链接继续有效。
+
+命令只归档原始 bundle。需要历史 gamedata 时，在单独的 Torappu 存储目录解包，避免改动线上 `gamedata/latest`。
+
+### 本地开发
+
 完成上面的一次性准备后，运行 `just dev` 即可在 tmux 两个窗格里启动
 server 和前端，默认不启动 worker；需要时可使用下方命令单独启动 worker。
 首次创建会话前会执行数据库迁移、前端构建和后端编译；

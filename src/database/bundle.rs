@@ -78,12 +78,9 @@ WHERE
     }
 
     /// One page of the bundle filter query, deterministically ordered by
-    /// `version DESC, path ASC, id ASC` (`id` breaks ties because the same
-    /// path can exist in one version under different files). `after` is the
-    /// exclusive keyset bound `(version_id, path, id)` from the last row of
-    /// the previous page (`None` starts from the beginning); callers fetch
-    /// `limit + 1` rows to probe for a next page. `bundles_version_path_id_idx`
-    /// serves the version filter, the order and the keyset comparison.
+    /// newest resource version, then by path and bundle ID ascending.
+    /// `after` identifies the previous page's last bundle by version ID,
+    /// path and bundle ID. The version ID resolves its time key at query time.
     pub async fn query_bundles_with_details_page(
         &self,
         query: &BundleFilter,
@@ -120,10 +117,12 @@ WHERE
     AND ($4::int IS NULL OR b.version = $4)
     AND (
         $5::int IS NULL
-        OR b.version < $5
-        OR (b.version = $5 AND (b.path > $6 OR (b.path = $6 AND b.id > $7)))
+        OR (
+            (v.res_time_key, v.id) <= (SELECT res_time_key, id FROM versions WHERE id = $5)
+            AND (v.id <> $5 OR (b.path, b.id) > ($6, $7))
+        )
     )
-ORDER BY b.version DESC, b.path ASC, b.id ASC
+ORDER BY v.res_time_key DESC, v.id DESC, b.path ASC, b.id ASC
 LIMIT $8
             "#,
             query.path,

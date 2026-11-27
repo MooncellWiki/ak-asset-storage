@@ -230,20 +230,24 @@ impl TestEnv {
         &self.runtime_dir
     }
 
-    pub async fn run_seed(&self) {
-        let status = build_binary_command()
+    pub fn seed_command(&self, csv_path: &StdPath) -> Command {
+        let mut command = build_binary_command();
+        command
             .arg("seed")
             .arg("-c")
             .arg(&self.config_path)
             .arg("--csv-path")
-            .arg(PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("e2e/fixtures/versions.csv"))
+            .arg(csv_path)
             .arg("--concurrent")
             .arg("1")
             .stdout(Stdio::inherit())
-            .stderr(Stdio::inherit())
-            .status()
-            .await
-            .unwrap();
+            .stderr(Stdio::inherit());
+        command
+    }
+
+    pub async fn run_seed(&self) {
+        let fixture = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("e2e/fixtures/versions.csv");
+        let status = self.seed_command(&fixture).status().await.unwrap();
         assert!(status.success(), "seed command failed: {status}");
     }
 

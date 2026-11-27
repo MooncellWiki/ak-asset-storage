@@ -15,7 +15,7 @@ async function fetchVersions() {
   try {
     const { data } = await client.GET("/api/v1/version");
     if (!data) throw new Error("version list unavailable");
-    versions.value = [...data].sort((a, b) => b.id - a.id);
+    versions.value = [...data].reverse();
     state.value = "ready";
   } catch {
     state.value = "error";
@@ -44,7 +44,7 @@ function byId(id: number | null | undefined): Version | undefined {
 /** The version released right before `version`. */
 function previous(version: Version | undefined): Version | undefined {
   if (!version) return undefined;
-  const i = versions.value.indexOf(version);
+  const i = versions.value.findIndex((v) => v.id === version.id);
   return i < 0 ? undefined : versions.value[i + 1];
 }
 

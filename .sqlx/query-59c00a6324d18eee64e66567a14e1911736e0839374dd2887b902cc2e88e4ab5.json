@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "SELECT id, hot_update_list FROM versions WHERE id < $1 AND is_ready = true ORDER BY id DESC LIMIT 1",
+  "query": "SELECT id, is_ready FROM versions WHERE client = $1 AND res = $2",
   "describe": {
     "columns": [
       {
@@ -16,19 +16,20 @@
       },
       {
         "ordinal": 1,
-        "name": "hot_update_list",
-        "type_info": "Text",
+        "name": "is_ready",
+        "type_info": "Bool",
         "origin": {
           "Table": {
             "table": "versions",
-            "name": "hot_update_list"
+            "name": "is_ready"
           }
         }
       }
     ],
     "parameters": {
       "Left": [
-        "Int4"
+        "Text",
+        "Text"
       ]
     },
     "nullable": [
@@ -36,5 +37,5 @@
       false
     ]
   },
-  "hash": "36512010712da84d741d60b9f5528265792a82315e19af96959d0870957f6517"
+  "hash": "59c00a6324d18eee64e66567a14e1911736e0839374dd2887b902cc2e88e4ab5"
 }
