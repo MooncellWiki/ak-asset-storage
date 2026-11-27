@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "SELECT id, res, client, is_ready, hot_update_list, asset_mapping_status AS \"asset_mapping_status!: AssetMappingStatus\" FROM versions WHERE is_ready = false ORDER BY id ASC LIMIT 1",
+  "query": "SELECT id, res, client, is_ready, hot_update_list, asset_mapping_status AS \"asset_mapping_status!: AssetMappingStatus\" FROM versions ORDER BY res_time_key DESC, id DESC LIMIT 1",
   "describe": {
     "columns": [
       {
@@ -93,5 +93,5 @@
       false
     ]
   },
-  "hash": "96ab4c11c575ca49b39b92510ea8baf54be63b4ae52b3f03c197806ecfd30710"
+  "hash": "f96ecf610e947890b61d35664eda78ff0bd0ce96a23c94db43bfe8c5e009bd31"
 }

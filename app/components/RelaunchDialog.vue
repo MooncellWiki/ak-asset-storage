@@ -68,9 +68,10 @@ const token = ref("");
 const submitting = ref(false);
 const error = ref("");
 
-const prevOptions = computed(() =>
-  versionOptions(versions.value.filter((v) => v.id < props.version.id)),
-);
+const prevOptions = computed(() => {
+  const current = versions.value.findIndex((v) => v.id === props.version.id);
+  return versionOptions(current < 0 ? [] : versions.value.slice(current + 1));
+});
 
 watch(open, (isOpen) => {
   if (!isOpen) return;

@@ -126,12 +126,14 @@ async fn reuses_unchanged_bundle_before_download_and_retries_missing_assets() {
         ("short.ab", b"short1"),
         ("new.ab", b"new only"),
     ];
-    let old_id = create_assets_version(&database, "old", old_assets).await;
-    let new_id = create_assets_version(&database, "new", new_assets).await;
+    let old_res = "19-10-11-12-13-14-000001";
+    let new_res = "20-10-11-12-13-14_000002";
+    let new_id = create_assets_version(&database, new_res, new_assets).await;
+    let old_id = create_assets_version(&database, old_res, old_assets).await;
 
     let cdn = env.runtime_dir().join("cdn");
-    let old_dir = cdn.join("old");
-    let new_dir = cdn.join("new");
+    let old_dir = cdn.join(old_res);
+    let new_dir = cdn.join(new_res);
     fs::create_dir_all(&old_dir).unwrap();
     fs::create_dir_all(&new_dir).unwrap();
     for &(name, bytes) in old_assets {

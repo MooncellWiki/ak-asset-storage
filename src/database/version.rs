@@ -87,7 +87,7 @@ impl Database {
 
     pub async fn get_latest_version(&self) -> AppResult<Option<VersionRow>> {
         let result = sqlx::query!(
-            "SELECT id, res, client, is_ready, hot_update_list, asset_mapping_status AS \"asset_mapping_status!: AssetMappingStatus\" FROM versions ORDER BY id DESC LIMIT 1"
+            "SELECT id, res, client, is_ready, hot_update_list, asset_mapping_status AS \"asset_mapping_status!: AssetMappingStatus\" FROM versions ORDER BY res_time_key DESC, id DESC LIMIT 1"
         )
         .fetch_optional(self.pool())
         .await
@@ -111,7 +111,7 @@ impl Database {
     /// like "resource does not exist".
     pub async fn get_latest_ready_version(&self) -> AppResult<Option<VersionRow>> {
         let result = sqlx::query!(
-            "SELECT id, res, client, is_ready, hot_update_list, asset_mapping_status AS \"asset_mapping_status!: AssetMappingStatus\" FROM versions WHERE asset_mapping_status = $1 ORDER BY id DESC LIMIT 1",
+            "SELECT id, res, client, is_ready, hot_update_list, asset_mapping_status AS \"asset_mapping_status!: AssetMappingStatus\" FROM versions WHERE asset_mapping_status = $1 ORDER BY res_time_key DESC, id DESC LIMIT 1",
             AssetMappingStatus::Ready as AssetMappingStatus
         )
         .fetch_optional(self.pool())
@@ -130,9 +130,13 @@ impl Database {
         }))
     }
 
-    pub async fn is_client_and_res_exist(&self, client: &str, res: &str) -> AppResult<bool> {
+    pub(crate) async fn get_version_import_state(
+        &self,
+        client: &str,
+        res: &str,
+    ) -> AppResult<Option<(i32, bool)>> {
         let result = sqlx::query!(
-            "SELECT id FROM versions WHERE client = $1 AND res = $2",
+            "SELECT id, is_ready FROM versions WHERE client = $1 AND res = $2",
             client,
             res
         )
@@ -140,12 +144,12 @@ impl Database {
         .await
         .map_err(|err| AppError::ExternalService(err.into()))?;
 
-        Ok(result.is_some())
+        Ok(result.map(|row| (row.id, row.is_ready)))
     }
 
     pub async fn get_oldest_unready_version(&self) -> AppResult<Option<VersionRow>> {
         let result = sqlx::query!(
-            "SELECT id, res, client, is_ready, hot_update_list, asset_mapping_status AS \"asset_mapping_status!: AssetMappingStatus\" FROM versions WHERE is_ready = false ORDER BY id ASC LIMIT 1"
+            "SELECT id, res, client, is_ready, hot_update_list, asset_mapping_status AS \"asset_mapping_status!: AssetMappingStatus\" FROM versions WHERE is_ready = false ORDER BY res_time_key, id LIMIT 1"
         )
         .fetch_optional(self.pool())
         .await
@@ -168,7 +172,9 @@ impl Database {
         version_id: i32,
     ) -> AppResult<Option<(i32, String)>> {
         let baseline = sqlx::query!(
-            "SELECT id, hot_update_list FROM versions WHERE id < $1 AND is_ready = true ORDER BY id DESC LIMIT 1",
+            "SELECT id, hot_update_list FROM versions
+             WHERE is_ready AND (res_time_key, id) < (SELECT res_time_key, id FROM versions WHERE id = $1)
+             ORDER BY res_time_key DESC, id DESC LIMIT 1",
             version_id
         )
         .fetch_optional(self.pool())
@@ -204,7 +210,7 @@ impl Database {
     pub async fn query_versions(&self) -> AppResult<Vec<VersionSummary>> {
         query_as!(
             VersionSummary,
-            r#"SELECT id, client as "client_version", res as "res_version", is_ready, asset_mapping_status::text AS "asset_mapping_status!" FROM versions ORDER BY id ASC"#
+            r#"SELECT id, client as "client_version", res as "res_version", is_ready, asset_mapping_status::text AS "asset_mapping_status!" FROM versions ORDER BY res_time_key, id"#
         )
         .fetch_all(self.pool())
         .await

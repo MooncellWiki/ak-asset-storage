@@ -1,0 +1,40 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT id, hot_update_list FROM versions\n             WHERE is_ready AND (res_time_key, id) < (SELECT res_time_key, id FROM versions WHERE id = $1)\n             ORDER BY res_time_key DESC, id DESC LIMIT 1",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Int4",
+        "origin": {
+          "Table": {
+            "table": "versions",
+            "name": "id"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "hot_update_list",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "versions",
+            "name": "hot_update_list"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int4"
+      ]
+    },
+    "nullable": [
+      false,
+      false
+    ]
+  },
+  "hash": "b020b2f3a01c61f25cb80e36c9a89babb1f4a0a8de002830257d5c044ca38958"
+}

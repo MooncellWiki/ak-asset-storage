@@ -764,8 +764,7 @@ impl AkAssetMcpServer {
             ));
         }
         // limit + 1 rows so `truncated` reflects whether more matches exist
-        // beyond the page, without ever loading them. Same query and order
-        // (version DESC, path ASC, id ASC) as the REST /bundle endpoint.
+        // beyond the page. Use the same query and order as REST /bundle.
         let bundles = self
             .state
             .database
